@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use vizir_core::{
-    ChartMark, Color, FontWeight, GeometryNode, MirChart, MirDiagram, MirGeometry, MirScale,
-    MirView, Origin, PathCommand, Point, Rect, ResolvedStyle, Scene2D, SceneNode, ShapeStyle,
-    TextAnchor, Transform2D, VizError, VizMir, VizResult, map_linear,
+    ChartMark, Color, FontWeight, MirChart, MirDiagram, MirGeometry, MirGeometryNode, MirScale,
+    MirShapeStyle, MirView, Origin, PathCommand, Point, Rect, ResolvedStyle, Scene2D, SceneNode,
+    ShapeStyle, TextAnchor, Transform2D, VizError, VizMir, VizResult, map_linear,
 };
 
 use crate::layout::{LayeredLayoutProvider, LayoutProvider};
@@ -39,22 +39,24 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
     children.extend(build_grid_and_axes(chart, plot)?);
     match &chart.mark {
         ChartMark::Symbol {
-            x_scale,
-            y_scale,
-            color_scale,
+            id: mark_id,
+            x,
+            y,
+            color,
             size,
-            items,
+            instances,
+            ..
         } => {
-            let x = linear_scale(chart, x_scale)?;
-            let y = linear_scale(chart, y_scale)?;
-            for item in items {
+            let x_scale = linear_scale(chart, &x.scale)?;
+            let y_scale = linear_scale(chart, &y.scale)?;
+            for item in instances {
                 let center = Point {
-                    x: map_linear(item.x, x.0, x.1),
-                    y: map_linear(item.y, y.0, y.1),
+                    x: map_linear(item.x, x_scale.0, x_scale.1),
+                    y: map_linear(item.y, y_scale.0, y_scale.1),
                 };
                 let color = resolve_color(
                     chart,
-                    color_scale.as_deref(),
+                    color.as_ref().map(|binding| binding.scale.as_str()),
                     item.color_category.as_deref(),
                 );
                 children.push(SceneNode::Circle {
@@ -67,11 +69,13 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                     },
                     origin: Origin {
                         hir_node: chart.id.clone(),
+                        mir_node: mark_id.clone(),
                         data_key: Some(item.key.clone()),
+                        data_lineage: vec![chart.source.clone()],
                         generated_by: "build-symbol-scene".to_owned(),
                         explanation: format!(
                             "datum {} mapped through scales {} and {}",
-                            item.key, x_scale, y_scale
+                            item.key, x.scale, y.scale
                         ),
                     },
                     center,
@@ -84,30 +88,35 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                     },
                 });
             }
-            children.extend(build_legend(chart, color_scale.as_deref()));
+            children.extend(build_legend(
+                chart,
+                color.as_ref().map(|binding| binding.scale.as_str()),
+            ));
         }
         ChartMark::Line {
-            x_scale,
-            y_scale,
-            color_scale,
+            id: mark_id,
+            x,
+            y,
+            color,
             line_width,
             show_points,
             series,
+            ..
         } => {
-            let x = linear_scale(chart, x_scale)?;
-            let y = linear_scale(chart, y_scale)?;
+            let x_scale = linear_scale(chart, &x.scale)?;
+            let y_scale = linear_scale(chart, &y.scale)?;
             for series in series {
                 let color = resolve_color(
                     chart,
-                    color_scale.as_deref(),
+                    color.as_ref().map(|binding| binding.scale.as_str()),
                     series.color_category.as_deref(),
                 );
                 let points = series
                     .points
                     .iter()
                     .map(|item| Point {
-                        x: map_linear(item.x, x.0, x.1),
-                        y: map_linear(item.y, y.0, y.1),
+                        x: map_linear(item.x, x_scale.0, x_scale.1),
+                        y: map_linear(item.y, y_scale.0, y_scale.1),
                     })
                     .collect::<Vec<_>>();
                 let mut commands = Vec::new();
@@ -123,11 +132,13 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                     bounds: bounds_for_points(&points),
                     origin: Origin {
                         hir_node: chart.id.clone(),
+                        mir_node: mark_id.clone(),
                         data_key: Some(series.key.clone()),
+                        data_lineage: vec![chart.source.clone()],
                         generated_by: "build-line-scene".to_owned(),
                         explanation: format!(
                             "series {} sorted by x and mapped through {} and {}",
-                            series.key, x_scale, y_scale
+                            series.key, x.scale, y.scale
                         ),
                     },
                     commands,
@@ -151,7 +162,9 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                             },
                             origin: Origin {
                                 hir_node: chart.id.clone(),
+                                mir_node: mark_id.clone(),
                                 data_key: Some(item.key.clone()),
+                                data_lineage: vec![chart.source.clone()],
                                 generated_by: "build-line-point-scene".to_owned(),
                                 explanation: format!(
                                     "line datum {} retained for stable identity",
@@ -170,20 +183,25 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                     }
                 }
             }
-            children.extend(build_legend(chart, color_scale.as_deref()));
+            children.extend(build_legend(
+                chart,
+                color.as_ref().map(|binding| binding.scale.as_str()),
+            ));
         }
         ChartMark::Bar {
-            category_scale,
-            value_scale,
-            color_scale,
-            items,
+            id: mark_id,
+            category,
+            value,
+            color,
+            instances,
+            ..
         } => {
-            let (categories, range, padding) = band_scale(chart, category_scale)?;
-            let value = linear_scale(chart, value_scale)?;
-            let baseline = map_linear(0.0, value.0, value.1);
+            let (categories, range, padding) = band_scale(chart, &category.scale)?;
+            let value_scale = linear_scale(chart, &value.scale)?;
+            let baseline = map_linear(0.0, value_scale.0, value_scale.1);
             let step = (range[1] - range[0]) / categories.len().max(1) as f64;
             let width = step * (1.0 - padding);
-            for item in items {
+            for item in instances {
                 let index = categories
                     .iter()
                     .position(|category| category == &item.category)
@@ -194,7 +212,7 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                         ))
                     })?;
                 let x = range[0] + step * index as f64 + (step - width) / 2.0;
-                let y = map_linear(item.value, value.0, value.1);
+                let y = map_linear(item.value, value_scale.0, value_scale.1);
                 let top = y.min(baseline);
                 let height = (baseline - y).abs();
                 children.push(SceneNode::Rect {
@@ -207,18 +225,20 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                     },
                     origin: Origin {
                         hir_node: chart.id.clone(),
+                        mir_node: mark_id.clone(),
                         data_key: Some(item.key.clone()),
+                        data_lineage: vec![chart.source.clone()],
                         generated_by: "build-bar-scene".to_owned(),
                         explanation: format!(
                             "bar {} mapped through {} and zero-preserving {}",
-                            item.key, category_scale, value_scale
+                            item.key, category.scale, value.scale
                         ),
                     },
                     radius: 5.0,
                     style: ResolvedStyle {
                         fill: resolve_color(
                             chart,
-                            color_scale.as_deref(),
+                            color.as_ref().map(|binding| binding.scale.as_str()),
                             item.color_category.as_deref(),
                         ),
                         stroke: Color::transparent(),
@@ -227,7 +247,10 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                     },
                 });
             }
-            children.extend(build_legend(chart, color_scale.as_deref()));
+            children.extend(build_legend(
+                chart,
+                color.as_ref().map(|binding| binding.scale.as_str()),
+            ));
         }
     }
 
@@ -240,7 +263,9 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
         bounds: frame_rect(chart.frame),
         origin: Origin {
             hir_node: chart.id.clone(),
+            mir_node: chart.id.clone(),
             data_key: None,
+            data_lineage: vec![chart.source.clone()],
             generated_by: "build-chart-scene".to_owned(),
             explanation: chart.provenance.join("; "),
         },
@@ -443,7 +468,9 @@ fn build_legend(chart: &MirChart, scale_id: Option<&str>) -> Vec<SceneNode> {
             },
             origin: Origin {
                 hir_node: chart.id.clone(),
+                mir_node: format!("{}/guides/color-legend", chart.id),
                 data_key: None,
+                data_lineage: vec![chart.source.clone()],
                 generated_by: "build-legend".to_owned(),
                 explanation: format!("legend swatch generated for category {label}"),
             },
@@ -560,7 +587,9 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
             bounds: Rect::from_points(start, end),
             origin: Origin {
                 hir_node: diagram.id.clone(),
+                mir_node: format!("{}/edges/{edge_index}", diagram.id),
                 data_key: Some(format!("{}->{}", edge.from, edge.to)),
+                data_lineage: Vec::new(),
                 generated_by: "route-diagram-edge".to_owned(),
                 explanation: format!(
                     "edge {} -> {} routed after {}",
@@ -618,7 +647,9 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
             bounds,
             origin: Origin {
                 hir_node: node.id.clone(),
+                mir_node: format!("{}/nodes/{}", diagram.id, node.id),
                 data_key: Some(node.id.clone()),
+                data_lineage: Vec::new(),
                 generated_by: "build-diagram-node".to_owned(),
                 explanation: format!("node placed by {}; stable id preserved", layout.explanation),
             },
@@ -652,7 +683,9 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
         bounds: frame_rect(diagram.frame),
         origin: Origin {
             hir_node: diagram.id.clone(),
+            mir_node: diagram.id.clone(),
             data_key: None,
+            data_lineage: Vec::new(),
             generated_by: "build-diagram-scene".to_owned(),
             explanation: format!("{}; {}", diagram.provenance.join("; "), layout.explanation),
         },
@@ -686,7 +719,9 @@ fn build_geometry(geometry: &MirGeometry) -> VizResult<SceneNode> {
         bounds: frame_rect(geometry.frame),
         origin: Origin {
             hir_node: geometry.id.clone(),
+            mir_node: geometry.id.clone(),
             data_key: None,
+            data_lineage: Vec::new(),
             generated_by: "build-geometry-scene".to_owned(),
             explanation: geometry.provenance.join("; "),
         },
@@ -702,9 +737,9 @@ fn build_geometry(geometry: &MirGeometry) -> VizResult<SceneNode> {
     })
 }
 
-fn lower_geometry_node(node: &GeometryNode, owner: &str) -> SceneNode {
+fn lower_geometry_node(node: &MirGeometryNode, owner: &str) -> SceneNode {
     match node {
-        GeometryNode::Group {
+        MirGeometryNode::Group {
             id,
             transform,
             opacity,
@@ -714,13 +749,13 @@ fn lower_geometry_node(node: &GeometryNode, owner: &str) -> SceneNode {
             bounds: geometry_group_bounds(children),
             origin: geometry_origin(owner, id, "lower-geometry-group"),
             transform: *transform,
-            opacity: opacity.unwrap_or(1.0),
+            opacity: *opacity,
             children: children
                 .iter()
                 .map(|child| lower_geometry_node(child, owner))
                 .collect(),
         },
-        GeometryNode::Rect {
+        MirGeometryNode::Rect {
             id,
             x,
             y,
@@ -738,9 +773,9 @@ fn lower_geometry_node(node: &GeometryNode, owner: &str) -> SceneNode {
             },
             origin: geometry_origin(owner, id, "lower-geometry-rect"),
             radius: *radius,
-            style: resolve_style(style, Color::transparent(), Color::transparent()),
+            style: resolve_mir_style(style),
         },
-        GeometryNode::Circle {
+        MirGeometryNode::Circle {
             id,
             cx,
             cy,
@@ -757,9 +792,9 @@ fn lower_geometry_node(node: &GeometryNode, owner: &str) -> SceneNode {
             origin: geometry_origin(owner, id, "lower-geometry-circle"),
             center: Point { x: *cx, y: *cy },
             radius: *radius,
-            style: resolve_style(style, Color::transparent(), Color::transparent()),
+            style: resolve_mir_style(style),
         },
-        GeometryNode::Line {
+        MirGeometryNode::Line {
             id,
             from,
             to,
@@ -770,10 +805,10 @@ fn lower_geometry_node(node: &GeometryNode, owner: &str) -> SceneNode {
             origin: geometry_origin(owner, id, "lower-geometry-line"),
             from: *from,
             to: *to,
-            style: resolve_style(style, Color::transparent(), Color::hex(INK)),
+            style: resolve_mir_style(style),
             marker_end: false,
         },
-        GeometryNode::Path {
+        MirGeometryNode::Path {
             id,
             commands,
             style,
@@ -782,10 +817,10 @@ fn lower_geometry_node(node: &GeometryNode, owner: &str) -> SceneNode {
             bounds: bounds_for_path(commands),
             origin: geometry_origin(owner, id, "lower-geometry-path"),
             commands: commands.clone(),
-            style: resolve_style(style, Color::transparent(), Color::hex(INK)),
+            style: resolve_mir_style(style),
             marker_end: false,
         },
-        GeometryNode::Text {
+        MirGeometryNode::Text {
             id,
             x,
             y,
@@ -800,7 +835,7 @@ fn lower_geometry_node(node: &GeometryNode, owner: &str) -> SceneNode {
             text.clone(),
             *font_size,
             *anchor,
-            color.clone().unwrap_or_else(|| Color::hex(INK)),
+            color.clone(),
             *weight,
             id,
             "typed geometry text lowered to native Scene2D text",
@@ -811,13 +846,15 @@ fn lower_geometry_node(node: &GeometryNode, owner: &str) -> SceneNode {
 fn geometry_origin(owner: &str, id: &str, pass: &str) -> Origin {
     Origin {
         hir_node: id.to_owned(),
+        mir_node: format!("{owner}/{id}"),
         data_key: None,
+        data_lineage: Vec::new(),
         generated_by: pass.to_owned(),
         explanation: format!("geometry node {id} lowered losslessly inside {owner}"),
     }
 }
 
-fn geometry_group_bounds(children: &[GeometryNode]) -> Rect {
+fn geometry_group_bounds(children: &[MirGeometryNode]) -> Rect {
     let points = children
         .iter()
         .flat_map(geometry_points)
@@ -825,10 +862,12 @@ fn geometry_group_bounds(children: &[GeometryNode]) -> Rect {
     bounds_for_points(&points)
 }
 
-fn geometry_points(node: &GeometryNode) -> Vec<Point> {
+fn geometry_points(node: &MirGeometryNode) -> Vec<Point> {
     match node {
-        GeometryNode::Group { children, .. } => children.iter().flat_map(geometry_points).collect(),
-        GeometryNode::Rect {
+        MirGeometryNode::Group { children, .. } => {
+            children.iter().flat_map(geometry_points).collect()
+        }
+        MirGeometryNode::Rect {
             x,
             y,
             width,
@@ -841,7 +880,7 @@ fn geometry_points(node: &GeometryNode) -> Vec<Point> {
                 y: y + height,
             },
         ],
-        GeometryNode::Circle { cx, cy, radius, .. } => vec![
+        MirGeometryNode::Circle { cx, cy, radius, .. } => vec![
             Point {
                 x: cx - radius,
                 y: cy - radius,
@@ -851,9 +890,9 @@ fn geometry_points(node: &GeometryNode) -> Vec<Point> {
                 y: cy + radius,
             },
         ],
-        GeometryNode::Line { from, to, .. } => vec![*from, *to],
-        GeometryNode::Path { commands, .. } => path_points(commands),
-        GeometryNode::Text {
+        MirGeometryNode::Line { from, to, .. } => vec![*from, *to],
+        MirGeometryNode::Path { commands, .. } => path_points(commands),
+        MirGeometryNode::Text {
             x, y, font_size, ..
         } => vec![
             Point {
@@ -872,6 +911,15 @@ fn resolve_style(style: &ShapeStyle, default_fill: Color, default_stroke: Color)
     ResolvedStyle {
         fill: style.fill.clone().unwrap_or(default_fill),
         stroke: style.stroke.clone().unwrap_or(default_stroke),
+        stroke_width: style.stroke_width,
+        opacity: style.opacity,
+    }
+}
+
+fn resolve_mir_style(style: &MirShapeStyle) -> ResolvedStyle {
+    ResolvedStyle {
+        fill: style.fill.clone(),
+        stroke: style.stroke.clone(),
         stroke_width: style.stroke_width,
         opacity: style.opacity,
     }
@@ -916,6 +964,7 @@ fn band_scale<'a>(chart: &'a MirChart, id: &str) -> VizResult<(&'a [String], [f6
                 domain,
                 range,
                 padding,
+                ..
             } if scale_id == id => Some((domain.as_slice(), *range, *padding)),
             _ => None,
         })
@@ -985,7 +1034,9 @@ fn text_node(
         },
         origin: Origin {
             hir_node: hir_node.to_owned(),
+            mir_node: hir_node.to_owned(),
             data_key: None,
+            data_lineage: Vec::new(),
             generated_by: "shape-native-text".to_owned(),
             explanation: explanation.to_owned(),
         },
@@ -1014,7 +1065,9 @@ fn line_node(
         bounds: Rect::from_points(from, to),
         origin: Origin {
             hir_node: hir_node.to_owned(),
+            mir_node: hir_node.to_owned(),
             data_key: None,
+            data_lineage: Vec::new(),
             generated_by: "build-guide-scene".to_owned(),
             explanation: explanation.to_owned(),
         },

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -52,7 +53,7 @@ pub struct Dataset {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "kind")]
+#[serde(tag = "kind", deny_unknown_fields)]
 pub enum View {
     #[serde(rename = "chart.scatter")]
     Scatter(ScatterChart),
@@ -88,7 +89,7 @@ impl View {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Frame {
     pub x: f64,
@@ -161,7 +162,7 @@ pub struct BarChart {
     pub color: Option<ColorEncoding>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum DiagramLayout {
     Layered,
@@ -182,7 +183,7 @@ pub struct DiagramGraph {
     pub edges: Vec<DiagramEdge>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct DiagramNode {
     pub id: String,
@@ -195,7 +196,7 @@ pub struct DiagramNode {
     pub style: ShapeStyle,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct DiagramEdge {
     pub from: String,
@@ -216,8 +217,8 @@ pub struct GeometryScene {
     pub children: Vec<GeometryNode>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "kebab-case")]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum GeometryNode {
     Group {
         id: String,
@@ -292,8 +293,8 @@ fn default_font_size() -> f64 {
     16.0
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "op", rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(tag = "op", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum PathCommand {
     Move {
         to: Point,
@@ -309,7 +310,7 @@ pub enum PathCommand {
     Close,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Transform2D {
     #[serde(default)]
@@ -334,14 +335,14 @@ fn default_scale() -> Point {
     Point { x: 1.0, y: 1.0 }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ShapeStyle {
     #[serde(default)]
@@ -373,7 +374,7 @@ fn default_opacity() -> f64 {
     1.0
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(transparent)]
 pub struct Color(pub String);
 
@@ -387,7 +388,7 @@ impl Color {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum TextAnchor {
     Start,
@@ -396,7 +397,7 @@ pub enum TextAnchor {
     End,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum FontWeight {
     #[default]

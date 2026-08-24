@@ -1,8 +1,9 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{Color, FontWeight, LossRecord, PathCommand, Point, TextAnchor, Transform2D};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct Scene2D {
     pub document_id: String,
     pub width: f64,
@@ -12,8 +13,8 @@ pub struct Scene2D {
     pub losses: Vec<LossRecord>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "kebab-case")]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum SceneNode {
     Group {
         id: String,
@@ -99,7 +100,7 @@ impl SceneNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Default)]
 pub struct Rect {
     pub x: f64,
     pub y: f64,
@@ -120,7 +121,7 @@ impl Rect {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ResolvedStyle {
     pub fill: Color,
     pub stroke: Color,
@@ -128,11 +129,14 @@ pub struct ResolvedStyle {
     pub opacity: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct Origin {
     pub hir_node: String,
+    pub mir_node: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub data_lineage: Vec<String>,
     pub generated_by: String,
     pub explanation: String,
 }

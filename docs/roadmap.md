@@ -10,8 +10,12 @@ every domain concept.
 - chart, diagram, and geometry HIR dialects;
 - unique IDs, stable data keys, field/reference/type validation;
 - explicit scales, marks, guides, and layout requests in MIR;
+- typed inline data nodes, pure expression ASTs, and explicit coordinate spaces;
+- generated VizMIR, ScenePatch, and Capability JSON Schemas with drift tests;
 - deterministic layered/manual layout service;
-- concrete Scene2D with bounds, origins, data keys, and pass provenance;
+- concrete Scene2D with bounds, HIR/MIR origins, data keys/lineage, and pass provenance;
+- revisioned Scene2D diff/apply with full-recompute equivalence tests;
+- machine-readable backend profiles and per-node capability decisions;
 - exact SVG target and alpha-verified transparent PNG;
 - target-level rasterization entry in an optional artifact manifest;
 - validate, normalize, lower, render, explain, and capabilities commands;
@@ -35,10 +39,10 @@ every domain concept.
 
 ## 0.4 — interactive web runtime
 
-- typed expression AST;
+- expression evaluation in the browser using the already-stable typed AST;
 - signals, point/interval selections, reducers, and named event spaces;
 - immutable MIR plus transactional runtime state;
-- incremental Scene2D patch protocol;
+- browser transport for the existing ScenePatch protocol plus typed data/state patches;
 - self-contained HTML runtime with SVG or Canvas target.
 
 ## 0.5 — timelines and document backends

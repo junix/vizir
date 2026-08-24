@@ -1,0 +1,28 @@
+version: "0.1"
+id: sales-regions
+width: 760
+height: 460
+background: transparent
+title: Regional revenue
+
+datasets:
+  sales:
+    key: region_id
+    rows:
+      - {region_id: north, region: North, revenue: 28, segment: established}
+      - {region_id: south, region: South, revenue: 55, segment: growth}
+      - {region_id: east, region: East, revenue: 43, segment: growth}
+      - {region_id: west, region: West, revenue: 34, segment: established}
+      - {region_id: central, region: Central, revenue: 47, segment: strategic}
+
+views:
+  - kind: chart.bar
+    id: revenue-bars
+    title: Revenue by region
+    frame: {x: 0, y: 0, width: 760, height: 460}
+    dataset: sales
+    category: {field: region, label: region}
+    value: {field: revenue, label: revenue}
+    color:
+      field: segment
+      palette: ["#3B6EF5", "#18A999", "#F2A541"]

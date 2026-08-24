@@ -1,0 +1,708 @@
+{
+  "$defs": {
+    "FontWeight": {
+      "enum": [
+        "regular",
+        "medium",
+        "bold"
+      ],
+      "type": "string"
+    },
+    "LossRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "fidelity": {
+          "$ref": "#/$defs/LoweringFidelity"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "fidelity",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "LoweringFidelity": {
+      "enum": [
+        "lossless",
+        "semantically-equivalent",
+        "visually-approximate",
+        "rasterized",
+        "dropped"
+      ],
+      "type": "string"
+    },
+    "Origin": {
+      "properties": {
+        "data_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data_lineage": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "generated_by": {
+          "type": "string"
+        },
+        "hir_node": {
+          "type": "string"
+        },
+        "mir_node": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "hir_node",
+        "mir_node",
+        "generated_by",
+        "explanation"
+      ],
+      "type": "object"
+    },
+    "PathCommand": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "move",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "line",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "control1": {
+              "$ref": "#/$defs/Point"
+            },
+            "control2": {
+              "$ref": "#/$defs/Point"
+            },
+            "op": {
+              "const": "cubic",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "control1",
+            "control2",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "close",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Point": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "Rect": {
+      "properties": {
+        "height": {
+          "format": "double",
+          "type": "number"
+        },
+        "width": {
+          "format": "double",
+          "type": "number"
+        },
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "ResolvedStyle": {
+      "properties": {
+        "fill": {
+          "type": "string"
+        },
+        "opacity": {
+          "format": "double",
+          "type": "number"
+        },
+        "stroke": {
+          "type": "string"
+        },
+        "stroke_width": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fill",
+        "stroke",
+        "stroke_width",
+        "opacity"
+      ],
+      "type": "object"
+    },
+    "SceneNode": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bounds": {
+              "$ref": "#/$defs/Rect"
+            },
+            "children": {
+              "items": {
+                "$ref": "#/$defs/SceneNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "opacity": {
+              "format": "double",
+              "type": "number"
+            },
+            "origin": {
+              "$ref": "#/$defs/Origin"
+            },
+            "transform": {
+              "$ref": "#/$defs/Transform2D"
+            },
+            "type": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "bounds",
+            "origin",
+            "transform",
+            "opacity",
+            "children"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bounds": {
+              "$ref": "#/$defs/Rect"
+            },
+            "id": {
+              "type": "string"
+            },
+            "origin": {
+              "$ref": "#/$defs/Origin"
+            },
+            "radius": {
+              "format": "double",
+              "type": "number"
+            },
+            "style": {
+              "$ref": "#/$defs/ResolvedStyle"
+            },
+            "type": {
+              "const": "rect",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "bounds",
+            "origin",
+            "radius",
+            "style"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bounds": {
+              "$ref": "#/$defs/Rect"
+            },
+            "center": {
+              "$ref": "#/$defs/Point"
+            },
+            "id": {
+              "type": "string"
+            },
+            "origin": {
+              "$ref": "#/$defs/Origin"
+            },
+            "radius": {
+              "format": "double",
+              "type": "number"
+            },
+            "style": {
+              "$ref": "#/$defs/ResolvedStyle"
+            },
+            "type": {
+              "const": "circle",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "bounds",
+            "origin",
+            "center",
+            "radius",
+            "style"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bounds": {
+              "$ref": "#/$defs/Rect"
+            },
+            "from": {
+              "$ref": "#/$defs/Point"
+            },
+            "id": {
+              "type": "string"
+            },
+            "marker_end": {
+              "type": "boolean"
+            },
+            "origin": {
+              "$ref": "#/$defs/Origin"
+            },
+            "style": {
+              "$ref": "#/$defs/ResolvedStyle"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            },
+            "type": {
+              "const": "line",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "bounds",
+            "origin",
+            "from",
+            "to",
+            "style",
+            "marker_end"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bounds": {
+              "$ref": "#/$defs/Rect"
+            },
+            "commands": {
+              "items": {
+                "$ref": "#/$defs/PathCommand"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "marker_end": {
+              "type": "boolean"
+            },
+            "origin": {
+              "$ref": "#/$defs/Origin"
+            },
+            "style": {
+              "$ref": "#/$defs/ResolvedStyle"
+            },
+            "type": {
+              "const": "path",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "bounds",
+            "origin",
+            "commands",
+            "style",
+            "marker_end"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "anchor": {
+              "$ref": "#/$defs/TextAnchor"
+            },
+            "bounds": {
+              "$ref": "#/$defs/Rect"
+            },
+            "color": {
+              "type": "string"
+            },
+            "font_size": {
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "origin": {
+              "$ref": "#/$defs/Origin"
+            },
+            "position": {
+              "$ref": "#/$defs/Point"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "const": "text",
+              "type": "string"
+            },
+            "weight": {
+              "$ref": "#/$defs/FontWeight"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "bounds",
+            "origin",
+            "position",
+            "text",
+            "font_size",
+            "anchor",
+            "color",
+            "weight"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SceneOp": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "background": {
+              "type": "string"
+            },
+            "height": {
+              "format": "double",
+              "type": "number"
+            },
+            "losses": {
+              "items": {
+                "$ref": "#/$defs/LossRecord"
+              },
+              "type": "array"
+            },
+            "op": {
+              "const": "set-scene-properties",
+              "type": "string"
+            },
+            "width": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "op",
+            "width",
+            "height",
+            "background",
+            "losses"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "index": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "node": {
+              "$ref": "#/$defs/SceneNode"
+            },
+            "op": {
+              "const": "insert-node",
+              "type": "string"
+            },
+            "parent": {
+              "$ref": "#/$defs/SceneParent"
+            }
+          },
+          "required": [
+            "op",
+            "parent",
+            "index",
+            "node"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "op": {
+              "const": "remove-node",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "node": {
+              "$ref": "#/$defs/SceneNode"
+            },
+            "op": {
+              "const": "replace-node",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id",
+            "node"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "reorder-children",
+              "type": "string"
+            },
+            "order": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "parent": {
+              "$ref": "#/$defs/SceneParent"
+            }
+          },
+          "required": [
+            "op",
+            "parent",
+            "order"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SceneParent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "root",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "node",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TextAnchor": {
+      "enum": [
+        "start",
+        "middle",
+        "end"
+      ],
+      "type": "string"
+    },
+    "Transform2D": {
+      "additionalProperties": false,
+      "properties": {
+        "rotate_degrees": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/Point",
+          "default": {
+            "x": 1.0,
+            "y": 1.0
+          }
+        },
+        "translate": {
+          "$ref": "#/$defs/Point",
+          "default": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "base_revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "document_id": {
+      "type": "string"
+    },
+    "operations": {
+      "items": {
+        "$ref": "#/$defs/SceneOp"
+      },
+      "type": "array"
+    },
+    "protocol_version": {
+      "default": "0.1",
+      "type": "string"
+    },
+    "target_revision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "transaction_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "document_id",
+    "transaction_id",
+    "base_revision",
+    "target_revision",
+    "operations"
+  ],
+  "title": "ScenePatch",
+  "type": "object"
+}

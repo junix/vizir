@@ -1,0 +1,75 @@
+{
+  "$defs": {
+    "CapabilityStatus": {
+      "enum": [
+        "exact",
+        "equivalent",
+        "approximate",
+        "rasterized",
+        "dropped",
+        "error"
+      ],
+      "type": "string"
+    },
+    "UnsupportedPolicy": {
+      "enum": [
+        "error",
+        "report"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "accepted_ir": {
+      "type": "string"
+    },
+    "backend": {
+      "type": "string"
+    },
+    "limits": {
+      "additionalProperties": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "object"
+    },
+    "lowering": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CapabilityStatus"
+      },
+      "type": "object"
+    },
+    "supports": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "unsupported": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "unsupported_policy": {
+      "$ref": "#/$defs/UnsupportedPolicy"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "backend",
+    "version",
+    "accepted_ir",
+    "supports",
+    "unsupported_policy"
+  ],
+  "title": "BackendCapabilities",
+  "type": "object"
+}

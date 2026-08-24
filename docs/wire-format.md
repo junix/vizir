@@ -23,5 +23,9 @@ Colors are portable sRGB hex values (`#RRGGBB` or `#RRGGBBAA`) plus
 one-to-one to the SVG viewport.
 
 See `examples/` for complete executable documents. `vizir normalize` is the
-canonical way to inspect expanded scales, marks, guides, layout requests, and
-loss records.
+canonical way to inspect typed data sources, expression ASTs, coordinate spaces,
+expanded scales, marks, guides, layout requests, and loss records.
+
+VizMIR, ScenePatch, and Capability are strict generated JSON contracts. Unknown
+fields are rejected by their Rust model, and their JSON Schemas are checked in
+under `schemas/`. YAML remains an authoring convenience for VizHIR only.

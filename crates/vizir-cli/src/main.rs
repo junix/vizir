@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -6,8 +7,9 @@ use clap::{Parser, Subcommand, ValueEnum};
 use tempfile::Builder;
 use vizir_compiler::compile;
 use vizir_core::{
-    Color, LossRecord, LoweringFidelity, VizError, VizResult, find_scene_node, parse_document,
-    validate_document,
+    BackendCapabilities, Color, LossRecord, LoweringFidelity, UnsupportedPolicy, VizError,
+    VizResult, capability_schema, find_scene_node, mir_schema, negotiate_scene, parse_document,
+    scene_patch_schema, validate_document,
 };
 
 #[derive(Debug, Parser)]
@@ -54,6 +56,13 @@ enum Commands {
     },
     /// Report a backend's supported capability surface.
     Capabilities { backend: Backend },
+    /// Emit a canonical JSON Schema for a persisted IR contract.
+    Schema {
+        #[arg(value_enum)]
+        ir: IrKind,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -66,6 +75,13 @@ enum OutputFormat {
 enum Backend {
     Svg,
     Png,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum IrKind {
+    Mir,
+    ScenePatch,
+    Capability,
 }
 
 fn main() {
@@ -111,7 +127,13 @@ fn run(cli: Cli) -> VizResult<()> {
                 validate_cli_color(&background)?;
                 compilation.scene.background = Color(background);
             }
-            let svg = vizir_backend_svg::render(&compilation.scene);
+            let capabilities = match format {
+                OutputFormat::Svg => vizir_backend_svg::capabilities(),
+                OutputFormat::Png => png_capabilities(),
+            };
+            let capability_report = negotiate_scene(&compilation.scene, &capabilities)?;
+            capability_report.require_accepted()?;
+            let svg = vizir_backend_svg::render(&compilation.scene)?;
             ensure_parent(&output)?;
             let mut target_losses = Vec::new();
             match format {
@@ -141,6 +163,7 @@ fn run(cli: Cli) -> VizResult<()> {
                     "rasterizer": matches!(format, OutputFormat::Png)
                         .then(available_rasterizer)
                         .flatten(),
+                    "capability_report": capability_report,
                     "losses": target_losses,
                 });
                 emit_json(&report, Some(&manifest))?;
@@ -165,42 +188,85 @@ fn run(cli: Cli) -> VizResult<()> {
             let origin = found.origin();
             println!("node: {}", found.id());
             println!("hir-node: {}", origin.hir_node);
+            println!("mir-node: {}", origin.mir_node);
             if let Some(key) = &origin.data_key {
                 println!("data-key: {key}");
+            }
+            if !origin.data_lineage.is_empty() {
+                println!("data-lineage: {}", origin.data_lineage.join(", "));
             }
             println!("generated-by: {}", origin.generated_by);
             println!("reason: {}", origin.explanation);
         }
         Commands::Capabilities { backend } => {
             let report = match backend {
-                Backend::Svg => serde_json::json!({
-                    "backend": "svg",
-                    "accepted_ir": "scene2d",
-                    "vector_path": true,
-                    "native_text": true,
-                    "transparent_background": true,
-                    "interaction": false,
-                    "animation": false,
-                    "scene3d": false,
-                    "unsupported_policy": "error"
-                }),
-                Backend::Png => serde_json::json!({
-                    "backend": "png",
-                    "accepted_ir": "scene2d-through-svg",
-                    "vector_path": false,
-                    "native_text": false,
-                    "transparent_background": true,
-                    "interaction": false,
-                    "animation": false,
-                    "scene3d": false,
-                    "fidelity": "rasterized-artifact",
-                    "rasterizer": available_rasterizer()
-                }),
+                Backend::Svg => vizir_backend_svg::capabilities(),
+                Backend::Png => png_capabilities(),
             };
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
+        Commands::Schema { ir, output } => {
+            let schema = match ir {
+                IrKind::Mir => mir_schema(),
+                IrKind::ScenePatch => scene_patch_schema(),
+                IrKind::Capability => capability_schema(),
+            };
+            emit_json(&schema, output.as_deref())?;
+        }
     }
     Ok(())
+}
+
+fn png_capabilities() -> BackendCapabilities {
+    let svg = vizir_backend_svg::capabilities();
+    BackendCapabilities {
+        backend: "png".to_owned(),
+        version: "1".to_owned(),
+        accepted_ir: "scene2d-through-svg".to_owned(),
+        supports: svg.supports,
+        unsupported: BTreeSet::from([
+            "animation.timeline".to_owned(),
+            "interaction.pointer".to_owned(),
+            "scene.3d.mesh".to_owned(),
+            "target.vector".to_owned(),
+        ]),
+        limits: BTreeMap::new(),
+        lowering: BTreeMap::from([
+            (
+                "scene.2d".to_owned(),
+                vizir_core::CapabilityStatus::Rasterized,
+            ),
+            (
+                "scene.2d.circle".to_owned(),
+                vizir_core::CapabilityStatus::Rasterized,
+            ),
+            (
+                "scene.2d.group".to_owned(),
+                vizir_core::CapabilityStatus::Rasterized,
+            ),
+            (
+                "scene.2d.line".to_owned(),
+                vizir_core::CapabilityStatus::Rasterized,
+            ),
+            (
+                "scene.2d.path".to_owned(),
+                vizir_core::CapabilityStatus::Rasterized,
+            ),
+            (
+                "scene.2d.rect".to_owned(),
+                vizir_core::CapabilityStatus::Rasterized,
+            ),
+            (
+                "scene.2d.text".to_owned(),
+                vizir_core::CapabilityStatus::Rasterized,
+            ),
+            (
+                "scene.2d.transform".to_owned(),
+                vizir_core::CapabilityStatus::Rasterized,
+            ),
+        ]),
+        unsupported_policy: UnsupportedPolicy::Error,
+    }
 }
 
 fn emit_json<T: serde::Serialize>(value: &T, output: Option<&Path>) -> VizResult<()> {

@@ -1,12 +1,13 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs;
 use std::path::Path;
 
 use serde_json::Value;
 
 use crate::{
-    Color, Diagnostic, DiagramLayout, Document, GeometryNode, PathCommand, Point, ShapeStyle, View,
-    VizError, VizResult,
+    ChartMark, Color, Diagnostic, DiagramLayout, Document, GeometryNode, MirChart, MirScale,
+    MirView, PathCommand, Point, ShapeStyle, TypeEnvironment, ValueType, View, VizError, VizMir,
+    VizResult, type_expression,
 };
 
 pub fn parse_document(path: impl AsRef<Path>) -> VizResult<Document> {
@@ -45,6 +46,37 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
     validate_positive(document.width, "width", &mut diagnostics);
     validate_positive(document.height, "height", &mut diagnostics);
     validate_color(&document.background, "background", &mut diagnostics);
+
+    for (name, dataset) in &document.datasets {
+        validate_id(name, &format!("datasets.{name}"), &mut diagnostics);
+        let mut keys = BTreeSet::new();
+        for (row_index, row) in dataset.rows.iter().enumerate() {
+            let row_source = format!("datasets.{name}.rows[{row_index}]");
+            match row.get(&dataset.key).and_then(value_as_key) {
+                Some(key) if keys.insert(key.clone()) => {}
+                Some(key) => diagnostics.push(
+                    Diagnostic::new("VIZ-VALIDATE-0102", format!("duplicate data key {key:?}"))
+                        .at(format!("{row_source}.{}", dataset.key)),
+                ),
+                None => diagnostics.push(
+                    Diagnostic::new(
+                        "VIZ-VALIDATE-0103",
+                        format!("missing or invalid stable key field {:?}", dataset.key),
+                    )
+                    .at(row_source),
+                ),
+            }
+        }
+        if dataset.rows.is_empty() {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-VALIDATE-0106",
+                    "inline dataset without an explicit schema cannot be empty",
+                )
+                .at(format!("datasets.{name}.rows")),
+            );
+        }
+    }
 
     let mut view_ids = HashSet::new();
     for (index, view) in document.views.iter().enumerate() {
@@ -218,6 +250,284 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
     }
 }
 
+pub fn validate_mir(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    if mir.version != "0.1" {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-MIR-0001",
+                format!("unsupported VizMIR version {:?}", mir.version),
+            )
+            .at("version"),
+        );
+    }
+
+    for (id, space) in &mir.spaces {
+        if id != &space.id {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-MIR-0002",
+                    format!(
+                        "coordinate-space map key {id:?} does not match id {:?}",
+                        space.id
+                    ),
+                )
+                .at(format!("spaces.{id}")),
+            );
+        }
+        if let Some(parent) = &space.parent
+            && !mir.spaces.contains_key(parent)
+        {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-RESOLVE-0001",
+                    format!("unknown parent coordinate space {parent:?}"),
+                )
+                .at(format!("spaces.{id}.parent")),
+            );
+        }
+    }
+
+    for (id, data) in &mir.data {
+        if id != &data.id {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-MIR-0003",
+                    format!("data map key {id:?} does not match id {:?}", data.id),
+                )
+                .at(format!("data.{id}")),
+            );
+        }
+        if !data.schema.fields.contains_key(&data.schema.key) {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-RESOLVE-0002",
+                    format!(
+                        "data key field {:?} is absent from the schema",
+                        data.schema.key
+                    ),
+                )
+                .at(format!("data.{id}.schema.key")),
+            );
+        }
+    }
+
+    let mut view_ids = BTreeSet::new();
+    for (index, view) in mir.views.iter().enumerate() {
+        let source = format!("views[{index}]");
+        if !view_ids.insert(view.id()) {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-MIR-0004",
+                    format!("duplicate MIR view id {:?}", view.id()),
+                )
+                .at(format!("{source}.id")),
+            );
+        }
+        if !mir.spaces.contains_key(view.space()) {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-RESOLVE-0003",
+                    format!("unknown view coordinate space {:?}", view.space()),
+                )
+                .at(format!("{source}.space")),
+            );
+        }
+        if let MirView::Chart(chart) = view {
+            validate_mir_chart(mir, chart, &source, &mut diagnostics);
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn validate_mir_chart(
+    mir: &VizMir,
+    chart: &MirChart,
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(data) = mir.data.get(&chart.source) else {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-RESOLVE-0004",
+                format!("unknown chart data source {:?}", chart.source),
+            )
+            .at(format!("{source}.source")),
+        );
+        return;
+    };
+    let environment = TypeEnvironment {
+        rows: BTreeMap::from([(chart.row_variable.clone(), data.schema.fields.clone())]),
+        ..TypeEnvironment::default()
+    };
+    validate_expression_reference(
+        mir,
+        &chart.key_expression,
+        &environment,
+        &format!("{source}.key_expression"),
+        diagnostics,
+    );
+
+    let scale_ids = chart
+        .scales
+        .iter()
+        .map(|scale| scale.id())
+        .collect::<BTreeSet<_>>();
+    if scale_ids.len() != chart.scales.len() {
+        diagnostics.push(
+            Diagnostic::new("VIZ-MIR-0005", "chart scale IDs must be unique")
+                .at(format!("{source}.scales")),
+        );
+    }
+    for (index, scale) in chart.scales.iter().enumerate() {
+        if let Some(space) = scale.range_space()
+            && !mir.spaces.contains_key(space)
+        {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-RESOLVE-0005",
+                    format!("scale references unknown range space {space:?}"),
+                )
+                .at(format!("{source}.scales[{index}].range_space")),
+            );
+        }
+    }
+    let guide_ids = chart
+        .guides
+        .iter()
+        .map(|guide| guide.id.as_str())
+        .collect::<BTreeSet<_>>();
+    if guide_ids.len() != chart.guides.len() {
+        diagnostics.push(
+            Diagnostic::new("VIZ-MIR-0006", "chart guide IDs must be unique")
+                .at(format!("{source}.guides")),
+        );
+    }
+    for (index, guide) in chart.guides.iter().enumerate() {
+        if !scale_ids.contains(guide.scale.as_str()) {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-RESOLVE-0006",
+                    format!("guide references unknown scale {:?}", guide.scale),
+                )
+                .at(format!("{source}.guides[{index}].scale")),
+            );
+        }
+    }
+    for (index, binding) in chart.mark.bindings().iter().enumerate() {
+        if !scale_ids.contains(binding.scale.as_str()) {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-RESOLVE-0007",
+                    format!("mark binding references unknown scale {:?}", binding.scale),
+                )
+                .at(format!("{source}.mark.bindings[{index}].scale")),
+            );
+        }
+        validate_expression_reference(
+            mir,
+            &binding.expression,
+            &environment,
+            &format!("{source}.mark.bindings[{index}].expression"),
+            diagnostics,
+        );
+        if let (Some(scale), Some(expression)) = (
+            chart
+                .scales
+                .iter()
+                .find(|scale| scale.id() == binding.scale),
+            mir.expressions.get(&binding.expression),
+        ) {
+            let compatible = match scale {
+                MirScale::Linear { .. } => matches!(
+                    expression.result_type,
+                    ValueType::Int64 | ValueType::Float64
+                ),
+                MirScale::Band { .. } | MirScale::OrdinalColor { .. } => matches!(
+                    expression.result_type,
+                    ValueType::Bool | ValueType::Int64 | ValueType::Float64 | ValueType::String
+                ),
+            };
+            if !compatible {
+                diagnostics.push(
+                    Diagnostic::new(
+                        "VIZ-TYPE-0202",
+                        format!(
+                            "expression {:?} of type {:?} is incompatible with scale {:?}",
+                            binding.expression, expression.result_type, binding.scale
+                        ),
+                    )
+                    .at(format!("{source}.mark.bindings[{index}]")),
+                );
+            }
+        }
+    }
+    if let ChartMark::Line {
+        group_expression,
+        order_expression,
+        ..
+    } = &chart.mark
+    {
+        if let Some(expression) = group_expression {
+            validate_expression_reference(
+                mir,
+                expression,
+                &environment,
+                &format!("{source}.mark.group_expression"),
+                diagnostics,
+            );
+        }
+        validate_expression_reference(
+            mir,
+            order_expression,
+            &environment,
+            &format!("{source}.mark.order_expression"),
+            diagnostics,
+        );
+    }
+}
+
+fn validate_expression_reference(
+    mir: &VizMir,
+    id: &str,
+    environment: &TypeEnvironment,
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(expression) = mir.expressions.get(id) else {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-RESOLVE-0008",
+                format!("unknown typed expression {id:?}"),
+            )
+            .at(source),
+        );
+        return;
+    };
+    match type_expression(expression.expression.clone(), environment) {
+        Ok(checked) if checked.result_type == expression.result_type => {}
+        Ok(checked) => diagnostics.push(
+            Diagnostic::new(
+                "VIZ-TYPE-0201",
+                format!(
+                    "expression {id:?} declares {:?} but checks as {:?}",
+                    expression.result_type, checked.result_type
+                ),
+            )
+            .at(source),
+        ),
+        Err(mut diagnostic) => {
+            diagnostic.source = Some(source.to_owned());
+            diagnostics.push(diagnostic);
+        }
+    }
+}
+
 fn validate_chart_fields(
     document: &Document,
     dataset_name: &str,
@@ -237,24 +547,8 @@ fn validate_chart_fields(
         return;
     };
 
-    let mut keys = BTreeSet::new();
     for (row_index, row) in dataset.rows.iter().enumerate() {
         let row_source = format!("datasets.{dataset_name}.rows[{row_index}]");
-        match row.get(&dataset.key).and_then(value_as_key) {
-            Some(key) if keys.insert(key.clone()) => {}
-            Some(key) => diagnostics.push(
-                Diagnostic::new("VIZ-VALIDATE-0102", format!("duplicate data key {key:?}"))
-                    .at(format!("{row_source}.{}", dataset.key)),
-            ),
-            None => diagnostics.push(
-                Diagnostic::new(
-                    "VIZ-VALIDATE-0103",
-                    format!("missing or invalid stable key field {:?}", dataset.key),
-                )
-                .at(row_source.clone()),
-            ),
-        }
-
         for field in numeric_fields {
             match row.get(*field).and_then(Value::as_f64) {
                 Some(value) if value.is_finite() => {}
@@ -278,13 +572,6 @@ fn validate_chart_fields(
                 );
             }
         }
-    }
-
-    if dataset.rows.is_empty() {
-        diagnostics.push(
-            Diagnostic::new("VIZ-VALIDATE-0106", "chart dataset is empty")
-                .at(format!("datasets.{dataset_name}.rows")),
-        );
     }
 }
 

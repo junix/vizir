@@ -1,35 +1,41 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 
 use vizir_core::{
-    FontWeight, PathCommand, ResolvedStyle, Scene2D, SceneNode, TextAnchor, Transform2D,
+    BackendCapabilities, FontWeight, PathCommand, ResolvedStyle, Scene2D, SceneNode, TextAnchor,
+    Transform2D, UnsupportedPolicy, VizResult, negotiate_scene,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SvgCapabilities {
-    pub vector_path: bool,
-    pub native_text: bool,
-    pub gradients: bool,
-    pub interaction: bool,
-    pub animation: bool,
-    pub scene3d: bool,
-    pub transparent_background: bool,
-}
-
-impl Default for SvgCapabilities {
-    fn default() -> Self {
-        Self {
-            vector_path: true,
-            native_text: true,
-            gradients: false,
-            interaction: false,
-            animation: false,
-            scene3d: false,
-            transparent_background: true,
-        }
+pub fn capabilities() -> BackendCapabilities {
+    BackendCapabilities {
+        backend: "svg".to_owned(),
+        version: "1".to_owned(),
+        accepted_ir: "scene2d".to_owned(),
+        supports: BTreeSet::from([
+            "paint.alpha".to_owned(),
+            "paint.marker-end".to_owned(),
+            "scene.2d".to_owned(),
+            "scene.2d.circle".to_owned(),
+            "scene.2d.group".to_owned(),
+            "scene.2d.line".to_owned(),
+            "scene.2d.path".to_owned(),
+            "scene.2d.rect".to_owned(),
+            "scene.2d.text".to_owned(),
+            "scene.2d.transform".to_owned(),
+        ]),
+        unsupported: BTreeSet::from([
+            "animation.timeline".to_owned(),
+            "interaction.pointer".to_owned(),
+            "scene.3d.mesh".to_owned(),
+        ]),
+        limits: BTreeMap::from([("max-clip-depth".to_owned(), 32)]),
+        lowering: BTreeMap::new(),
+        unsupported_policy: UnsupportedPolicy::Error,
     }
 }
 
-pub fn render(scene: &Scene2D) -> String {
+pub fn render(scene: &Scene2D) -> VizResult<String> {
+    negotiate_scene(scene, &capabilities())?.require_accepted()?;
     let mut output = String::new();
     writeln!(
         output,
@@ -61,7 +67,7 @@ pub fn render(scene: &Scene2D) -> String {
         render_node(&mut output, node, 1);
     }
     output.push_str("</svg>\n");
-    output
+    Ok(output)
 }
 
 fn render_node(output: &mut String, node: &SceneNode, depth: usize) {
@@ -231,11 +237,21 @@ fn origin_attrs(origin: &vizir_core::Origin) -> String {
         .as_ref()
         .map(|value| format!(" data-key=\"{}\"", escape_attr(value)))
         .unwrap_or_default();
+    let data_lineage = if origin.data_lineage.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " data-lineage=\"{}\"",
+            escape_attr(&origin.data_lineage.join(","))
+        )
+    };
     format!(
-        " data-hir-node=\"{}\" data-generated-by=\"{}\"{}",
+        " data-hir-node=\"{}\" data-mir-node=\"{}\" data-generated-by=\"{}\"{}{}",
         escape_attr(&origin.hir_node),
+        escape_attr(&origin.mir_node),
         escape_attr(&origin.generated_by),
-        data_key
+        data_key,
+        data_lineage
     )
 }
 
@@ -346,7 +362,9 @@ mod tests {
                 bounds: Rect::default(),
                 origin: Origin {
                     hir_node: "label".to_owned(),
+                    mir_node: "label".to_owned(),
                     data_key: None,
+                    data_lineage: Vec::new(),
                     generated_by: "test".to_owned(),
                     explanation: "test".to_owned(),
                 },
@@ -359,7 +377,7 @@ mod tests {
             }],
             losses: Vec::new(),
         };
-        let svg = render(&scene);
+        let svg = render(&scene).unwrap();
         assert!(svg.contains("a &amp; b"));
         assert!(svg.contains("x &lt; y"));
         assert!(!svg.contains("width=\"100%\""));
