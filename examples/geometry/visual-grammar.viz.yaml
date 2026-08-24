@@ -1,0 +1,162 @@
+version: "0.1"
+id: visual-grammar-map
+width: 1000
+height: 760
+background: transparent
+
+views:
+  - kind: geometry.scene
+    id: grammar-map
+    title: A visual grammar is more than a bag of shapes
+    frame: {x: 0, y: 0, width: 1000, height: 760}
+    children:
+      - type: circle
+        id: center
+        cx: 500
+        cy: 370
+        radius: 95
+        style: {fill: "#1F3B78", stroke: "#8CA7E8", stroke_width: 3, opacity: 1}
+      - type: text
+        id: center-title
+        x: 500
+        y: 362
+        text: VizMIR
+        font_size: 27
+        anchor: middle
+        weight: bold
+        color: "#FFFFFF"
+      - type: text
+        id: center-subtitle
+        x: 500
+        y: 395
+        text: normalized model
+        font_size: 14
+        anchor: middle
+        color: "#DDE7FF"
+
+      - type: circle
+        id: data
+        cx: 500
+        cy: 135
+        radius: 66
+        style: {fill: "#E5F7F3", stroke: "#58B8A6", stroke_width: 2, opacity: 1}
+      - type: text
+        id: data-label
+        x: 500
+        y: 141
+        text: dataflow
+        font_size: 18
+        anchor: middle
+        weight: bold
+        color: "#137768"
+
+      - type: circle
+        id: scales
+        cx: 735
+        cy: 245
+        radius: 66
+        style: {fill: "#EAF0FF", stroke: "#7E9BE8", stroke_width: 2, opacity: 1}
+      - type: text
+        id: scales-label
+        x: 735
+        y: 251
+        text: scales
+        font_size: 18
+        anchor: middle
+        weight: bold
+        color: "#2446A8"
+
+      - type: circle
+        id: interaction
+        cx: 735
+        cy: 505
+        radius: 66
+        style: {fill: "#F0EBFF", stroke: "#AA8FE8", stroke_width: 2, opacity: 1}
+      - type: text
+        id: interaction-label
+        x: 735
+        y: 511
+        text: signals
+        font_size: 18
+        anchor: middle
+        weight: bold
+        color: "#6540B5"
+
+      - type: circle
+        id: layout
+        cx: 500
+        cy: 615
+        radius: 66
+        style: {fill: "#FFF1E5", stroke: "#E0A566", stroke_width: 2, opacity: 1}
+      - type: text
+        id: layout-label
+        x: 500
+        y: 621
+        text: layout
+        font_size: 18
+        anchor: middle
+        weight: bold
+        color: "#A65D18"
+
+      - type: circle
+        id: marks
+        cx: 265
+        cy: 505
+        radius: 66
+        style: {fill: "#FBE9F1", stroke: "#D88CAF", stroke_width: 2, opacity: 1}
+      - type: text
+        id: marks-label
+        x: 265
+        y: 511
+        text: marks
+        font_size: 18
+        anchor: middle
+        weight: bold
+        color: "#A53A6D"
+
+      - type: circle
+        id: guides
+        cx: 265
+        cy: 245
+        radius: 66
+        style: {fill: "#F7F9FC", stroke: "#AEB9C8", stroke_width: 2, opacity: 1}
+      - type: text
+        id: guides-label
+        x: 265
+        y: 251
+        text: guides
+        font_size: 18
+        anchor: middle
+        weight: bold
+        color: "#44536A"
+
+      - type: line
+        id: edge-data
+        from: {x: 500, y: 201}
+        to: {x: 500, y: 274}
+        style: {stroke: "#9AA7B9", stroke_width: 3, opacity: 0.9}
+      - type: line
+        id: edge-scales
+        from: {x: 681, y: 280}
+        to: {x: 584, y: 332}
+        style: {stroke: "#9AA7B9", stroke_width: 3, opacity: 0.9}
+      - type: line
+        id: edge-signals
+        from: {x: 681, y: 470}
+        to: {x: 584, y: 408}
+        style: {stroke: "#9AA7B9", stroke_width: 3, opacity: 0.9}
+      - type: line
+        id: edge-layout
+        from: {x: 500, y: 549}
+        to: {x: 500, y: 466}
+        style: {stroke: "#9AA7B9", stroke_width: 3, opacity: 0.9}
+      - type: line
+        id: edge-marks
+        from: {x: 319, y: 470}
+        to: {x: 416, y: 408}
+        style: {stroke: "#9AA7B9", stroke_width: 3, opacity: 0.9}
+      - type: line
+        id: edge-guides
+        from: {x: 319, y: 280}
+        to: {x: 416, y: 332}
+        style: {stroke: "#9AA7B9", stroke_width: 3, opacity: 0.9}

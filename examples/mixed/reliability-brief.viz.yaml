@@ -1,0 +1,169 @@
+version: "0.1"
+id: reliability-incident-brief
+width: 1400
+height: 900
+background: transparent
+
+datasets:
+  services:
+    key: service_id
+    rows:
+      - {service_id: gateway, latency: 118, error_rate: 0.42, team: Edge}
+      - {service_id: identity, latency: 146, error_rate: 0.31, team: Core}
+      - {service_id: billing, latency: 238, error_rate: 0.92, team: Commerce}
+      - {service_id: ranking, latency: 285, error_rate: 1.18, team: ML}
+      - {service_id: events, latency: 96, error_rate: 0.22, team: Data}
+      - {service_id: ledger, latency: 187, error_rate: 0.58, team: Commerce}
+      - {service_id: inference, latency: 326, error_rate: 1.34, team: ML}
+      - {service_id: notify, latency: 109, error_rate: 0.27, team: Edge}
+
+views:
+  - kind: chart.scatter
+    id: exposure-map
+    title: Reliability exposure by service
+    frame: {x: 0, y: 0, width: 850, height: 520}
+    dataset: services
+    x: {field: latency, label: p95 latency (ms)}
+    y: {field: error_rate, label: error rate (%)}
+    color:
+      field: team
+      palette: ["#3B6EF5", "#18A999", "#F2A541", "#D94891", "#7A5AF8"]
+    point_size: 10
+
+  - kind: diagram.graph
+    id: response-loop
+    title: Incident response and learning loop
+    frame: {x: 850, y: 0, width: 550, height: 520}
+    layout: manual
+    nodes:
+      - {id: alert, label: Alert, group: signal, position: {x: 90, y: 115}}
+      - {id: triage, label: Triage, group: action, position: {x: 275, y: 115}}
+      - {id: mitigate, label: Mitigate, group: action, position: {x: 460, y: 115}}
+      - {id: verify, label: Verify recovery, group: evidence, position: {x: 460, y: 320}}
+      - {id: learn, label: Post-incident learning, group: evidence, position: {x: 275, y: 320}}
+      - {id: prevent, label: Prevent recurrence, group: action, position: {x: 90, y: 320}}
+    edges:
+      - {from: alert, to: triage, label: page}
+      - {from: triage, to: mitigate, label: contain}
+      - {from: mitigate, to: verify, label: observe}
+      - {from: verify, to: learn, label: evidence}
+      - {from: learn, to: prevent, label: actions}
+      - {from: prevent, to: alert, label: stronger signals}
+
+  - kind: geometry.scene
+    id: decision-strip
+    frame: {x: 0, y: 520, width: 1400, height: 380}
+    children:
+      - type: text
+        id: strip-title
+        x: 34
+        y: 52
+        text: Decision summary
+        font_size: 25
+        anchor: start
+        weight: bold
+        color: "#1C2736"
+      - type: rect
+        id: priority-card
+        x: 34
+        y: 82
+        width: 410
+        height: 220
+        radius: 22
+        style: {fill: "#FBE9F1", stroke: "#E5A3BF", stroke_width: 2, opacity: 1}
+      - type: text
+        id: priority-label
+        x: 64
+        y: 126
+        text: Immediate priority
+        font_size: 15
+        anchor: start
+        weight: bold
+        color: "#A53A6D"
+      - type: text
+        id: priority-value
+        x: 64
+        y: 174
+        text: Stabilize inference + ranking
+        font_size: 22
+        anchor: start
+        weight: bold
+        color: "#1C2736"
+      - type: text
+        id: priority-note
+        x: 64
+        y: 218
+        text: highest joint latency and error exposure
+        font_size: 15
+        anchor: start
+        color: "#596579"
+
+      - type: rect
+        id: guardrail-card
+        x: 495
+        y: 82
+        width: 410
+        height: 220
+        radius: 22
+        style: {fill: "#EAF0FF", stroke: "#9AB2F8", stroke_width: 2, opacity: 1}
+      - type: text
+        id: guardrail-label
+        x: 525
+        y: 126
+        text: Release guardrail
+        font_size: 15
+        anchor: start
+        weight: bold
+        color: "#2446A8"
+      - type: text
+        id: guardrail-value
+        x: 525
+        y: 174
+        text: Hold above 0.8% errors
+        font_size: 22
+        anchor: start
+        weight: bold
+        color: "#1C2736"
+      - type: text
+        id: guardrail-note
+        x: 525
+        y: 218
+        text: require owner, rollback, and live verification
+        font_size: 15
+        anchor: start
+        color: "#596579"
+
+      - type: rect
+        id: evidence-card
+        x: 956
+        y: 82
+        width: 410
+        height: 220
+        radius: 22
+        style: {fill: "#E5F7F3", stroke: "#80CFC0", stroke_width: 2, opacity: 1}
+      - type: text
+        id: evidence-label
+        x: 986
+        y: 126
+        text: Exit evidence
+        font_size: 15
+        anchor: start
+        weight: bold
+        color: "#137768"
+      - type: text
+        id: evidence-value
+        x: 986
+        y: 174
+        text: Two healthy observation windows
+        font_size: 22
+        anchor: start
+        weight: bold
+        color: "#1C2736"
+      - type: text
+        id: evidence-note
+        x: 986
+        y: 218
+        text: latency, errors, backlog, and user impact
+        font_size: 15
+        anchor: start
+        color: "#596579"

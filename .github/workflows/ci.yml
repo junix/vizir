@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - name: Install SVG rasterizer
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin
+      - name: Check
+        run: |
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
+      - name: Render transparent gallery
+        run: |
+          for file in examples/*/*.viz.yaml; do
+            name="$(basename "$file" .viz.yaml)"
+            cargo run -q -p vizir-cli -- render "$file" \
+              --format png --background transparent \
+              --output "out/${name}.png"
+          done

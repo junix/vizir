@@ -1,0 +1,30 @@
+version: "0.1"
+id: model-evaluation-brief
+width: 1040
+height: 640
+background: transparent
+
+datasets:
+  models:
+    key: model_id
+    rows:
+      - {model_id: atlas-small, model: Atlas Small, quality: 73.4, family: efficient}
+      - {model_id: atlas-large, model: Atlas Large, quality: 88.2, family: frontier}
+      - {model_id: cedar-8b, model: Cedar 8B, quality: 78.8, family: open}
+      - {model_id: cedar-70b, model: Cedar 70B, quality: 86.7, family: open}
+      - {model_id: ember-fast, model: Ember Fast, quality: 76.1, family: efficient}
+      - {model_id: ember-pro, model: Ember Pro, quality: 90.4, family: frontier}
+      - {model_id: local-q4, model: Local Q4, quality: 69.6, family: local}
+      - {model_id: local-f16, model: Local F16, quality: 81.3, family: local}
+
+views:
+  - kind: chart.bar
+    id: benchmark-quality
+    title: Evaluation quality across deployment families
+    frame: {x: 0, y: 0, width: 1040, height: 640}
+    dataset: models
+    category: {field: model, label: evaluated model}
+    value: {field: quality, label: quality score}
+    color:
+      field: family
+      palette: ["#18A999", "#3B6EF5", "#F2A541", "#7A5AF8"]

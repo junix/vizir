@@ -1,0 +1,38 @@
+version: "0.1"
+id: agent-runtime-architecture
+width: 1280
+height: 720
+background: transparent
+
+views:
+  - kind: diagram.graph
+    id: runtime-topology
+    title: Agent runtime — intent, planning, tools, and observable state
+    frame: {x: 0, y: 0, width: 1280, height: 720}
+    layout: manual
+    nodes:
+      - {id: request, label: User request, group: interface, position: {x: 130, y: 130}}
+      - {id: contract, label: Visual contract, group: reasoning, position: {x: 350, y: 130}}
+      - {id: planner, label: Compilation planner, group: reasoning, position: {x: 570, y: 130}}
+      - {id: hir, label: VizHIR document, group: compiler, position: {x: 790, y: 130}}
+      - {id: validate, label: Type + reference validation, group: compiler, position: {x: 1010, y: 130}}
+      - {id: mir, label: Normalized VizMIR, group: compiler, position: {x: 1010, y: 330}}
+      - {id: layout, label: Layout provider, group: services, position: {x: 790, y: 330}}
+      - {id: scene, label: Resolved Scene2D, group: compiler, position: {x: 570, y: 330}}
+      - {id: capability, label: Capability check, group: services, position: {x: 350, y: 330}}
+      - {id: svg, label: SVG target, group: backend, position: {x: 350, y: 540}}
+      - {id: png, label: Transparent PNG, group: artifact, position: {x: 570, y: 540}}
+      - {id: explain, label: Provenance + loss ledger, group: artifact, position: {x: 790, y: 540}}
+    edges:
+      - {from: request, to: contract, label: intent}
+      - {from: contract, to: planner, label: constraints}
+      - {from: planner, to: hir, label: author}
+      - {from: hir, to: validate, label: parse}
+      - {from: validate, to: mir, label: normalize}
+      - {from: mir, to: layout, label: request}
+      - {from: layout, to: scene, label: geometry}
+      - {from: mir, to: scene, label: marks + scales}
+      - {from: scene, to: capability, label: inspect}
+      - {from: capability, to: svg, label: lower}
+      - {from: svg, to: png, label: rasterize}
+      - {from: scene, to: explain, label: source map}

@@ -1,0 +1,31 @@
+version: "0.1"
+id: dialect-lowering-map
+width: 1120
+height: 680
+background: transparent
+
+views:
+  - kind: diagram.graph
+    id: lowering-topology
+    title: Domain dialects converge without flattening source semantics
+    frame: {x: 0, y: 0, width: 1120, height: 680}
+    layout: layered
+    nodes:
+      - {id: request, label: Semantic request, group: interface}
+      - {id: chart, label: chart dialect, group: dialect}
+      - {id: diagram, label: diagram dialect, group: dialect}
+      - {id: geometry, label: geometry dialect, group: dialect}
+      - {id: normalize, label: Normalize + type-check, group: compiler}
+      - {id: scene, label: Scene2D, group: compiler}
+      - {id: svg, label: SVG target, group: backend}
+      - {id: png, label: Transparent PNG, group: artifact}
+    edges:
+      - {from: request, to: chart, label: data mapping}
+      - {from: request, to: diagram, label: topology}
+      - {from: request, to: geometry, label: primitives}
+      - {from: chart, to: normalize, label: lower}
+      - {from: diagram, to: normalize, label: lower}
+      - {from: geometry, to: normalize, label: normalize}
+      - {from: normalize, to: scene, label: layout + resolve}
+      - {from: scene, to: svg, label: exact}
+      - {from: svg, to: png, label: rasterize}

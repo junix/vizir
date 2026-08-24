@@ -1,0 +1,23 @@
+[package]
+name = "vizir-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "vizir"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+png.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+tempfile.workspace = true
+vizir-backend-svg = { path = "../vizir-backend-svg" }
+vizir-compiler = { path = "../vizir-compiler" }
+vizir-core = { path = "../vizir-core" }
+
+[dev-dependencies]
+tempfile.workspace = true

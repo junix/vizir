@@ -1,0 +1,35 @@
+version: "0.1"
+id: data-platform-map
+width: 1280
+height: 760
+background: transparent
+
+views:
+  - kind: diagram.graph
+    id: platform-zones
+    title: Streaming data platform — ownership and trust boundaries
+    frame: {x: 0, y: 0, width: 1280, height: 760}
+    layout: manual
+    nodes:
+      - {id: producers, label: Product producers, group: source, position: {x: 120, y: 160}}
+      - {id: collectors, label: Edge collectors, group: ingest, position: {x: 330, y: 160}}
+      - {id: event-bus, label: Durable event bus, group: ingest, position: {x: 540, y: 160}}
+      - {id: validator, label: Contract validator, group: quality, position: {x: 750, y: 160}}
+      - {id: quarantine, label: Quarantine stream, group: quality, position: {x: 960, y: 80}}
+      - {id: lakehouse, label: Lakehouse tables, group: storage, position: {x: 960, y: 260}}
+      - {id: feature-store, label: Feature store, group: serving, position: {x: 750, y: 430}}
+      - {id: warehouse, label: Analytics warehouse, group: serving, position: {x: 960, y: 430}}
+      - {id: realtime, label: Realtime materializer, group: serving, position: {x: 540, y: 430}}
+      - {id: products, label: Data products + APIs, group: consumer, position: {x: 750, y: 620}}
+    edges:
+      - {from: producers, to: collectors, label: events}
+      - {from: collectors, to: event-bus, label: append}
+      - {from: event-bus, to: validator, label: schema gate}
+      - {from: validator, to: quarantine, label: invalid}
+      - {from: validator, to: lakehouse, label: trusted}
+      - {from: event-bus, to: realtime, label: subscribe}
+      - {from: lakehouse, to: feature-store, label: features}
+      - {from: lakehouse, to: warehouse, label: transform}
+      - {from: realtime, to: products, label: low latency}
+      - {from: feature-store, to: products, label: inference}
+      - {from: warehouse, to: products, label: metrics}

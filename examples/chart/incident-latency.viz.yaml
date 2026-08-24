@@ -1,0 +1,54 @@
+version: "0.1"
+id: incident-latency-recovery
+width: 1120
+height: 660
+background: transparent
+
+datasets:
+  latency:
+    key: sample_id
+    rows:
+      - {sample_id: api-00, minute: 0, p95_ms: 122, region: api-us}
+      - {sample_id: api-05, minute: 5, p95_ms: 128, region: api-us}
+      - {sample_id: api-10, minute: 10, p95_ms: 141, region: api-us}
+      - {sample_id: api-15, minute: 15, p95_ms: 248, region: api-us}
+      - {sample_id: api-20, minute: 20, p95_ms: 496, region: api-us}
+      - {sample_id: api-25, minute: 25, p95_ms: 438, region: api-us}
+      - {sample_id: api-30, minute: 30, p95_ms: 316, region: api-us}
+      - {sample_id: api-35, minute: 35, p95_ms: 224, region: api-us}
+      - {sample_id: api-40, minute: 40, p95_ms: 166, region: api-us}
+      - {sample_id: api-45, minute: 45, p95_ms: 138, region: api-us}
+      - {sample_id: worker-00, minute: 0, p95_ms: 96, region: worker-eu}
+      - {sample_id: worker-05, minute: 5, p95_ms: 104, region: worker-eu}
+      - {sample_id: worker-10, minute: 10, p95_ms: 116, region: worker-eu}
+      - {sample_id: worker-15, minute: 15, p95_ms: 184, region: worker-eu}
+      - {sample_id: worker-20, minute: 20, p95_ms: 362, region: worker-eu}
+      - {sample_id: worker-25, minute: 25, p95_ms: 344, region: worker-eu}
+      - {sample_id: worker-30, minute: 30, p95_ms: 271, region: worker-eu}
+      - {sample_id: worker-35, minute: 35, p95_ms: 193, region: worker-eu}
+      - {sample_id: worker-40, minute: 40, p95_ms: 138, region: worker-eu}
+      - {sample_id: worker-45, minute: 45, p95_ms: 112, region: worker-eu}
+      - {sample_id: db-00, minute: 0, p95_ms: 74, region: database}
+      - {sample_id: db-05, minute: 5, p95_ms: 78, region: database}
+      - {sample_id: db-10, minute: 10, p95_ms: 82, region: database}
+      - {sample_id: db-15, minute: 15, p95_ms: 112, region: database}
+      - {sample_id: db-20, minute: 20, p95_ms: 286, region: database}
+      - {sample_id: db-25, minute: 25, p95_ms: 303, region: database}
+      - {sample_id: db-30, minute: 30, p95_ms: 212, region: database}
+      - {sample_id: db-35, minute: 35, p95_ms: 151, region: database}
+      - {sample_id: db-40, minute: 40, p95_ms: 109, region: database}
+      - {sample_id: db-45, minute: 45, p95_ms: 88, region: database}
+
+views:
+  - kind: chart.line
+    id: recovery-curve
+    title: Production incident — p95 latency and recovery
+    frame: {x: 0, y: 0, width: 1120, height: 660}
+    dataset: latency
+    x: {field: minute, label: minutes after first alert}
+    y: {field: p95_ms, label: p95 latency (ms)}
+    series:
+      field: region
+      palette: ["#3B6EF5", "#EB5E55", "#18A999"]
+    line_width: 3
+    show_points: true

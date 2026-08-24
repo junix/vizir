@@ -1,0 +1,255 @@
+version: "0.1"
+id: compiler-pipeline-poster
+width: 1280
+height: 720
+background: transparent
+
+views:
+  - kind: geometry.scene
+    id: compiler-poster
+    title: Visualization compiler — preserve meaning, resolve geometry late
+    frame: {x: 0, y: 0, width: 1280, height: 720}
+    children:
+      - type: group
+        id: stages
+        children:
+          - type: rect
+            id: hir-card
+            x: 60
+            y: 120
+            width: 230
+            height: 190
+            radius: 22
+            style: {fill: "#EAF0FF", stroke: "#9AB2F8", stroke_width: 2, opacity: 1}
+          - type: text
+            id: hir-title
+            x: 175
+            y: 168
+            text: VizHIR
+            font_size: 25
+            anchor: middle
+            weight: bold
+            color: "#2446A8"
+          - type: text
+            id: hir-line-1
+            x: 175
+            y: 215
+            text: chart · diagram
+            font_size: 17
+            anchor: middle
+            color: "#44536A"
+          - type: text
+            id: hir-line-2
+            x: 175
+            y: 247
+            text: geometry · scientific
+            font_size: 17
+            anchor: middle
+            color: "#44536A"
+          - type: text
+            id: hir-caption
+            x: 175
+            y: 286
+            text: semantic source of truth
+            font_size: 13
+            anchor: middle
+            weight: medium
+            color: "#6A7890"
+
+          - type: rect
+            id: mir-card
+            x: 370
+            y: 120
+            width: 230
+            height: 190
+            radius: 22
+            style: {fill: "#E5F7F3", stroke: "#80CFC0", stroke_width: 2, opacity: 1}
+          - type: text
+            id: mir-title
+            x: 485
+            y: 168
+            text: VizMIR
+            font_size: 25
+            anchor: middle
+            weight: bold
+            color: "#137768"
+          - type: text
+            id: mir-line-1
+            x: 485
+            y: 215
+            text: scales · marks · guides
+            font_size: 17
+            anchor: middle
+            color: "#44536A"
+          - type: text
+            id: mir-line-2
+            x: 485
+            y: 247
+            text: dataflow · layout requests
+            font_size: 17
+            anchor: middle
+            color: "#44536A"
+          - type: text
+            id: mir-caption
+            x: 485
+            y: 286
+            text: normalized, not yet pixels
+            font_size: 13
+            anchor: middle
+            weight: medium
+            color: "#6A7890"
+
+          - type: rect
+            id: scene-card
+            x: 680
+            y: 120
+            width: 230
+            height: 190
+            radius: 22
+            style: {fill: "#FFF1E5", stroke: "#E9B77E", stroke_width: 2, opacity: 1}
+          - type: text
+            id: scene-title
+            x: 795
+            y: 168
+            text: Scene2D
+            font_size: 25
+            anchor: middle
+            weight: bold
+            color: "#A65D18"
+          - type: text
+            id: scene-line-1
+            x: 795
+            y: 215
+            text: paths · text · bounds
+            font_size: 17
+            anchor: middle
+            color: "#44536A"
+          - type: text
+            id: scene-line-2
+            x: 795
+            y: 247
+            text: transforms · provenance
+            font_size: 17
+            anchor: middle
+            color: "#44536A"
+          - type: text
+            id: scene-caption
+            x: 795
+            y: 286
+            text: concrete and renderable
+            font_size: 13
+            anchor: middle
+            weight: medium
+            color: "#6A7890"
+
+          - type: rect
+            id: target-card
+            x: 990
+            y: 120
+            width: 230
+            height: 190
+            radius: 22
+            style: {fill: "#F0EBFF", stroke: "#B7A0EE", stroke_width: 2, opacity: 1}
+          - type: text
+            id: target-title
+            x: 1105
+            y: 168
+            text: Target IR
+            font_size: 25
+            anchor: middle
+            weight: bold
+            color: "#6540B5"
+          - type: text
+            id: target-line-1
+            x: 1105
+            y: 215
+            text: SVG · Canvas · TikZ
+            font_size: 17
+            anchor: middle
+            color: "#44536A"
+          - type: text
+            id: target-line-2
+            x: 1105
+            y: 247
+            text: PNG · HTML · PDF
+            font_size: 17
+            anchor: middle
+            color: "#44536A"
+          - type: text
+            id: target-caption
+            x: 1105
+            y: 286
+            text: explicit capability contract
+            font_size: 13
+            anchor: middle
+            weight: medium
+            color: "#6A7890"
+
+          - type: path
+            id: hir-to-mir
+            commands:
+              - {op: move, to: {x: 292, y: 215}}
+              - {op: cubic, control1: {x: 322, y: 215}, control2: {x: 340, y: 215}, to: {x: 368, y: 215}}
+            style: {stroke: "#6F7F94", stroke_width: 3, opacity: 1}
+          - type: path
+            id: mir-to-scene
+            commands:
+              - {op: move, to: {x: 602, y: 215}}
+              - {op: cubic, control1: {x: 632, y: 215}, control2: {x: 650, y: 215}, to: {x: 678, y: 215}}
+            style: {stroke: "#6F7F94", stroke_width: 3, opacity: 1}
+          - type: path
+            id: scene-to-target
+            commands:
+              - {op: move, to: {x: 912, y: 215}}
+              - {op: cubic, control1: {x: 942, y: 215}, control2: {x: 960, y: 215}, to: {x: 988, y: 215}}
+            style: {stroke: "#6F7F94", stroke_width: 3, opacity: 1}
+
+      - type: rect
+        id: invariant-panel
+        x: 60
+        y: 390
+        width: 1160
+        height: 230
+        radius: 24
+        style: {fill: "#F7F9FC", stroke: "#D7DEE8", stroke_width: 2, opacity: 0.96}
+      - type: text
+        id: invariant-title
+        x: 95
+        y: 438
+        text: Compiler invariants
+        font_size: 22
+        anchor: start
+        weight: bold
+        color: "#1C2736"
+      - type: text
+        id: invariant-1
+        x: 95
+        y: 486
+        text: 01  Stable semantic and data identities survive every pass
+        font_size: 17
+        anchor: start
+        color: "#44536A"
+      - type: text
+        id: invariant-2
+        x: 95
+        y: 525
+        text: 02  Coordinates become concrete only after output-profile layout
+        font_size: 17
+        anchor: start
+        color: "#44536A"
+      - type: text
+        id: invariant-3
+        x: 95
+        y: 564
+        text: 03  Unsupported capability and semantic loss are never silent
+        font_size: 17
+        anchor: start
+        color: "#44536A"
+      - type: text
+        id: invariant-4
+        x: 95
+        y: 603
+        text: 04  Identical inputs produce identical normalized artifacts
+        font_size: 17
+        anchor: start
+        color: "#44536A"
