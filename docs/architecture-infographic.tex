@@ -1,0 +1,471 @@
+\documentclass[border=12pt,varwidth=19cm]{standalone}
+% VizIR 架构信息图 — 叙事型：从语义 YAML 到矢量/位图输出的编译管线
+%
+% 视觉主角：四级 IR 带状主路径，自左向右贯穿
+% 辅图：三大方言家族 · 四个 Rust crate · 不变量 · 路线图
+\usepackage[UTF8,fontset=none]{ctex}
+\IfFontExistsTF{Source Han Serif SC}{
+  \setmainfont[BoldFont={Source Han Serif SC Bold}]{Source Han Serif SC}
+  \setsansfont[BoldFont={Source Han Serif SC Bold}]{Source Han Serif SC}
+  \setCJKmainfont[BoldFont={Source Han Serif SC Bold}]{Source Han Serif SC}
+  \setCJKsansfont[BoldFont={Source Han Serif SC Bold}]{Source Han Serif SC}
+}{
+  \PackageWarningNoLine{tikz-infographic}{Source Han Serif SC not found; using Fandol}
+  \setCJKmainfont[BoldFont={FandolSong-Bold}]{FandolSong-Regular}
+  \setCJKsansfont[BoldFont={FandolHei-Bold}]{FandolHei-Regular}
+}
+\IfFontExistsTF{Sarasa Mono SC}{
+  \setmonofont{Sarasa Mono SC}
+  \setCJKmonofont{Sarasa Mono SC}
+}{
+  \PackageWarningNoLine{tikz-infographic}{Sarasa Mono SC not found; using TeX defaults}
+  \setmonofont{Latin Modern Mono}
+  \setCJKmonofont{FandolFang-Regular}
+}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,backgrounds,calc,fit,positioning,shapes.geometric}
+\pgfdeclarelayer{edge layer}
+\pgfdeclarelayer{group layer}
+\pgfsetlayers{background,group layer,edge layer,main}
+
+% ── Semantic palette ──────────────────────────────────────────────────────
+\definecolor{Paper}{HTML}{F7F4EE}
+\definecolor{Ink}{HTML}{17212B}
+\definecolor{Slate}{HTML}{5D6873}
+\definecolor{Fog}{HTML}{D9E1E3}
+\definecolor{Ocean}{HTML}{2A5D7C}
+\definecolor{Teal}{HTML}{2A9D8F}
+\definecolor{Mint}{HTML}{DDF2EC}
+\definecolor{Coral}{HTML}{E76F51}
+\definecolor{Gold}{HTML}{E9C46A}
+\definecolor{Amber}{HTML}{F4A261}
+\definecolor{Plum}{HTML}{6A4C93}
+\definecolor{Lilac}{HTML}{E6E0F0}
+
+\tikzset{
+  every node/.style={font=\rmfamily},
+  % ── Spine / pipeline ribbon ────────────────────────────────────────────
+  spine/.style={draw=Fog, line width=7mm, line cap=butt, line join=round},
+  stage/.style={
+    circle, draw=Ocean, fill=Ocean, text=white, inner sep=0pt,
+    minimum size=9mm, font=\rmfamily\scriptsize\bfseries
+  },
+  stage label/.style={font=\rmfamily\small\bfseries, text=Ink},
+  stage sublabel/.style={font=\rmfamily\scriptsize, text=Slate, align=center},
+  terminal/.style={font=\rmfamily\scriptsize\bfseries, text=Ocean},
+  kicker/.style={font=\rmfamily\scriptsize\bfseries, text=Teal},
+  note/.style={font=\rmfamily\scriptsize, text=Slate},
+  pill/.style={
+    rounded corners=3mm, fill=Mint, text=Ocean,
+    inner xsep=2.8mm, inner ysep=1.2mm,
+    font=\rmfamily\scriptsize\bfseries
+  },
+  pill-amber/.style={
+    rounded corners=3mm, fill=Gold!30, text=Amber!80!black,
+    inner xsep=2.8mm, inner ysep=1.2mm,
+    font=\rmfamily\scriptsize\bfseries
+  },
+  % ── Edge grammar ───────────────────────────────────────────────────────
+  call/.style={
+    -{Latex[length=2.2mm,width=1.6mm]}, draw=Ocean,
+    line width=1pt, rounded corners=2mm
+  },
+  verify/.style={
+    -{Latex[length=2mm,width=1.4mm]}, draw=Gold!80!black,
+    dash pattern=on 3pt off 2pt, line width=.85pt
+  },
+  boundary/.style={draw=Slate!45, dash pattern=on 2pt off 2.4pt, line width=.6pt},
+  edge label/.style={font=\rmfamily\scriptsize, text=Slate},
+  backed label/.style={edge label, fill=Paper, inner sep=1.5pt},
+  % ── Cards ──────────────────────────────────────────────────────────────
+  dialect-card/.style={
+    draw=Ocean!35, fill=white, rounded corners=1.5mm, line width=.7pt,
+    inner xsep=3mm, inner ysep=2mm,
+    font=\rmfamily\scriptsize\bfseries, text=Ocean, align=left
+  },
+  dialect-body/.style={font=\rmfamily\scriptsize, text=Slate, align=left},
+  crate-card/.style={
+    draw=Plum!45, fill=Lilac!25, rounded corners=1.5mm, line width=.7pt,
+    inner xsep=2.5mm, inner ysep=2mm,
+    font=\rmfamily\scriptsize\bfseries, text=Plum, align=left
+  },
+  crate-body/.style={font=\rmfamily\scriptsize, text=Slate, align=left},
+  % ── Chips ──────────────────────────────────────────────────────────────
+  chip/.style={
+    rounded corners=1.2mm, fill=Ocean!8, draw=Ocean!30, line width=.5pt,
+    inner xsep=2mm, inner ysep=1.4mm,
+    font=\rmfamily\scriptsize, text=Ink, align=left
+  },
+  phase-chip/.style={
+    rounded corners=1.2mm, draw=Teal!40, fill=Mint!40, line width=.6pt,
+    inner xsep=2.2mm, inner ysep=1.6mm,
+    font=\rmfamily\scriptsize, text=Ink, align=left
+  },
+  phase-chip-ok/.style={
+    rounded corners=1.2mm, draw=Teal!60, fill=Teal!12, line width=.6pt,
+    inner xsep=2.2mm, inner ysep=1.6mm,
+    font=\rmfamily\scriptsize, text=Ink, align=left
+  },
+  section-title/.style={font=\rmfamily\bfseries, text=Ink},
+  section-rule/.style={draw=Teal!40, line width=1.2pt}
+}
+
+\begin{document}
+\setlength{\parindent}{0pt}
+\begin{tikzpicture}[x=1cm,y=1cm]
+
+  % ── Page background ────────────────────────────────────────────────────
+  \begin{pgfonlayer}{background}
+    \fill[Paper,rounded corners=2mm] (-.6,36.0) rectangle (17.9,-.4);
+  \end{pgfonlayer}
+
+  % ════════════════════════════════════════════════════════════════════════
+  %  SECTION 1 — 标题
+  % ════════════════════════════════════════════════════════════════════════
+  \node[kicker,anchor=west] at (0,35.4) {VIZIR · 可视化编译器架构};
+  \node[anchor=west,font=\rmfamily\Large\bfseries,text=Ink]
+    at (0,34.75) {从语义 YAML 到矢量输出的确定性编译管线};
+  \node[note,anchor=west,text width=12cm] at (0,34.05)
+    {VizIR 不是一个渲染器，而是一组分层 IR：每一层拥有明确的职责边界，下层只消费上层的规范化契约，绝不反向推断语义。};
+  \node[pill,anchor=east] at (17.7,34.75) {读法：先看四级粗带};
+
+  \draw[section-rule] (0,33.25) -- (17.7,33.25);
+
+  % ════════════════════════════════════════════════════════════════════════
+  %  SECTION 2 — 核心编译管线
+  % ════════════════════════════════════════════════════════════════════════
+  \node[section-title,font=\rmfamily\large\bfseries,anchor=west] at (0,32.65) {核心管线：四级 IR 自左向右逐层收敛};
+
+  % 4 stage waypoints on the spine
+  \node[stage] (s1) at (2.4,30.8) {01};
+  \node[stage] (s2) at (6.9,30.8) {02};
+  \node[stage] (s3) at (11.4,30.8) {03};
+  \node[stage] (s4) at (15.8,30.8) {04};
+
+  % Stage labels above
+  \node[stage label,anchor=south] at (s1.north) {VizHIR};
+  \node[stage label,anchor=south] at (s2.north) {VizMIR};
+  \node[stage label,anchor=south] at (s3.north) {Scene2D};
+  \node[stage label,anchor=south] at (s4.north) {Backend};
+
+  % Stage sublabels below
+  \node[stage sublabel,anchor=north] at (s1.south) {语义文档\\可编辑};
+  \node[stage sublabel,anchor=north] at (s2.south) {执行契约\\类型化};
+  \node[stage sublabel,anchor=north] at (s3.south) {保留场景\\已解析};
+  \node[stage sublabel,anchor=north] at (s4.south) {目标发射\\SVG / PNG};
+
+  % Entry / exit
+  \node[terminal,anchor=east] at (0.7,30.8) {YAML / Rust / Agent};
+  \node[terminal,anchor=west] at (16.85,30.8) {SVG + 透明 PNG};
+
+  % Spine ribbon
+  \begin{pgfonlayer}{edge layer}
+    \draw[spine] (0.95,30.8) -- (s1);
+    \draw[spine] (s1) -- (s2);
+    \draw[spine] (s2) -- (s3);
+    \draw[spine] (s3) -- (s4);
+    \draw[spine] (s4) -- (16.7,30.8);
+  \end{pgfonlayer}
+
+  % Transformation labels (backed, on the ribbon)
+  \node[backed label] at ($(s1)!0.5!(s2)$) {validate / lower};
+  \node[backed label] at ($(s2)!0.5!(s3)$) {resolve / build\_scene};
+  \node[backed label] at ($(s3)!0.5!(s4)$) {negotiate / emit};
+
+  % Validation check arrows — routed above the spine, arrowheads land beside labels
+  \coordinate (v1-start) at ($(s1.north)+(-1.2mm,0)$);
+  \coordinate (v1-end)   at ($(s2.north)+(3mm,0)$);
+  \coordinate (v2-start) at ($(s2.north)+(-1.2mm,0)$);
+  \coordinate (v2-end)   at ($(s3.north)+(3mm,0)$);
+
+  \begin{pgfonlayer}{edge layer}
+    \draw[verify] (v1-start) -- ++(0,.8) -| (v1-end);
+    \draw[verify] (v2-start) -- ++(0,1.15) -| (v2-end);
+  \end{pgfonlayer}
+  \node[edge label,anchor=south] at ($(s1)!0.5!(s2) + (0,.8)$) {validate\_document};
+  \node[edge label,anchor=south] at ($(s2)!0.5!(s3) + (0,1.15)$) {validate\_mir};
+
+  % ── 4 ownership cards below the pipeline ───────────────────────────────
+  \node[dialect-card,text width=38mm,anchor=north west]
+    at (0.1,29.1) {VizHIR 拥有};
+  \node[dialect-body,text width=38mm,anchor=north west]
+    at (0.1,28.75)
+    {%
+      · 可编辑的 chart / diagram /\\
+      \quad geometry 意图\\
+      · 默认值展开与归一化\\
+      · 稳定 ID 与作用域唯一性\\
+      · 不负责：渲染路由、目标对象
+    };
+
+  \node[dialect-card,text width=38mm,anchor=north west]
+    at (4.4,29.1) {VizMIR 拥有};
+  \node[dialect-body,text width=38mm,anchor=north west]
+    at (4.4,28.75)
+    {%
+      · 类型化数据源与表达式 AST\\
+      · 已解析引用、坐标空间与单位\\
+      · 比例尺、向导、布局请求\\
+      · 不负责：DOM / SVG 元素、交互
+    };
+
+  \node[dialect-card,text width=38mm,anchor=north west]
+    at (8.7,29.1) {Scene2D 拥有};
+  \node[dialect-body,text width=38mm,anchor=north west]
+    at (8.7,28.75)
+    {%
+      · 已解析 2D 几何与变换\\
+      · 边界框、绘制顺序、来源追溯\\
+      · HIR / MIR / 数据键 / 生成阶段\\
+      · 不负责：图表意图、比例尺推断
+    };
+
+  \node[dialect-card,text width=38mm,anchor=north west]
+    at (13.0,29.1) {Backend 拥有};
+  \node[dialect-body,text width=38mm,anchor=north west]
+    at (13.0,28.75)
+    {%
+      · 目标命令与资源句柄\\
+      · SVG 精确发射、PNG 透明栅格化\\
+      · Capability 能力报告\\
+      · 不负责：可移植语义
+    };
+
+  \draw[section-rule] (0,27.1) -- (17.7,27.1);
+
+  % ════════════════════════════════════════════════════════════════════════
+  %  SECTION 3 — 三大方言家族
+  % ════════════════════════════════════════════════════════════════════════
+  \node[section-title,font=\rmfamily\large\bfseries,anchor=west] at (0,26.5) {MVP 三大方言家族};
+  \node[note,anchor=west] at (62mm,26.55)
+    {不假装一个渲染器理解所有视觉系统——每种方言有独立的 lowering 路径。};
+
+  % Three dialect cards
+  \node[dialect-card,text width=52mm,anchor=north west]
+    at (0.1,26.1) {chart · scatter / line / bar};
+  \node[dialect-body,text width=52mm,anchor=north west]
+    at (0.1,25.7)
+    {%
+      数据驱动的标准图表。通道引用类型化表达式，\\
+      比例尺与坐标轴在 MIR 阶段显式声明。\\
+      示例：服务健康看板、事故恢复、模型评测。
+    };
+
+  \node[dialect-card,text width=52mm,anchor=north west]
+    at (6.0,26.1) {diagram · graph};
+  \node[dialect-body,text width=52mm,anchor=north west]
+    at (6.0,25.7)
+    {%
+      确定性分层或手动布局的图结构。\\
+      节点与边保留稳定 ID，布局是编译器服务，\\
+      在后端发射前完成。示例：Agent 运行时。
+    };
+
+  \node[dialect-card,text width=52mm,anchor=north west]
+    at (11.9,26.1) {geometry · scene};
+  \node[dialect-body,text width=52mm,anchor=north west]
+    at (11.9,25.7)
+    {%
+      类型化分组、形状、文本、路径、变换。\\
+      几何默认值在 lowering 时展开，HIR 几何\\
+      不直接复用到 Scene2D。示例：编译管线海报。
+    };
+
+  \draw[section-rule] (0,24.5) -- (17.7,24.5);
+
+  % ════════════════════════════════════════════════════════════════════════
+  %  SECTION 4 — Rust crate 工作空间
+  % ════════════════════════════════════════════════════════════════════════
+  \node[section-title,font=\rmfamily\large\bfseries,anchor=west] at (0,23.9) {四 crate 工作空间};
+  \node[note,anchor=west] at (46mm,23.95)
+    {core 定义类型与契约，compiler 做 lowering 与布局，backend 负责发射，cli 是命令行入口。};
+
+  % 4 crate cards in a single row (horizontal dependency chain)
+  \node[crate-card,text width=38mm,anchor=north west]
+    at (0.1,23.25) {vizir-core};
+  \node[crate-body,text width=38mm,anchor=north west]
+    at (0.1,22.9)
+    {%
+      \ttfamily hir · mir · scene · patch\\
+      \ttfamily expression · capability · validate\\
+      \mdseries 类型定义、验证、序列化\\
+      全 IR 家族的公共基础
+    };
+
+  \node[crate-card,text width=38mm,anchor=north west]
+    at (4.35,23.25) {vizir-compiler};
+  \node[crate-body,text width=38mm,anchor=north west]
+    at (4.35,22.9)
+    {%
+      \ttfamily lower · scene\_builder · layout\\
+      \mdseries HIR$\to$MIR lowering\\
+      MIR$\to$Scene2D 构建\\
+      分层 / 手动布局服务
+    };
+
+  \node[crate-card,text width=38mm,anchor=north west]
+    at (8.6,23.25) {vizir-backend-svg};
+  \node[crate-body,text width=38mm,anchor=north west]
+    at (8.6,22.9)
+    {%
+      \ttfamily capabilities · emit\\
+      \mdseries 精确 SVG 发射\\
+      rsvg-convert 透明 PNG\\
+      能力协商与缺失报错
+    };
+
+  \node[crate-card,text width=38mm,anchor=north west]
+    at (12.85,23.25) {vizir-cli};
+  \node[crate-body,text width=38mm,anchor=north west]
+    at (12.85,22.9)
+    {%
+      \ttfamily validate · normalize · render\\
+      \ttfamily explain · capabilities · schema\\
+      \mdseries 命令行入口\\
+      Schema 生成、节点溯源
+    };
+
+  % Dependency arrows between cards on top (no crossing through cards)
+  \begin{pgfonlayer}{edge layer}
+    \draw[call] (4.25,23.55) -- (4.35,23.55);
+    \draw[call] (8.5,23.55) -- (8.6,23.55);
+    \draw[call] (12.75,23.55) -- (12.85,23.55);
+  \end{pgfonlayer}
+  \node[edge label,anchor=south] at (13.4,23.7) {依赖方向};
+
+  \draw[section-rule] (0,21.8) -- (17.7,21.8);
+
+  % ════════════════════════════════════════════════════════════════════════
+  %  SECTION 5 — MVP 不变量（13 条） — 2 columns for better fit
+  % ════════════════════════════════════════════════════════════════════════
+  \node[section-title,font=\rmfamily\large\bfseries,anchor=west] at (0,21.2) {MVP 不变量（13 条）};
+  \node[note,anchor=west] at (58mm,21.25)
+    {每一条都是编译过程中的硬性保证，违反即诊断错误而非静默降级。};
+
+  % 2-column layout: 7 on left, 6 on right
+  % Left column
+  \node[chip,text width=82mm,anchor=north west]
+    at (0.1,20.55) {01\enspace ID 稳定唯一：文档、视图、数据项、图节点在各自作用域内唯一且稳定。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (0.1,19.75) {02\enspace 数据键明确：每个数据驱动标记都有显式稳定 key 字段。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (0.1,18.95) {03\enspace 引用先验：数据集、字段、节点、边引用在 lowering 前全部解析。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (0.1,18.15) {04\enspace 有限几何：解析后的几何只包含有限值。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (0.1,17.35) {05\enspace 全链路溯源：场景节点保留 HIR 源、数据键、生成阶段、MIR 源、数据谱系。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (0.1,16.55) {06\enspace 布局前置：布局是编译器服务，在后端发射前完成。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (0.1,15.75) {07\enspace 后端纯净：SVG 发射不做数据查找、比例尺推断或图布局。};
+
+  % Right column
+  \node[chip,text width=82mm,anchor=north west]
+    at (9.0,20.55) {08\enspace 能力显式：不支持的能力返回诊断，不静默消失。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (9.0,19.75) {09\enspace 透明可验：PNG 透明度从产物验证，不从文件名推断。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (9.0,18.95) {10\enspace 序列化确定：序列化顺序与生成 ID 均为确定性。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (9.0,18.15) {11\enspace 表达式纯：规范表达式是纯类型 AST，字符串不携带可执行 MIR 语义。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (9.0,17.35) {12\enspace 空间显式：坐标空间与单位在 MIR 中显式，不兼容空间类型不统一。};
+  \node[chip,text width=82mm,anchor=north west]
+    at (9.0,16.55) {13\enspace 补丁等价：ScenePatch 要求文档与基础修订匹配；补丁 / 全量重计算产出等价语义。};
+
+  \draw[section-rule] (0,15.0) -- (17.7,15.0);
+
+  % ════════════════════════════════════════════════════════════════════════
+  %  SECTION 6 — 稳定化路线图
+  % ════════════════════════════════════════════════════════════════════════
+  \node[section-title,font=\rmfamily\large\bfseries,anchor=west] at (0,14.4) {稳定化路线图};
+  \node[note,anchor=west] at (46mm,14.45)
+    {通过「晋升门槛」逐阶段扩展，不向 SceneNode 堆砌未经验证的字段。};
+
+  % Row 1: 0.1 (left, done) + 0.2 (right)
+  \node[phase-chip-ok,text width=82mm,anchor=north west]
+    at (0.1,13.75) {{\bfseries 0.1 · 静态 Core2D}\quad\color{Teal}已实现};
+  \node[crate-body,text width=82mm,anchor=north west]
+    at (0.1,13.4)
+    {%
+      版本化 YAML/JSON 线协议 · 三大 HIR 方言 · 稳定 ID 与验证\\
+      MIR 比例尺 / 标记 / 向导 / 布局 · 类型化表达式 AST\\
+      确定性布局服务 · Scene2D 全溯源 · 修订化增量补丁\\
+      精确 SVG + 透明 PNG · 画廊示例 · 多维度测试
+    };
+
+  \node[phase-chip,text width=82mm,anchor=north west]
+    at (9.0,13.75) {{\bfseries 0.2 · 输出剖面与更强布局}};
+  \node[crate-body,text width=82mm,anchor=north west]
+    at (9.0,13.4)
+    {%
+      显式 print/web 输出剖面与单位\\
+      内在文本测量与换行 · CJK 策略\\
+      Graphviz 布局提供方 · 标签碰撞规避\\
+      类型化主题令牌 · 可复现性清单
+    };
+
+  % Row 2: 0.3 + 0.4
+  \node[phase-chip,text width=82mm,anchor=north west]
+    at (0.1,11.75) {{\bfseries 0.3 · 数据流与比例尺广度}};
+  \node[crate-body,text width=82mm,anchor=north west]
+    at (0.1,11.4)
+    {%
+      filter / calculate / aggregate / bin / sort / join\\
+      时间与有序比例尺 · 分面 · 图例 · 热力图\\
+      列式 InstanceSet 存储 · CSV / 资源表
+    };
+
+  \node[phase-chip,text width=82mm,anchor=north west]
+    at (9.0,11.75) {{\bfseries 0.4 · 交互式 Web 运行时}};
+  \node[crate-body,text width=82mm,anchor=north west]
+    at (9.0,11.4)
+    {%
+      浏览器内表达式求值 · 信号与选择器\\
+      事务化运行时状态 · ScenePatch 传输\\
+      自包含 HTML 运行时 · SVG / Canvas 目标
+    };
+
+  % Row 3: 0.5 + Scene3D + 晋升门槛
+  \node[phase-chip,text width=52mm,anchor=north west]
+    at (0.1,9.75) {{\bfseries 0.5 · 时间线与文档后端}};
+  \node[crate-body,text width=52mm,anchor=north west]
+    at (0.1,9.4)
+    {%
+      语义过渡 + 关键帧时间线\\
+      Canvas 与 TikZ 原生目标\\
+      固定帧渲染 + 视频清单
+    };
+
+  \node[phase-chip,text width=52mm,anchor=north west]
+    at (5.85,9.75) {{\bfseries 之后 · Scene3D}};
+  \node[crate-body,text width=52mm,anchor=north west]
+    at (5.85,9.4)
+    {%
+      2D 稳定后才启动\\
+      独立方言：网格 / 相机 / 材质 / 光\\
+      共享身份与溯源，不共享节点
+    };
+
+  \node[pill-amber,text width=58mm,anchor=north west,align=center]
+    at (11.6,9.75) {晋升门槛};
+  \node[crate-body,text width=58mm,anchor=north west]
+    at (11.6,9.2)
+    {%
+      1. 至少 3 个实质不同的场景\\
+      2. 有名称、所有者、不变量、非职责\\
+      3. 正常与失败行为独立测试\\
+      4. 交付尺寸下目视检查\\
+      5. 不支持行为记录在损失账本
+    };
+
+  % ── Footer ─────────────────────────────────────────────────────────────
+  \draw[boundary] (0,1.2) -- (17.7,1.2);
+  \node[note,anchor=west] at (0,0.65)
+    {来源：VizIR README、docs/architecture.md、docs/ir-family.md、docs/roadmap.md 及 crate 源码};
+  \node[note,anchor=east] at (17.7,0.65)
+    {版本 0.1 · 静态 Core2D};
+
+\end{tikzpicture}
+\end{document}

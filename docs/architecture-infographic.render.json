@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "title": "VizIR 架构信息图",
+  "project": "vizir",
+  "project_path": "~/projects/plot/vizir",
+  "source_file": "architecture-infographic.tex",
+  "language": "zh-CN",
+  "audience": "开发者与架构师",
+  "thesis": "VizIR 是基于四级 IR 家族的确定性可视化编译器，每层拥有明确职责边界。",
+  "render": {
+    "engine": "xelatex",
+    "tex_live": "2023",
+    "packages": ["ctex", "tikz", "xcolor"],
+    "tikz_libraries": ["arrows.meta", "backgrounds", "calc", "fit", "positioning", "shapes.geometric"],
+    "dpi": 300,
+    "build_command": "python3 ~/.claude/skills/create-infographic/scripts/render_tikz.py docs/architecture-infographic.tex --out-dir docs/ --engine xelatex --dpi 300 --svg --expect-text VizIR",
+    "fonts": {
+      "serif": "Source Han Serif SC",
+      "mono": "Sarasa Mono SC",
+      "fallback_used": false
+    }
+  },
+  "outputs": {
+    "pdf": {
+      "file": "architecture-infographic.pdf",
+      "bytes": 169400,
+      "pages": 1,
+      "md5": "24153d2150f36028a9083d7111ece60e"
+    },
+    "png": {
+      "file": "architecture-infographic.png",
+      "bytes": 1367130,
+      "width_px": 2344,
+      "height_px": 4399,
+      "width_to_height": 0.5328,
+      "dpi": 300,
+      "background": "paper (#F7F4EE)",
+      "md5": "7c36451ab544c12863998cc60345d13c"
+    },
+    "svg": {
+      "file": "architecture-infographic.svg",
+      "bytes": 1287080,
+      "md5": "9eb2106400896ab225dd147b8b6ae904"
+    },
+    "tex": {
+      "file": "architecture-infographic.tex",
+      "bytes": 17888,
+      "lines": 471,
+      "md5": "861a3d49d22e66ccebe2cd7c7f40a0dc"
+    }
+  },
+  "sections": [
+    {
+      "id": "title",
+      "claim": "VizIR 是一组分层 IR，而非单一渲染器"
+    },
+    {
+      "id": "pipeline",
+      "role": "hero",
+      "claim": "四级 IR 自左向右逐层收敛：VizHIR → VizMIR → Scene2D → Backend",
+      "elements": ["spine_ribbon", "4_stage_waypoints", "validation_check_arrows", "4_ownership_cards"]
+    },
+    {
+      "id": "dialects",
+      "claim": "MVP 支持三大方言家族：chart、diagram、geometry",
+      "elements": ["3_dialect_cards"]
+    },
+    {
+      "id": "crates",
+      "claim": "四 crate 工作空间：core → compiler → backend → cli",
+      "elements": ["4_crate_cards", "dependency_direction"]
+    },
+    {
+      "id": "invariants",
+      "claim": "13 条 MVP 不变量保障编译确定性与可追溯性",
+      "elements": ["13_invariant_chips", "2_column_layout"]
+    },
+    {
+      "id": "roadmap",
+      "claim": "六阶段路线图，通过晋升门槛逐阶段扩展",
+      "elements": ["6_phase_chips", "promotion_gate"]
+    }
+  ],
+  "evidence_sources": [
+    "README.md",
+    "docs/architecture.md",
+    "docs/ir-family.md",
+    "docs/roadmap.md",
+    "Cargo.toml (workspace members)",
+    "crates/vizir-core/src/lib.rs",
+    "crates/vizir-compiler/src/lib.rs",
+    "crates/vizir-backend-svg/src/lib.rs",
+    "crates/vizir-cli/src/main.rs"
+  ],
+  "palette": {
+    "paper": "#F7F4EE",
+    "ink": "#17212B",
+    "slate": "#5D6873",
+    "ocean": "#2A5D7C",
+    "teal": "#2A9D8F",
+    "mint": "#DDF2EC",
+    "coral": "#E76F51",
+    "gold": "#E9C46A",
+    "plum": "#6A4C93",
+    "lilac": "#E6E0F0"
+  },
+  "verification": {
+    "warnings": 4,
+    "geometry_issues": 0,
+    "composition_notes": [
+      "connector_through_block: 主路径丝带穿过阶段圆点（设计意图，圆点是丝带上的 waypoint）",
+      "connector_over_text: 丝带上的变换标签使用 Paper 底色衬底（设计意图）",
+      "text_touches_block_edge: card 内边距紧凑（可读性正常）"
+    ],
+    "identity_check": "pass (包含 'VizIR' 文本)",
+    "cjk_glyphs": "verified (Source Han Serif SC + ctex)",
+    "manual_visual_review": "passed"
+  },
+  "created": "2026-08-24",
+  "tool_version": "create-infographic skill / TikZ backend"
+}
