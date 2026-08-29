@@ -1,0 +1,1043 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VizIR · 架构总览</title>
+  <script>window.__docErrors=[];window.__docReady=false;window.addEventListener('error',e=>window.__docErrors.push(String(e.error||e.message||'unknown error')));window.addEventListener('unhandledrejection',e=>window.__docErrors.push(String(e.reason||'unhandled rejection')));</script>
+  <script type="application/json" id="doc-meta">{"id":"architecture","title":"VizIR 架构总览","status":"draft","audience":"architects","last_updated":"2026-08-29","owners":[],"revisions":[{"date":"2026-08-29","reason":"首次生成"}]}</script>
+  <!-- Authoring-only Narrative IR: Audience=ELI15/new-engineers; Persona=Mentor+Practitioner; Mode=ConcreteFirst; Epistemics=Confirmed; Progression=ResultFirst; Interaction=Objection when useful; Texture=Conversational. Do not fabricate first-person experience. -->
+<style id="site-tokens">
+:root{
+  --paper:#fafbfc; --surface:#ffffff; --surface-muted:#f1f4f8;
+  --ink:#171a1f; --muted:#656b73; --soft:#8a929c;
+  --rule:#d7dce3; --rule-strong:#b8c0cc;
+  --accent:#2563eb; --accent-tint:#e8f0fe; --accent-ink:#1d4ed8; --accent-lit:#3b82f6;
+  --external:#eef0f2;
+  --font-reading:"Source Han Serif SC","思源宋体","Noto Serif CJK SC","Songti SC",serif;
+  --font-title:"Noto Serif SC","Source Han Serif SC","Noto Serif CJK SC",Georgia,serif;
+  --font-mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,monospace;
+  --page-width:1280px; --toc-width:180px; --layout-gap:40px; --narrative-width:760px; --note-width:270px; --note-gap:30px; --radius:8px;
+}
+</style>
+  <style>
+    /* 缓动分工：笔迹 smoothstep、进场减速到位、离场对称；粒子在 JS 里恒为 linear */
+    :root {
+      --e-pen: linear(0, .028 10%, .104 20%, .216 30%, .352 40%, .5 50%, .648 60%, .784 70%, .896 80%, .972 90%, 1);
+      --e-in: cubic-bezier(.22, 1, .36, 1);
+      --e-out: cubic-bezier(.65, 0, .35, 1);
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--paper); color: var(--ink); }
+    body { margin: 0; font: 17px/1.8 var(--font-reading); }
+    .page { width: min(var(--page-width), calc(100% - 48px)); margin: 0 auto 96px; }
+    .layout { display: grid; grid-template-columns: var(--toc-width) minmax(0, calc(var(--narrative-width) + var(--note-width) + var(--note-gap))); gap: var(--layout-gap); align-items: start; }
+    .toc { position: sticky; top: 32px; padding-top: 76px; color: var(--muted); font: 15px/1.5 var(--font-reading); }
+    .toc strong { display: block; margin-bottom: 10px; color: var(--ink); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+    .toc a { display: block; padding: 6px 0; color: inherit; text-decoration: none; }
+    .toc a:hover, .toc a:focus-visible { color: var(--accent); text-decoration: underline; outline: none; }
+    .content { min-width: 0; }
+    .hero { max-width: var(--narrative-width); padding: 72px 0 48px; border-bottom: 1px solid var(--rule); }
+    .eyebrow, .note-label { color: var(--accent); font: 600 13px/1.4 var(--font-reading); letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 12px 0 16px; font: 700 32px/1.2 var(--font-title); letter-spacing: -.02em; }
+    h2 { margin: 72px 0 22px; font-size: 22px; font-weight: 650; line-height: 1.25; }
+    h3 { margin: 40px 0 12px; font-size: 17px; font-weight: 600; line-height: 1.35; }
+    .lede { color: var(--muted); font-size: 22px; line-height: 1.5; }
+    a { color: var(--accent); }
+
+    /* 主叙事列是合同：每一个阅读块都归它 */
+    section > h2, section > h3, section > p, section > ol, section > ul, section > .annotation-row,
+    section > .callout, section > .technical-note, section > figure,
+    section > .table-scroll, blockquote {
+      width: min(var(--narrative-width), 100%);
+    }
+    p, li { overflow-wrap: break-word; }
+    .explain { max-width: 34em; }
+    .explain > strong:first-child { color: var(--ink); }
+    ul.features > li { margin-bottom: 10px; }
+    ol.walk > li { margin-bottom: 8px; }
+    code { font-family: var(--font-mono); font-size: 15px; }
+
+    .note-ref { margin-left: 3px; font: 600 13px/1 var(--font-reading); vertical-align: super; white-space: nowrap; }
+    .note-ref a { display: inline-grid; width: 1.4em; height: 1.4em; place-items: center; border: 1px solid var(--accent); border-radius: 50%; color: var(--accent); text-decoration: none; }
+    .note-ref a:focus-visible, .note-ref a:hover { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .annotation-row { display: grid; grid-template-columns: minmax(0, var(--narrative-width)) var(--note-width); gap: var(--note-gap); align-items: start; width: min(calc(var(--narrative-width) + var(--note-width) + var(--note-gap)), 100%); }
+    .annotation-main { min-width: 0; }
+    .annotation-main > :first-child { margin-top: 0; }
+    .annotation-main > :last-child { margin-bottom: 0; }
+    .sidenote { width: auto; margin: 0; padding: 10px 0 10px 14px; border-left: 2px solid var(--accent); color: var(--muted); font: 13px/1.65 var(--font-reading); }
+    .sidenote .note-label { display: block; margin-bottom: 4px; }
+    .sidenote code { overflow-wrap: anywhere; font-family: var(--font-mono); font-size: 13px; }
+    .section-ref { color: var(--accent); font: 600 15px/1.5 var(--font-reading); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .18em; }
+    .section-ref:hover, .section-ref:focus-visible { color: var(--ink); outline: 2px solid var(--accent); outline-offset: 3px; }
+
+    .callout { margin: 24px 0; padding: 16px 20px; border-left: 4px solid var(--accent); border-radius: var(--radius); background: var(--accent-tint); }
+    .callout-title { margin-bottom: 4px; font-weight: 700; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--accent-tint); color: var(--accent-ink); font-size: 13px; line-height: 1.6; }
+
+    /* 图卡：全页唯一一条极浅阴影 */
+    figure.plate { margin: 30px 0; padding: 14px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); box-shadow: 0 1px 2px rgba(23, 26, 31, .06); }
+    figure.plate.zoomable { position: relative; }
+    figure.plate .scroll { overflow-x: auto; overscroll-behavior-inline: contain; }
+    figure.plate svg, figure.plate img { display: block; width: 100%; height: auto; }
+    figcaption { min-height: 30px; margin-top: 10px; padding-right: 42px; color: var(--muted); font: 15px/1.6 var(--font-reading); }
+    .figure-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
+    .replay { padding: 4px 14px; border: 1px solid var(--accent); border-radius: 6px; background: var(--surface); color: var(--accent); font: 15px/1.6 var(--font-reading); cursor: pointer; }
+    .replay:hover { background: var(--accent-tint); }
+    .replay:focus-visible, figure.seq:focus-visible, .step:focus-visible, .node:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .step-hint { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 10px; color: var(--muted); font-size: 13px; }
+    .legend svg { width: 36px; height: 12px; margin-right: 6px; vertical-align: middle; }
+    .legend line, .legend rect { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+    .legend .lg-inferred { stroke-dasharray: 2 3; }
+    .legend .lg-bound { stroke-width: 1; stroke-dasharray: 4 4; }
+    .legend button { padding: 0 8px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); color: var(--muted); font: 13px/1.6 var(--font-reading); cursor: pointer; }
+    .legend button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-tint); }
+    .legend .lg-data { stroke: var(--accent); stroke-width: 3; }
+    .legend .lg-generated { stroke: #d9485f; stroke-width: 3; }
+
+    /* SVG 字阶三档（与页面五档独立）与节点类型处理，全部走 token */
+    figure svg text { font: 400 12px var(--font-reading); fill: var(--muted); }
+    figure svg .node text, figure svg .actor text { font: 600 14px var(--font-reading); fill: var(--ink); }
+    figure svg .sub { font: 400 12px var(--font-mono); fill: var(--muted); }
+    figure svg .node rect, figure svg .actor rect { fill: var(--accent-tint); stroke: var(--accent); stroke-width: 1.5; }
+    figure svg .node.focal .inner { fill: none; stroke: var(--accent); stroke-width: 1; }
+    figure svg .node.external rect { fill: var(--external); stroke: var(--muted); }
+    figure svg .node.store rect, figure svg .node.role circle { fill: var(--surface); stroke: var(--muted); stroke-width: 1.5; }
+    figure svg .node.store line { stroke: var(--muted); stroke-width: 1; }
+    figure svg .node.optional rect { fill: var(--surface); stroke: var(--muted); stroke-dasharray: 2 3; }
+    figure svg .boundary { fill: none; stroke: var(--muted); stroke-dasharray: 4 4; }
+    figure svg .edge { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+    figure svg .edge.inferred { stroke-dasharray: 2 3; }
+    figure svg .stop-dot { fill: var(--ink); }
+    figure svg .stop-ring { fill: none; stroke: var(--ink); stroke-width: 1; }
+    /* 命中区在外、可见图形不抢事件：点击与键盘焦点都落在命中区上 */
+    figure svg .node :where(rect, circle, text, line) { pointer-events: none; }
+    figure svg .node rect.hit { pointer-events: all; }
+    figure svg .lifeline { stroke: var(--rule); stroke-width: 1; }
+    figure svg .arr path { fill: var(--muted); }
+    figure svg .arr.lit path { fill: var(--accent); }
+    figure svg [data-node], figure svg [data-explains], figure svg .step { cursor: pointer; }
+
+    /* 责任泳道带、时序片段框与激活条：结构脚手架，不是节点 */
+    figure svg .lane { fill: var(--surface-muted); }
+    figure svg .lane-name { fill: var(--muted); }
+    figure svg .act { fill: var(--accent-tint); stroke: var(--accent); stroke-width: 1; }
+    figure svg .frag { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+    figure svg .frag-tab { fill: var(--surface-muted); stroke: var(--rule-strong); stroke-width: 1; }
+    figure svg .edge.ret { stroke-width: 1; }
+
+    /* A 层：拓扑序错峰（--i 来自拓扑深度）+ 边 draw-in；隐藏初态只在 html.motion-ready 下成立 */
+    figure.anim .node { transition: opacity .5s var(--e-in); transition-delay: calc(var(--i, 0) * 120ms); }
+    html.motion-ready figure.anim:not(.in-view) .node { opacity: 0; }
+    figure.anim path.edge.draw { transition: stroke-dashoffset .8s var(--e-pen) calc(var(--i, 0) * 120ms + 340ms); }
+
+    /* A 层交互：焦点降噪压暗其余，而不是只加亮邻居；不引入第二色相 */
+    figure.anim.hl .node, figure.anim.hl .edge { transition: opacity .12s; }
+    figure.anim.hl .node.dim, figure.anim.hl .edge.dim { opacity: .5; }
+    figure.anim .edge.hl { stroke: var(--accent); }
+    #fig-context .edge.hl { marker-end: url(#fig-context-arr-lit); }
+    #fig-pipeline .edge.hl { marker-end: url(#fig-pipeline-arr-lit); }
+    #fig-capability .edge.hl { marker-end: url(#fig-capability-arr-lit); }
+    figure.anim [data-node]:hover rect, figure.anim [data-node]:focus-visible rect,
+    figure.anim [data-node]:hover circle, figure.anim [data-node]:focus-visible circle { stroke: var(--accent-lit); }
+
+    /* A 层：逐步点亮三态 + 第二通道（线宽 / 字重）；终态全亮是三条降级路径共用的静态图 */
+    .motion-ready .step { opacity: .3; transition: opacity .35s ease; }
+    .step .edge { transition: stroke .35s ease, stroke-width .2s ease; }
+    .step .label { fill: var(--surface); stroke: var(--rule); transition: fill .35s ease, stroke .35s ease; }
+    .step text { transition: fill .35s ease; }
+    .step.done { opacity: .6; }
+    .step.cur { opacity: 1; }
+    .step.done .edge, .step.cur .edge { stroke: var(--accent); }
+    #fig-render .step.done .edge, #fig-render .step.cur .edge { marker-end: url(#fig-render-arr-lit); }
+    .step.done .label, .step.cur .label { fill: var(--accent-tint); stroke: var(--accent); }
+    .step.done text, .step.cur text { fill: var(--accent-ink); }
+    .step.cur .edge { stroke-width: 2.5; }
+    .step.cur text { font-weight: 600; }
+    .step.focus .edge { stroke-width: 2.5; }
+    figure.seq.ended .step { opacity: 1; }
+
+    /* 谱系聚焦与流粒子：谱系色只出现在路径语法与图例色样里 */
+    .flow-dot { fill: var(--accent); pointer-events: none; }
+    figure .lineage-lane { fill: none; stroke-width: var(--lane-width, 4px); stroke-linecap: round; stroke-linejoin: round; transition: opacity .16s, stroke-width .16s; }
+    figure [data-lineage].dim { opacity: .16; }
+    figure .lineage-lane.is-active { stroke-width: calc(var(--lane-width, 4px) + 1.5px); }
+    #fig-lineage .lineage-data { stroke: var(--accent); }
+    #fig-lineage .lineage-generated { stroke: #d9485f; }
+
+    /* 图文联动落点高亮 */
+    .flash { background: var(--accent-tint); outline: 2px solid var(--accent); outline-offset: 6px; transition: background .3s ease; }
+
+    /* 插图查看器（运行时按需生成 <dialog>）*/
+    .figure-zoom-trigger { position: absolute; right: 15px; bottom: 14px; width: 30px; height: 30px; padding: 0; border: 1px solid var(--rule-strong); border-radius: 50%; background: var(--surface); color: var(--accent); font-family: var(--font-reading); cursor: zoom-in; }
+    .figure-zoom-trigger::before { content: ""; position: absolute; left: 8px; top: 7px; width: 9px; height: 9px; border: 1.5px solid currentColor; border-radius: 50%; }
+    .figure-zoom-trigger::after { content: ""; position: absolute; left: 17px; top: 17px; width: 7px; height: 1.5px; background: currentColor; transform: rotate(45deg); transform-origin: left center; }
+    .figure-zoom-trigger:hover { border-color: var(--accent); background: var(--surface-muted); }
+    .figure-zoom-trigger:focus-visible, .figure-lightbox button:focus-visible, .zoom-viewport:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .zoom-placeholder { width: 100%; background: var(--surface-muted); border-radius: 4px; }
+    .figure-lightbox { width: min(96vw, 1600px); height: min(94vh, 1200px); max-width: none; max-height: none; padding: 0; overflow: hidden; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); color: var(--ink); }
+    .figure-lightbox::backdrop { background: rgba(23, 26, 31, .72); }
+    .figure-lightbox[open] { display: block; }
+    .zoom-shell { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+    .zoom-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 52px; padding: 8px 12px 8px 18px; border-bottom: 1px solid var(--rule); background: var(--surface); font: 13px/1.4 var(--font-reading); }
+    .zoom-caption { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+    .zoom-controls { display: flex; align-items: center; flex: none; gap: 6px; }
+    .zoom-controls button { min-width: 34px; height: 34px; padding: 0 9px; border: 1px solid var(--rule); border-radius: 7px; background: var(--surface); color: var(--ink); font: 600 13px/1 var(--font-reading); cursor: pointer; }
+    .zoom-controls button:hover { border-color: var(--accent); color: var(--accent); background: var(--surface-muted); }
+    .zoom-controls .zoom-close { margin-left: 6px; font-size: 17px; }
+    .zoom-viewport { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--surface-muted); }
+    .zoom-stage { display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 24px; }
+    .zoom-stage > svg, .zoom-stage > img { display: block; flex: none; max-width: none !important; height: auto; background: var(--surface); border: 1px solid var(--rule); }
+    .zoom-stage .step, .zoom-stage .node { opacity: 1; }   /* 查看器里永远是完整静态终态 */
+    body.figure-zoom-open { overflow: hidden; }
+
+    .technical-note { margin: 24px 0; overflow: hidden; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface-muted); }
+    .technical-note summary { cursor: pointer; padding: 10px 14px; color: var(--accent); font: 600 13px/1.4 var(--font-reading); letter-spacing: .06em; }
+    .technical-note p { margin: 0; padding: 0 14px 14px; font-size: 15px; }
+    .technical-note pre { margin: 0 14px 14px; padding: 12px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; font: 13px/1.55 var(--font-mono); }
+    .table-scroll { overflow-x: auto; overscroll-behavior-inline: contain; }
+    table { width: 100%; min-width: 620px; border-collapse: collapse; font: 15px/1.6 var(--font-reading); }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+    th { color: var(--accent); }
+    footer.footnotes { width: min(var(--narrative-width), 100%); margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--rule); color: var(--muted); font: 15px/1.6 var(--font-reading); }
+
+    /* ?motion=static：取证帧，一切过渡关闭、控件与粒子隐藏 */
+    html[data-motion="static"] * { transition: none !important; animation: none !important; }
+    html[data-motion="static"] .flow-dot, html[data-motion="static"] .replay { display: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      figure.anim .node, figure.anim .edge { opacity: 1; transition: none; }
+      figure.anim path.edge { stroke-dashoffset: 0 !important; transition: none; }
+      .flow-dot { display: none; }
+      figure.seq:not([data-frame="step"]) .step { opacity: 1 }   /* 终态全亮；读者用 ← / → 单步时三态仍成立 */
+      .step, .step .edge, .step .label, .step text, .flash { transition: none; }
+    }
+    @media (max-width: 1320px) {
+      .layout { display: block; }
+      .toc { position: static; max-width: var(--narrative-width); padding: 24px 0 0; }
+      .toc a { display: inline-block; margin-right: 16px; }
+    }
+    @media (max-width: 960px) {
+      .page { width: min(100% - 32px, var(--page-width)); }
+      .annotation-row { display: block; width: auto; }
+      .sidenote { width: auto; margin: 18px 0; padding: 10px 14px; border: 1px solid var(--rule); border-left: 3px solid var(--accent); background: var(--surface-muted); font-size: 13px; }
+    }
+    @media (max-width: 600px) { .figure-lightbox { width: 100vw; height: 100dvh; border: 0; border-radius: 0; } .zoom-toolbar { gap: 8px; padding-left: 12px; } .zoom-caption { max-width: 72px; } .zoom-controls { gap: 4px; } .zoom-controls button { min-width: 32px; height: 32px; padding: 0 7px; } .zoom-stage { padding: 16px; } }
+    @media print {
+      .page { width: auto; margin: 0; }
+      .layout { display: block; }
+      .toc { display: none; }
+      .sidenote { width: auto; margin: 12px 0; break-inside: avoid; }
+      figure, .callout, .technical-note { break-inside: avoid; }
+      figure.anim .node, figure.anim .edge { opacity: 1 !important; transition: none !important; }
+      figure.anim path.edge { stroke-dashoffset: 0 !important; }
+      .flow-dot, .replay, .figure-zoom-trigger, .figure-lightbox { display: none !important; }
+      figure.seq .step { opacity: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page"><div class="layout">
+    <nav class="toc" aria-label="页面目录"><strong>目录</strong><a href="#product">产品介绍</a><a href="#features">功能与特性</a><a href="#stack">技术栈</a><a href="#overview">系统总览</a><a href="#walkthrough">主走查</a><a href="#pipeline">编译流水线</a><a href="#render-seq">渲染时序</a><a href="#capability">能力协商</a><a href="#lineage">溯源与身份</a><a href="#tradeoffs">取舍</a></nav>
+    <div class="content"><header class="hero">
+      <div class="eyebrow">确定性可视化编译器 · 架构总览</div>
+      <h1>VizIR · 架构总览</h1>
+      <p class="lede">VizIR 把一份描述图表的语义文档编译成一张确定的 SVG，再按需要栅格化成 PNG；同一份输入，今天编译和明年编译，得到的字节完全一样。</p>
+      <p><span class="badge">2026-08-29</span> <span class="badge">快照 21cb736</span> <span class="badge">draft</span></p>
+    </header>
+
+    <section id="product">
+      <h2>01 · 把"画一张图"变成一次可以审查的编译</h2>
+      <div class="annotation-row">
+      <div class="annotation-main">
+        <p>VizIR 是一个跑在命令行上的可视化编译器，用 Rust 写成。你给它一份<strong>语义文档</strong>——一种叫 <code>.viz.yaml</code> 的文件，里面写清数据、想看的视图和字段怎么映射——它交回一张 SVG 矢量图，或者一张由这份 SVG 栅格化来的 PNG 位图。</p>
+        <p>它给需要在代码里稳定出图的人用：在 CI 里给测试报告配图、给文档站批量出图、或者让上游的 agent 把"画一张柱状图"落成一份能被人审查的文件。这三种场景的共同要求只有一条——同一份输入，什么时候编译，出来的图都必须一模一样。</p>
+        <p>和直接拼 SVG 字符串的绘图库相比，VizIR 把这件事拆成三级中间表示，每一级都能单独校验、落盘和逐字节比对；和把图交给浏览器渲染的方案相比，它不依赖任何运行中的服务，一个二进制就够了。它也有明确的不做什么：不解释自然语言里的作图意图，也不替你挑输出后端——命令行只收文件路径，仓库文档把这两件事划给上游的 create-plot 技能<sup class="note-ref"><a href="#note-boundary" role="doc-noteref" aria-describedby="note-boundary" aria-label="查看关于上游边界的注释">1</a></sup>。</p>
+      </div>
+      <aside class="sidenote" id="note-boundary" role="note"><span class="note-label">01 · 谁在它上游</span>create-plot 技能把意图变成语义文档、决定用哪个后端；VizIR 只对文档本身负责。所以第 04 节的总览图里，create-plot 画在本仓库边界之外。这一条来自仓库自己的文档，代码里没有它的痕迹——命令行只接受文件路径。</aside>
+      </div>
+    </section>
+
+    <section id="features">
+      <h2>02 · 八件它替你做的事</h2>
+      <ul class="features">
+        <li><strong>编译前校验</strong>：数据集引用、字段类型、编码映射在编译前就查一遍，报错带错误码和出问题的位置；适合在 CI 里挡住写坏的文档。</li>
+        <li><strong>一键渲染</strong>：<code>vizir render --format svg|png</code> 一条命令出图；适合文档站和 CI 产物。</li>
+        <li><strong>三类图表方言</strong>：统计图（散点 / 折线 / 柱状）、关系图、自由几何，同一份文档可以混着用；适合一页报告里既有柱状图又有流程图。</li>
+        <li><strong>中间表示落盘</strong>：<code>vizir normalize</code> 导出带 JSON Schema 的中间表示，可以 diff、可以喂给别的工具；适合审查"编译器到底理解成了什么"。</li>
+        <li><strong>分层布局服务</strong>：关系图给了坐标就用你的坐标，没给就自动分层排布，成环也有确定的兜底位置；适合不想手摆节点的场景。</li>
+        <li><strong>溯源查询</strong>：<code>vizir explain</code> 回答"图上这个元素从哪来"；适合核对生成结果有没有画错数据。</li>
+        <li><strong>能力协商与损失清单</strong>：渲染前问一遍目标后端能做什么，做不到就报错；PNG 这类有损路径在清单里写明降级了什么；适合在自动化里提前发现出不了图。</li>
+        <li><strong>场景增量修订</strong>：场景以修订号描述差异，可以 diff 与应用；目前只有库接口，命令行还没有入口。</li>
+      </ul>
+      <p>这八条到此为止：读者知道有这个能力、知道谁在什么场景用它就够了，每条能力内部怎么运转属于下一层文档的范围。</p>
+    </section>
+
+    <section id="stack">
+      <h2>03 · 技术栈概览</h2>
+      <div class="table-scroll" tabindex="0" aria-label="可横向滚动的技术栈表">
+        <table>
+          <thead><tr><th>层面</th><th>用什么</th><th>一句话</th></tr></thead>
+          <tbody>
+            <tr><td>语言与结构</td><td>Rust，4 个 crate 的工作区</td><td>契约、编译、命令行、SVG 后端各占一个 crate</td></tr>
+            <tr><td>序列化</td><td>serde + JSON</td><td>语义文档、中间表示、场景、清单全部走 JSON，中间表示带 2020-12 版 JSON Schema</td></tr>
+            <tr><td>矢量输出</td><td>自写 SVG 后端</td><td>逐字节确定地拼出 SVG，不引第三方绘图库</td></tr>
+            <tr><td>位图输出</td><td>rsvg-convert，退回 ImageMagick</td><td>外部栅格化器，找到哪个用哪个，都没有就出不了 PNG</td></tr>
+            <tr><td>运行形态</td><td>单进程命令行</td><td>没有常驻服务、没有网络请求，编译全程在一个进程里</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="overview">
+      <h2>04 · 一条编译链，两端各有一道边界</h2>
+      <p>整个系统只有一个进程。<strong>图表作者</strong>与 <strong>create-plot 技能</strong>把<strong>语义文档</strong>交给 <strong>vizir 命令行</strong>，命令行在本进程里跑完编译链，写出 <strong>SVG 与 PNG 制品</strong>；只有 PNG 这一条路要走出进程，去调外部的<strong>栅格化器</strong>。把这一点记住，后面四张图都是这条链的放大。</p>
+
+      <!-- 图计划: 系统上下文图（C4 L1） · 无模式 · 命题句「命令行在本进程里跑完编译链，只有 PNG 要走出进程调外部栅格化器」· 6节点/5边 · 预算删掉了清单文件与缓存目录 · A层动效: 拓扑序错峰 + 边 draw-in；交互: 焦点降噪 + 图文联动 -->
+      <figure class="plate anim zoomable" id="context-fig">
+        <div class="scroll">
+        <svg id="fig-context" viewBox="0 0 720 330" role="group" aria-labelledby="fig-context-title fig-context-desc" style="min-width:720px">
+          <title id="fig-context-title">VizIR 系统上下文</title>
+          <desc id="fig-context-desc">图表作者与 create-plot 技能把语义文档交给 vizir 命令行，命令行在本进程里编译并写出 SVG 与 PNG 制品，PNG 还要经外部栅格化器栅格化。</desc>
+          <defs>
+            <marker id="fig-context-arr" class="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+            <marker id="fig-context-arr-lit" class="arr lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+          </defs>
+          <!-- 绘制顺序即几何：边 → 边标签 → 不透明节点；--i = 拓扑深度（边取源层号 + 0.5） -->
+          <g class="edges">
+            <path class="edge draw" data-from="skill" data-to="doc" style="--i:0.5" d="M 214,64 H 326" marker-end="url(#fig-context-arr)"/>
+            <text x="270" y="54" text-anchor="middle">合成语义文档</text>
+            <path class="edge draw" data-from="author" data-to="cli" style="--i:0.5" d="M 76,230 H 156" marker-end="url(#fig-context-arr)"/>
+            <text x="116" y="220" text-anchor="middle">调用子命令</text>
+            <path class="edge draw" data-from="cli" data-to="doc" style="--i:1.5" d="M 235,202 V 92" marker-end="url(#fig-context-arr)"/>
+            <text x="243" y="150">读取</text>
+            <path class="edge draw" data-from="cli" data-to="artifacts" style="--i:1.5" d="M 310,222 H 516" marker-end="url(#fig-context-arr)"/>
+            <text x="413" y="212" text-anchor="middle">写出制品</text>
+            <path class="edge draw" data-from="cli" data-to="backend" style="--i:1.5" d="M 235,254 V 266 Q 235,274 243,274 H 516" marker-end="url(#fig-context-arr)"/>
+            <text x="380" y="264" text-anchor="middle">栅格化（PNG）</text>
+          </g>
+          <g class="node role" data-node="author" data-depth="0" style="--i:0" data-explains="features" tabindex="0" aria-label="图表作者">
+            <rect class="hit" x="20" y="200" width="60" height="82" fill="transparent" pointer-events="all"/>
+            <circle cx="50" cy="230" r="22"/><text x="50" y="274" text-anchor="middle">图表作者</text>
+          </g>
+          <g class="node external" data-node="skill" data-depth="0" style="--i:0" data-explains="product" tabindex="0" aria-label="create-plot 技能">
+            <rect class="hit" x="52" y="32" width="166" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="60" y="40" width="150" height="48" rx="6"/><text x="135" y="69" text-anchor="middle">create-plot 技能</text>
+          </g>
+          <g class="node focal" data-node="cli" data-depth="1" style="--i:1" data-explains="pipeline" tabindex="0" aria-label="vizir 命令行">
+            <rect class="hit" x="152" y="198" width="166" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="160" y="206" width="150" height="48" rx="6"/><rect class="inner" x="163" y="209" width="144" height="42" rx="4"/><text x="235" y="239" text-anchor="middle">vizir 命令行</text><text class="sub" x="305" y="222" text-anchor="end">Rust</text>
+          </g>
+          <g class="node store" data-node="doc" data-depth="2" style="--i:2" data-explains="lineage" tabindex="0" aria-label="语义文档">
+            <rect class="hit" x="322" y="32" width="166" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="330" y="40" width="150" height="48" rx="6"/><line x1="330" y1="47" x2="480" y2="47"/><text x="405" y="73" text-anchor="middle">语义文档</text><text class="sub" x="475" y="56" text-anchor="end">.viz.yaml</text>
+          </g>
+          <g class="node store" data-node="artifacts" data-depth="2" style="--i:2" data-explains="render-seq" tabindex="0" aria-label="SVG 与 PNG 制品">
+            <rect class="hit" x="512" y="122" width="166" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="520" y="130" width="150" height="48" rx="6"/><line x1="520" y1="137" x2="670" y2="137"/><text x="595" y="163" text-anchor="middle">SVG / PNG 制品</text>
+          </g>
+          <g class="node external" data-node="backend" data-depth="2" style="--i:2" data-explains="capability" tabindex="0" aria-label="栅格化器">
+            <rect class="hit" x="512" y="242" width="166" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="520" y="250" width="150" height="48" rx="6"/><text x="595" y="283" text-anchor="middle">栅格化器</text><text class="sub" x="665" y="266" text-anchor="end">rsvg-convert</text>
+          </g>
+        </svg>
+        </div>
+        <figcaption>vizir 命令行在本进程里跑完编译链，只有 PNG 要走出进程调外部栅格化器。</figcaption>
+      </figure>
+      <p class="explain"><strong>六个盒子各管一件事。</strong>图表作者把数据与视图写成文档；create-plot 技能替作者合成这份文档，也可以直接调子命令；vizir 命令行是本仓库唯一的入口，它读语义文档、在本进程里跑完编译链、写出制品；SVG 与 PNG 制品落在输出目录；栅格化器在进程外，只在目标为 PNG 时被调用。走一遍：作者写好文档 → 命令行读取 → 编译链跑完 → SVG 写盘 → 若目标是 PNG，命令行再调栅格化器把这份 SVG 变成位图并回读校验。</p>
+      <p class="explain"><strong>一个容易混的边界：</strong>栅格化器画在本仓库之外，因为它是一个外部可执行程序，命令行只是找到它并调用；机器上没有它，PNG 这条路就走不通，SVG 不受影响。图上五条都是实线，所以这张图不画线型图例；灰底的两个盒子（create-plot 技能与栅格化器）不在本仓库里。点击任一盒子会跳到讲它的那一段。按预算删掉的是清单文件与缓存目录——清单在第 07 节的时序里出现，缓存这个仓库根本没有。</p>
+    </section>
+
+    <section id="walkthrough">
+      <h2>05 · 主走查：一次渲染</h2>
+      <p>下面这条链贯穿全系统，后面四张图各是它的一段放大。五个环节各点名它经过的组件与它做的一件事。</p>
+      <ol class="walk">
+        <li><strong>写文档</strong>——图表作者（或 create-plot 技能）把数据与视图写进一份语义文档，数据集、视图、字段映射都在这一个文件里。</li>
+        <li><strong>校验</strong>——vizir 命令行把文档交给 vizir-compiler，第一轮校验在语义层查数据集引用与字段类型，这一步过不去就没有后面。</li>
+        <li><strong>降阶与布局</strong>——编译器把语义文档降成中间表示：表达式定下类型、标度定下值域；第二轮校验再查一遍，关系图在这一步拿到坐标。</li>
+        <li><strong>成场景并协商</strong>——场景构建产出 Scene2D，每个节点带上"我从哪来"的出身信息；能力协商逐条判定这些节点报出的需求，有一条不满足就整体失败。</li>
+        <li><strong>出制品</strong>——SVG 后端逐字节确定地写出 SVG；目标为 PNG 时，命令行再调外部栅格化器把它变成位图并回读校验，清单里记下降级损失。</li>
+      </ol>
+      <div class="callout">
+        <div class="callout-title">这条走查的名字在全站通用</div>
+        「一次渲染」是本页选定的主线名：讲单个能力怎么运转的文档会沿用这个名字来说明自己承担哪一段，换名字会让两层文档对不上。
+      </div>
+    </section>
+
+    <section id="pipeline">
+      <h2>06 · 编译流水线：三个 crate 各管一段</h2>
+      <p>把命令行那个进程拆开看，是三个 crate 在接力：<strong>vizir-core</strong> 定契约、做校验与能力协商；<strong>vizir-compiler</strong> 负责降阶、布局与场景构建；<strong>vizir-cli</strong> 负责写出制品。下图按"这一步归谁负责"分成三条带，粒子沿主链跑。</p>
+
+      <!-- 图计划: 数据流图（责任泳道） · 无模式 · 命题句「校验与协商归契约层，降阶布局与场景归编译器，写出制品归命令行；能力协商在场景之后才判定」· 8节点/7边 · 预算删掉了清单写盘与错误退出路径 · A层动效: 流粒子 + 拓扑序错峰；交互: 焦点降噪 -->
+      <figure class="plate anim zoomable" id="pipeline-fig">
+        <div class="scroll">
+        <svg id="fig-pipeline" viewBox="0 0 720 440" role="group" aria-labelledby="fig-pipeline-title fig-pipeline-desc" style="min-width:720px">
+          <title id="fig-pipeline-title">VizIR 的编译流水线</title>
+          <desc id="fig-pipeline-desc">语义文档先过两轮校验，再经降阶、布局与场景构建成为 Scene2D，能力协商通过后由命令行写出 SVG，PNG 再经栅格化。</desc>
+          <defs>
+            <marker id="fig-pipeline-arr" class="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+            <marker id="fig-pipeline-arr-lit" class="arr lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+          </defs>
+          <!-- 绘制顺序：责任带 → 边 → 边标签 → 不透明节点 → 不可见流轨道 -->
+          <g class="lanes">
+            <rect class="lane" x="8" y="36" width="704" height="104" rx="6"/>
+            <rect class="lane" x="8" y="150" width="492" height="180" rx="6"/>
+            <rect class="lane" x="368" y="340" width="344" height="88" rx="6"/>
+            <text class="lane-name" x="20" y="54">vizir-core · 契约与校验</text>
+            <text class="lane-name" x="20" y="168">vizir-compiler · 降阶与场景</text>
+            <text class="lane-name" x="380" y="358">vizir-cli · 制品</text>
+          </g>
+          <g class="edges">
+            <path class="edge draw" data-from="hir" data-to="lower" style="--i:0.5" d="M 100,112 V 174" marker-end="url(#fig-pipeline-arr)"/>
+            <text x="108" y="146">通过校验</text>
+            <path class="edge draw" data-from="lower" data-to="mir" style="--i:1.5" d="M 160,202 H 252 Q 260,202 260,194 V 116" marker-end="url(#fig-pipeline-arr)"/>
+            <text x="206" y="192" text-anchor="middle">VizMIR</text>
+            <path class="edge draw" data-from="mir" data-to="layout" style="--i:1.5" d="M 320,88 H 412 Q 420,88 420,96 V 174" marker-end="url(#fig-pipeline-arr)"/>
+            <text x="366" y="80" text-anchor="middle">复检通过</text>
+            <path class="edge draw" data-from="layout" data-to="scene" style="--i:2.5" d="M 420,226 V 256" marker-end="url(#fig-pipeline-arr)"/>
+            <text x="428" y="244">布局坐标</text>
+            <path class="edge draw" data-from="scene" data-to="negotiate" style="--i:2.5" d="M 480,284 H 572 Q 580,284 580,276 V 116" marker-end="url(#fig-pipeline-arr)"/>
+            <text x="526" y="274" text-anchor="middle">Scene2D</text>
+            <path class="edge draw" data-from="negotiate" data-to="svgout" style="--i:2.5" d="M 660,112 V 360" marker-end="url(#fig-pipeline-arr)"/>
+            <text x="652" y="242" text-anchor="end">通过协商</text>
+            <path class="edge draw" data-from="svgout" data-to="pngout" style="--i:3.5" d="M 560,388 H 504" marker-end="url(#fig-pipeline-arr)"/>
+            <text x="532" y="378" text-anchor="middle">栅格化</text>
+          </g>
+          <g class="node" data-node="hir" data-depth="0" style="--i:0" tabindex="0" aria-label="HIR 校验">
+            <rect class="hit" x="32" y="56" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="40" y="64" width="120" height="48" rx="6"/><text x="100" y="93" text-anchor="middle">HIR 校验</text>
+          </g>
+          <g class="node" data-node="mir" data-depth="0" style="--i:0" tabindex="0" aria-label="MIR 校验">
+            <rect class="hit" x="192" y="56" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="200" y="64" width="120" height="48" rx="6"/><text x="260" y="93" text-anchor="middle">MIR 校验</text>
+          </g>
+          <g class="node" data-node="negotiate" data-depth="0" style="--i:0" tabindex="0" aria-label="能力协商">
+            <rect class="hit" x="552" y="56" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="560" y="64" width="120" height="48" rx="6"/><text x="620" y="93" text-anchor="middle">能力协商</text>
+          </g>
+          <g class="node" data-node="lower" data-depth="1" style="--i:1" tabindex="0" aria-label="降阶到 MIR">
+            <rect class="hit" x="32" y="170" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="40" y="178" width="120" height="48" rx="6"/><text x="100" y="211" text-anchor="middle">降阶到 MIR</text>
+          </g>
+          <g class="node" data-node="layout" data-depth="1" style="--i:1" tabindex="0" aria-label="分层布局">
+            <rect class="hit" x="352" y="170" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="360" y="178" width="120" height="48" rx="6"/><text x="420" y="211" text-anchor="middle">分层布局</text>
+          </g>
+          <g class="node" data-node="scene" data-depth="2" style="--i:2" tabindex="0" aria-label="场景构建">
+            <rect class="hit" x="352" y="252" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="360" y="260" width="120" height="48" rx="6"/><text x="420" y="289" text-anchor="middle">场景构建</text>
+          </g>
+          <g class="node" data-node="pngout" data-depth="3" style="--i:3" tabindex="0" aria-label="PNG 栅格化">
+            <rect class="hit" x="372" y="356" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="380" y="364" width="120" height="48" rx="6"/><text x="440" y="393" text-anchor="middle">PNG 栅格化</text>
+          </g>
+          <g class="node" data-node="svgout" data-depth="3" style="--i:3" tabindex="0" aria-label="SVG 输出">
+            <rect class="hit" x="552" y="356" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="560" y="364" width="120" height="48" rx="6"/><text x="620" y="393" text-anchor="middle">SVG 输出</text>
+          </g>
+          <!-- 端到端不可见轨道：粒子沿它跑，几何检查不看它（stroke:none） -->
+          <g class="flow-guides">
+            <path data-flow fill="none" stroke="none" d="M 100,88 V 202 H 260 V 88"/>
+            <path data-flow fill="none" stroke="none" d="M 260,88 H 420 V 284 H 580 V 88"/>
+            <path data-flow fill="none" stroke="none" d="M 620,88 V 388 H 504"/>
+          </g>
+        </svg>
+        </div>
+        <figcaption>校验与协商归契约层，降阶、布局与场景归编译器，写出制品归命令行；能力协商在场景生成之后才判定。</figcaption>
+      </figure>
+      <p class="explain"><strong>三条带就是三个 crate。</strong>最上一条是 vizir-core：HIR 校验收下语义文档并查数据集引用与字段类型，MIR 校验在降阶之后再查一遍，能力协商在渲染前逐条判定。中间一条是 vizir-compiler：降阶把 HIR 变成 VizMIR，分层布局给没有坐标的关系图算坐标，场景构建把 MIR 变成 Scene2D。最下一条是 vizir-cli：SVG 输出逐字节写盘，PNG 栅格化调外部栅格化器并回读校验。走一遍主链：HIR 校验 → 降阶到 MIR → MIR 校验 → 分层布局 → 场景构建 → 能力协商 → SVG 输出 → PNG 栅格化。</p>
+      <p class="explain"><strong>易混点：</strong>能力协商排在场景构建之后，不是之前——判定需要场景节点自己报出的需求（比如要不要透明背景），这些需求要到场景生成时才齐全。图上粒子沿三条主线跑，同周期不同相位；带子只是责任归属，不是运行顺序的框。按预算删掉的是清单写盘与错误退出路径，它们在第 07 节出现。</p>
+    </section>
+
+    <section id="render-seq">
+      <h2>07 · 渲染时序：谁在等谁</h2>
+      <p>主走查的第三到第五个环节发生在命令行进程里，外面看不见。把它按时间拉开就是下面这张图：四个被调用方都只在被调用的那几步打开，命令行从头活到尾。</p>
+
+      <!-- 图计划: 时序图（生命线） · OPT 片段 · 命题句「校验失败在编译器里就终止，能力协商在场景之后，PNG 比 SVG 多走一次外部栅格化」· 5参与者/6消息 · 预算删掉了清单写盘与栅格化器缺失的报错分支 · A层动效: 逐步点亮；交互: 单步 hover / click / 键盘 -->
+      <figure class="plate seq zoomable" id="render-seq-fig" data-hint="render-hint">
+        <div class="scroll">
+        <svg id="fig-render" viewBox="0 0 720 400" role="group" aria-labelledby="fig-render-title fig-render-desc" style="min-width:720px">
+          <title id="fig-render-title">一次渲染的时序</title>
+          <desc id="fig-render-desc">命令行调用编译器得到场景并做能力协商，再让 SVG 后端写出矢量图；目标为 PNG 时还要调外部栅格化器。</desc>
+          <defs>
+            <marker id="fig-render-arr" class="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+            <marker id="fig-render-arr-lit" class="arr lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+          </defs>
+          <!-- 绘制顺序：生命线 → 激活条 → 片段框 → 消息与标签 → 不透明参与者 -->
+          <g class="lifelines">
+            <line class="lifeline" x1="76" y1="54" x2="76" y2="384"/>
+            <line class="lifeline" x1="218" y1="54" x2="218" y2="384"/>
+            <line class="lifeline" x1="360" y1="54" x2="360" y2="384"/>
+            <line class="lifeline" x1="502" y1="54" x2="502" y2="384"/>
+            <line class="lifeline" x1="644" y1="54" x2="644" y2="384"/>
+          </g>
+          <g class="acts">
+            <rect class="act" x="72" y="96" width="8" height="248"/>
+            <rect class="act" x="214" y="96" width="8" height="88"/>
+            <rect class="act" x="356" y="136" width="8" height="48"/>
+            <rect class="act" x="498" y="286" width="8" height="24"/>
+            <rect class="act" x="640" y="336" width="8" height="24"/>
+          </g>
+          <g class="frag-group">
+            <rect class="frag" x="60" y="314" width="624" height="52"/>
+            <rect class="frag-tab" x="60" y="314" width="40" height="20"/>
+            <text class="sub" x="80" y="328" text-anchor="middle">OPT</text>
+            <text x="110" y="328">[format = png]</text>
+          </g>
+          <g class="step" tabindex="0" aria-label="命令行把文档交给编译器并取回场景"><path class="edge" d="M 80,100 H 214" marker-end="url(#fig-render-arr)"/><rect class="label" x="96" y="89" width="100" height="22" rx="4"/><text x="146" y="105" text-anchor="middle">① 编译取回场景</text></g>
+          <g class="step" tabindex="0" aria-label="编译器请契约层做两轮校验"><path class="edge" d="M 222,140 H 356" marker-end="url(#fig-render-arr)"/><rect class="label" x="247" y="129" width="86" height="22" rx="4"/><text x="290" y="145" text-anchor="middle">② 两轮校验</text></g>
+          <g class="step" tabindex="0" aria-label="契约层把诊断返回给编译器"><path class="edge ret" d="M 356,180 H 222" marker-end="url(#fig-render-arr)"/><rect class="label" x="247" y="169" width="86" height="22" rx="4"/><text x="290" y="185" text-anchor="middle">③ 返回诊断</text></g>
+          <g class="step" tabindex="0" aria-label="命令行请契约层逐条判定场景需求"><path class="edge" d="M 80,240 H 356" marker-end="url(#fig-render-arr)"/><rect class="label" x="176" y="229" width="86" height="22" rx="4"/><text x="219" y="245" text-anchor="middle">④ 能力协商</text></g>
+          <g class="step" tabindex="0" aria-label="命令行让 SVG 后端把场景写成矢量图"><path class="edge" d="M 80,290 H 498" marker-end="url(#fig-render-arr)"/><rect class="label" x="247" y="279" width="96" height="22" rx="4"/><text x="295" y="295" text-anchor="middle">⑤ 渲染 SVG</text></g>
+          <g class="step" tabindex="0" aria-label="命令行调外部栅格化器把 SVG 变成位图"><path class="edge" d="M 80,340 H 640" marker-end="url(#fig-render-arr)"/><rect class="label" x="290" y="329" width="110" height="22" rx="4"/><text x="345" y="345" text-anchor="middle">⑥ 栅格化 PNG</text></g>
+          <g class="actor"><rect x="16" y="10" width="120" height="44" rx="6"/><text x="76" y="27" text-anchor="middle">命令行</text><text class="sub" x="76" y="44" text-anchor="middle">vizir-cli</text></g>
+          <g class="actor"><rect x="158" y="10" width="120" height="44" rx="6"/><text x="218" y="27" text-anchor="middle">编译器</text><text class="sub" x="218" y="44" text-anchor="middle">vizir-compiler</text></g>
+          <g class="actor"><rect x="300" y="10" width="120" height="44" rx="6"/><text x="360" y="27" text-anchor="middle">核心契约</text><text class="sub" x="360" y="44" text-anchor="middle">vizir-core</text></g>
+          <g class="actor"><rect x="442" y="10" width="120" height="44" rx="6"/><text x="502" y="27" text-anchor="middle">SVG 后端</text><text class="sub" x="502" y="44" text-anchor="middle">backend-svg</text></g>
+          <g class="actor"><rect x="584" y="10" width="120" height="44" rx="6"/><text x="644" y="27" text-anchor="middle">栅格化器</text><text class="sub" x="644" y="44" text-anchor="middle">rsvg-convert</text></g>
+        </svg>
+        </div>
+        <figcaption>校验失败在编译器里就终止，能力协商发生在场景之后，PNG 比 SVG 多走一次外部栅格化。
+          <div class="figure-controls"><button class="replay" type="button">▶ 重放动效</button><p class="step-hint" id="render-hint" role="status" aria-live="polite" aria-atomic="true">共 6 步</p></div>
+        </figcaption>
+      </figure>
+      <p class="explain"><strong>五条生命线，一条主动。</strong>命令行从第一步活到最后一步，它的激活条贯穿全图；编译器只在第一到第三步被打开，两轮校验它自己不判断，而是请核心契约来判；核心契约是契约层，校验诊断与能力协商的结论都出自它；SVG 后端只收场景、交文本；栅格化器是进程外的可执行程序。走一遍：命令行把文档交给编译器并取回场景 → 编译器请核心契约做两轮校验 → 有诊断就直接终止，后面的步骤都不会发生 → 命令行自己做能力协商 → SVG 后端把场景写成矢量图 → 目标为 PNG 时再调一次栅格化器。</p>
+      <p class="explain"><strong>易混点：</strong>OPT 框里的第六步只在目标是 PNG 时发生，SVG 目标到第五步就结束了；第四步的箭头从命令行直指核心契约，跳过编译器，因为协商由命令行发起、不需要编译器转手。返回消息用更细的灰线并以"返回"开头，好分清请求与应答。按预算删掉的是清单写盘与栅格化器缺失时的报错分支。</p>
+    </section>
+
+    <section id="capability">
+      <h2>08 · 能力协商：先问能不能，再动手</h2>
+      <p>渲染前有一道闸门。场景节点在生成时报出自己需要什么能力，闸门把它们逐条对照目标后端的<strong>能力档案</strong>——档案就是一份"我能做什么"的声明。结论只有三种：精确放行、降级放行、整体拒绝。</p>
+
+      <!-- 图计划: 安全铺路（上下文图 + 语义模式） · 无模式 · 命题句「有档案认领的需求才放行：SVG 精确放行，PNG 降级放行，没有档案认领的整次渲染拒绝」· 5节点/5边/2边界 · 预算删掉了清单里 capability_report 的字段展开 · A层动效: 边 draw-in（准入路径依次画出来）；交互: 焦点降噪 -->
+      <figure class="plate anim zoomable" id="capability-fig">
+        <div class="scroll">
+        <svg id="fig-capability" viewBox="0 0 720 380" role="group" aria-labelledby="fig-capability-title fig-capability-desc" style="min-width:720px">
+          <title id="fig-capability-title">能力协商的三种结论</title>
+          <desc id="fig-capability-desc">场景需求进入能力协商，SVG 档案精确放行产出 SVG 文本，PNG 档案降级放行产出位图，没有档案认领的需求被拒绝且不产出任何制品。</desc>
+          <defs>
+            <marker id="fig-capability-arr" class="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+            <marker id="fig-capability-arr-lit" class="arr lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+          </defs>
+          <!-- 绘制顺序即几何：边界框 → 边 → 边标签 → 停止记号 → 不透明节点 -->
+          <rect class="boundary" x="460" y="36" width="246" height="114" rx="6"/>
+          <text x="470" y="54">SVG 后端档案</text>
+          <rect class="boundary" x="460" y="200" width="246" height="114" rx="6"/>
+          <text x="470" y="218">PNG 后端档案</text>
+          <g class="edges">
+            <path class="edge draw" data-from="demand" data-to="gate" style="--i:0.5" d="M 174,162 H 246" marker-end="url(#fig-capability-arr)"/>
+            <text x="210" y="152" text-anchor="middle">逐条判定</text>
+            <path class="edge draw" data-from="gate" data-to="svgout" style="--i:1.5" d="M 394,162 H 466 Q 474,162 474,154 V 102 Q 474,94 482,94 H 496" marker-end="url(#fig-capability-arr)"/>
+            <text x="430" y="152" text-anchor="middle">允许：精确</text>
+            <path class="edge draw" data-from="gate" data-to="pngout" style="--i:1.5" d="M 394,186 H 466 Q 474,186 474,194 V 262 Q 474,270 482,270 H 496" marker-end="url(#fig-capability-arr)"/>
+            <text x="430" y="206" text-anchor="middle">允许：栅格</text>
+            <path class="edge draw" data-from="gate" data-to="reject" style="--i:1.5" d="M 360,198 V 244" marker-end="url(#fig-capability-arr)"/>
+            <text x="344" y="226" text-anchor="end">拒绝输出</text>
+            <path class="edge inferred" data-from="future" data-to="gate" style="--i:0.5" d="M 115,290 V 240 Q 115,232 123,232 H 282 Q 290,232 290,224 V 202" marker-end="url(#fig-capability-arr)"/>
+            <text x="150" y="224" text-anchor="middle">可能出现?</text>
+          </g>
+          <circle class="stop-dot" cx="360" cy="250" r="4"/>
+          <circle class="stop-ring" cx="360" cy="250" r="7"/>
+          <text class="sub" x="344" y="268" text-anchor="end">VIZ-CAP-0002</text>
+          <g class="node" data-node="demand" data-depth="0" style="--i:0" tabindex="0" aria-label="场景需求">
+            <rect class="hit" x="32" y="142" width="146" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="40" y="150" width="130" height="48" rx="6"/><text x="105" y="183" text-anchor="middle">场景需求</text><text class="sub" x="46" y="166">scene.2d</text>
+          </g>
+          <g class="node focal" data-node="gate" data-depth="1" style="--i:1" tabindex="0" aria-label="能力协商">
+            <rect class="hit" x="242" y="142" width="156" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="250" y="150" width="140" height="48" rx="6"/><rect class="inner" x="253" y="153" width="134" height="42" rx="4"/><text x="320" y="183" text-anchor="middle">能力协商</text><text class="sub" x="384" y="166" text-anchor="end">require_accepted</text>
+          </g>
+          <g class="node" data-node="svgout" data-depth="2" style="--i:2" tabindex="0" aria-label="SVG 文本（精确）">
+            <rect class="hit" x="492" y="74" width="192" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="500" y="82" width="176" height="48" rx="6"/><text x="588" y="111" text-anchor="middle">SVG 文本（精确）</text>
+          </g>
+          <g class="node" data-node="pngout" data-depth="2" style="--i:2" tabindex="0" aria-label="PNG 制品（栅格）">
+            <rect class="hit" x="492" y="238" width="192" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="500" y="246" width="176" height="48" rx="6"/><text x="588" y="275" text-anchor="middle">PNG 制品（栅格）</text>
+          </g>
+          <g class="node optional" data-node="future" data-depth="0" style="--i:0" tabindex="0" aria-label="未声明的需求?">
+            <rect class="hit" x="32" y="282" width="166" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="40" y="290" width="150" height="48" rx="6"/><text x="115" y="323" text-anchor="middle">未声明的需求?</text><text class="sub" x="48" y="306">animation / 3D</text>
+          </g>
+        </svg>
+        </div>
+        <figcaption>有档案认领的需求才放行：SVG 精确放行，PNG 降级放行，没有档案认领的整次渲染拒绝。</figcaption>
+        <div class="legend">
+          <span><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true" focusable="false"><line x1="1" y1="6" x2="35" y2="6"/></svg>允许并产出制品</span>
+          <span><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true" focusable="false"><line class="lg-inferred" x1="1" y1="6" x2="35" y2="6"/></svg>推断路径</span>
+          <span><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true" focusable="false"><rect class="lg-bound" x="1" y="2" width="34" height="8" rx="2"/></svg>后端能力档案边界</span>
+        </div>
+      </figure>
+      <p class="explain"><strong>判定逐条进行，结论只有三种。</strong>场景需求是 Scene2D 节点在生成时报出的"我需要什么"，比如二维场景本身、文本、或者透明背景。能力协商把它们逐条对照目标后端的能力档案：SVG 档案原生支持二维场景与文本，所以精确放行，产出 SVG 文本；PNG 档案要把这些需求降级成栅格制品，放行但在清单里记一笔损失；没有档案认领的需求（动画时间线、指针交互、三维网格、纯矢量目标）直接拒绝，整次渲染以错误码收场，一个字节都不产出。把鼠标放到任一盒子上，与它相连的路径会亮出来。</p>
+      <p class="explain"><strong>易混点：</strong>左下角那个虚线框里的需求目前不会出现——现在的语义文档表达不了动画与三维，所以拒绝分支画成短虚线并带问号，它是给未来留的闸门，不是已经在跑的分支。停止记号用实心墨点而不是主题蓝，表示"这里没有产物"。按预算删掉的是清单里 capability_report 的字段展开，它在页脚的核对信息里出现。</p>
+    </section>
+
+    <section id="lineage">
+      <h2>09 · 溯源与稳定身份：两条河，一个汇合点</h2>
+      <p>场景里每个节点都带着一份出身信息：它来自哪一行数据、由哪一步生成。这一份信息分成两条完全不同的河——<strong>数据行谱系</strong>回答"这个图形对应哪行数据"，<strong>生成谱系</strong>回答"这个图形是哪一步画出来的"。</p>
+
+      <!-- 图计划: 数据谱系河流图 · 色束扇入 · 命题句「柱矩形的出身是数据行，轴直线的出身是生成步骤，两者在 SVG 元素汇合但身份不同」· 8节点/2色束（≤6 色）· 预算删掉了文字标签与图例节点（同走生成谱系）· A层动效: 各色流粒子沿自身谱系运动（2 条，同周期错相位）；交互: 谱系聚焦（图例按钮 hover / click / Escape） -->
+      <figure class="plate zoomable" id="lineage-fig">
+        <div class="scroll">
+        <svg id="fig-lineage" viewBox="0 0 720 330" role="group" aria-labelledby="fig-lineage-title fig-lineage-desc" style="min-width:720px">
+          <title id="fig-lineage-title">从数据行到 SVG 元素的两条谱系</title>
+          <desc id="fig-lineage-desc">数据集的一行经表达式与值标度落到柱节点，写出带数据出身的 SVG 矩形；图框经网格与轴生成落到轴节点，写出只记生成步骤的 SVG 直线。</desc>
+          <defs></defs>
+          <!-- 色束泳道先画（lineage-edges 容器豁免连接线几何检查），不透明节点最后画 -->
+          <g class="lineage-edges">
+            <path class="lineage-lane lineage-data" data-lineage="data" style="--lane-width:4px" d="M 24,108 H 580 Q 588,108 588,116 V 158 Q 588,166 596,166"/>
+            <path class="lineage-lane lineage-generated" data-lineage="generated" style="--lane-width:4px" d="M 24,224 H 580 Q 588,224 588,216 V 190 Q 588,182 596,182"/>
+          </g>
+          <g class="node store" data-node="dataset" data-depth="0" style="--i:0" tabindex="0" aria-label="数据集 sales">
+            <rect class="hit" x="18" y="76" width="122" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="24" y="84" width="110" height="48" rx="6"/><line x1="24" y1="91" x2="134" y2="91"/><text x="79" y="117" text-anchor="middle">数据集</text><text class="sub" x="79" y="102" text-anchor="middle">sales</text>
+          </g>
+          <g class="node" data-node="expr" data-depth="1" style="--i:1" tabindex="0" aria-label="行表达式">
+            <rect class="hit" x="162" y="76" width="122" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="168" y="84" width="110" height="48" rx="6"/><text x="223" y="117" text-anchor="middle">行表达式</text><text class="sub" x="223" y="102" text-anchor="middle">expr/…/value</text>
+          </g>
+          <g class="node" data-node="scale" data-depth="2" style="--i:2" tabindex="0" aria-label="值标度">
+            <rect class="hit" x="306" y="76" width="122" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="312" y="84" width="110" height="48" rx="6"/><text x="367" y="117" text-anchor="middle">值标度</text><text class="sub" x="367" y="102" text-anchor="middle">…/value</text>
+          </g>
+          <g class="node" data-node="bar" data-depth="3" style="--i:3" tabindex="0" aria-label="柱节点">
+            <rect class="hit" x="450" y="76" width="122" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="456" y="84" width="110" height="48" rx="6"/><text x="511" y="117" text-anchor="middle">柱节点</text><text class="sub" x="511" y="102" text-anchor="middle">bar/south</text>
+          </g>
+          <g class="node" data-node="frame" data-depth="0" style="--i:0" tabindex="0" aria-label="图框">
+            <rect class="hit" x="18" y="192" width="122" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="24" y="200" width="110" height="48" rx="6"/><text x="79" y="233" text-anchor="middle">图框</text><text class="sub" x="79" y="218" text-anchor="middle">frame</text>
+          </g>
+          <g class="node" data-node="grid" data-depth="1" style="--i:1" tabindex="0" aria-label="网格与轴">
+            <rect class="hit" x="162" y="192" width="122" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="168" y="200" width="110" height="48" rx="6"/><text x="223" y="233" text-anchor="middle">网格与轴</text><text class="sub" x="223" y="218" text-anchor="middle">guides</text>
+          </g>
+          <g class="node" data-node="axis" data-depth="2" style="--i:2" tabindex="0" aria-label="轴节点">
+            <rect class="hit" x="306" y="192" width="122" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="312" y="200" width="110" height="48" rx="6"/><text x="367" y="233" text-anchor="middle">轴节点</text><text class="sub" x="367" y="218" text-anchor="middle">grid/y/0</text>
+          </g>
+          <g class="node" data-node="svg" data-depth="4" style="--i:4" tabindex="0" aria-label="SVG 元素">
+            <rect class="hit" x="594" y="134" width="122" height="64" fill="transparent" pointer-events="all"/>
+            <rect x="600" y="142" width="110" height="48" rx="6"/><text x="655" y="175" text-anchor="middle">SVG 元素</text><text class="sub" x="655" y="160" text-anchor="middle">data-*</text>
+          </g>
+          <!-- 各色粒子沿自身谱系跑（不可见轨道，stroke:none） -->
+          <g class="flow-guides">
+            <path data-flow data-lineage="data" data-flow-color="#2563eb" fill="none" stroke="none" d="M 24,108 H 588 V 166 H 596"/>
+            <path data-flow data-lineage="generated" data-flow-color="#d9485f" fill="none" stroke="none" d="M 24,224 H 588 V 182 H 596"/>
+          </g>
+        </svg>
+        </div>
+        <figcaption>柱矩形的出身是数据行，轴直线的出身是生成步骤，两者在 SVG 元素汇合但身份不同。</figcaption>
+        <div class="legend">
+          <button type="button" data-lineage-focus="data" aria-pressed="false"><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true" focusable="false"><line class="lg-data" x1="1" y1="6" x2="35" y2="6"/></svg>数据行谱系</button>
+          <button type="button" data-lineage-focus="generated" aria-pressed="false"><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true" focusable="false"><line class="lg-generated" x1="1" y1="6" x2="35" y2="6"/></svg>生成谱系</button>
+        </div>
+      </figure>
+      <p class="explain"><strong>两条河，一个汇合点。</strong>蓝的一条是数据行谱系：数据集 sales 的每一行先变成带类型的行表达式，再经值标度定出值域，最后落到柱节点上；写出的 SVG 矩形带着 data-lineage 属性，回答"我来自哪一行"。朱红的一条是生成谱系：图框决定画布与绘图区，网格与轴把标度刻成参考线，轴节点（比如 grid/y/0）不来自任何一行数据；它写出的 SVG 直线只记生成步骤。在图例按钮上停留或点击可以只看一条河，按 Escape 恢复两条。</p>
+      <p class="explain"><strong>易混点：</strong>两条河在 SVG 元素汇合，但身份不同——柱矩形的出身是数据行，轴直线的出身是生成步骤，SVG 里靠不同的属性区分，而不是靠类名。按预算删掉的是文字标签与图例节点，它们同样没有数据谱系，走的是生成谱系这一条。</p>
+      <details class="technical-note">
+        <summary>展开：用一条命令核对图上这两个出身</summary>
+        <pre><code>$ vizir explain examples/chart/sales-regions.viz.yaml --node revenue-bars/bar/south
+data-lineage: data/sales
+generated-by: build-bar-scene
+
+$ vizir explain examples/chart/sales-regions.viz.yaml --node revenue-bars/grid/y/0
+generated-by: build-guide-scene
+（没有 data-lineage 行：轴节点不来自任何一行数据）</code></pre>
+      </details>
+    </section>
+
+    <section id="tradeoffs">
+      <h2>10 · 五个已经做出的取舍</h2>
+      <div class="table-scroll" tabindex="0" aria-label="可横向滚动的取舍表">
+        <table>
+          <thead><tr><th>取舍</th><th>换来什么</th><th>代价</th></tr></thead>
+          <tbody>
+            <tr><td>三级中间表示，每级可落盘</td><td>校验和比对可以停在任意一级，坏输入最早在语义层就被挡下</td><td>同一张图要同时理解文档、中间表示、场景三层名字</td></tr>
+            <tr><td>单进程编译，不依赖服务</td><td>一个二进制就能跑，CI 里没有额外部署</td><td>没有跨进程缓存，每次都全量重算</td></tr>
+            <tr><td>能力协商先于渲染，缺能力就整体失败</td><td>不会悄悄产出一张缺元素的图</td><td>新后端必须显式声明档案，否则什么都渲染不了</td></tr>
+            <tr><td>PNG 走外部栅格化器</td><td>不自己实现光栅化，SVG 与 PNG 来自同一条路径</td><td>机器上没有 rsvg-convert 或 magick 就出不了 PNG</td></tr>
+            <tr><td>每个场景节点携带出身信息</td><td>explain 能回答"这个图形从哪来"，测试能钉住稳定 id</td><td>SVG 里多出一批 data-* 属性</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <details class="technical-note">
+        <summary>展开：机器上没有栅格化器时会发生什么</summary>
+        <p>命令行按顺序找 rsvg-convert、再找 magick，两个都找不到就不产出 PNG：SVG 已正常写盘，PNG 目标以错误结束。栅格化成功后它还会回读位图，校验文件头是 PNG、像素带透明通道，并且在该图确实需要透明背景时，确认图里同时存在透明与可见像素——防止栅格化器悄悄垫了白底。这段核对信息来自本机重跑，不是转述文档。</p>
+      </details>
+    </section>
+
+    <footer class="footnotes" aria-label="脚注">
+      <p>本页由 code2arch 生成（2026-08-29，代码快照 21cb736）。产品与架构事实全部从代码与命令行行为推导：能力协商与报错码出自契约层，布局与场景出身出自编译器及其测试断言，能力清单与损失记录来自本机重跑 <code>capabilities</code>、<code>explain</code>、<code>render</code> 的结果。</p>
+      <p>本仓库里没有特性级文档目录，也没有契约文档目录，所以特性条目没有 F-NNN 链接、页脚也没有规范出口——这两处缺口记在自评里，不造死链。</p>
+      <p>再生成方式：把代码快照更新到最新提交后重跑 code2arch，图与正文一起更新。</p>
+    </footer></div>
+  </div></main>
+  <script data-doc-motion-runtime>
+/* 固定动效运行时 · templates/motion-runtime.js
+ * 契约：references/motion-contract.md。整个文件原样嵌入页面末尾的
+ * data-doc-motion-runtime 脚本块；审计按 SHA-256 核对，任何改动只能
+ * 落在本文件，页面级扩展写进 script[data-doc-motion-extension] 块并走例外条款。
+ * 依赖 <head> 首个脚本已声明 window.__docErrors / window.__docReady=false。
+ * 约束：vanilla ES2020；不用定时循环、不克隆节点、不注入标记文本、不发网络请求。 */
+(() => {
+  'use strict';
+  const doc = document, root = doc.documentElement;
+  const params = new URLSearchParams(location.search);
+  const wanted = params.get('motion');
+  const MODE = wanted === 'static' ? 'static' : wanted === 'flow' ? 'flow' : 'auto';
+  root.dataset.motion = MODE;
+  const STATIC = MODE === 'static';
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const AUTOPLAY = !STATIC && !REDUCED;             // 进场 / 逐步点亮是否自动播放
+  const PARTICLES = !STATIC && (MODE === 'flow' || !REDUCED);   // ?motion=flow 强制粒子
+  const FLOW_MS = 3200;                              // 全图同周期，只错相位（唯一字面量）
+  const $ = (sel, el = doc) => [...el.querySelectorAll(sel)];
+  const errors = window.__docErrors || (window.__docErrors = []);
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  let ok = false;
+
+  try {
+    /* ---- 逐步点亮：render 只画状态，seek 先停表再画，play 走 tick 链 ---- */
+    const timers = new WeakMap();                    // 每图一个待执行计时器
+    const seqs = $('figure.seq');
+    const stepsOf = fig => $('.step', fig);
+    const say = (fig, text) => {
+      const hint = fig.dataset.hint ? doc.getElementById(fig.dataset.hint) : null;
+      if (hint) hint.textContent = text;
+    };
+    const label = (fig, k) => {
+      const steps = stepsOf(fig), N = steps.length;
+      if (k <= 0) return `共 ${N} 步`;
+      if (k >= N) return `全部 ${N} 步`;
+      return `第 ${k} / ${N} 步：${(steps[k - 1].getAttribute('aria-label') || '').trim()}`;
+    };
+    const dwell = step => {
+      const chars = (step.getAttribute('aria-label') || '').replace(/\s/g, '').length;
+      return Math.max(550, Math.min(1500, 550 + chars * 70));
+    };
+    const stop = fig => { clearTimeout(timers.get(fig)); timers.delete(fig); };
+    const render = (fig, n) => {
+      const steps = stepsOf(fig), N = steps.length, k = Math.max(0, Math.min(Number(n) || 0, N));
+      steps.forEach((s, i) => {
+        s.classList.toggle('done', k >= N || i < k - 1);
+        s.classList.toggle('cur', k < N && i === k - 1);
+      });
+      fig.classList.toggle('ended', k >= N);
+      fig.dataset.n = String(k);
+      fig.dataset.frame = STATIC ? 'static' : k <= 0 ? 'start' : k >= N ? 'end' : 'step';
+      return k;
+    };
+    const seek = (fig, n, user) => {                 // user=true：读者动作，写提示行
+      stop(fig);
+      const k = render(fig, n);
+      if (user) say(fig, label(fig, k));
+      return k;
+    };
+    const finishSeq = fig => { const k = seek(fig, stepsOf(fig).length); say(fig, label(fig, k)); };
+    const play = fig => {
+      stop(fig);
+      const steps = stepsOf(fig);
+      if (!steps.length) return;
+      render(fig, 0);
+      const tick = () => {
+        timers.delete(fig);
+        if (doc.visibilityState === 'hidden') return;          // 标签页隐藏即停，不追帧
+        const k = render(fig, Number(fig.dataset.n) + 1);
+        if (k >= steps.length) { say(fig, label(fig, k)); return; }
+        timers.set(fig, setTimeout(tick, dwell(steps[k - 1])));
+      };
+      timers.set(fig, setTimeout(tick, 340));                   // 首拍 = 进场跨度 240 + 100
+    };
+    seqs.forEach(fig => {
+      if (!fig.hasAttribute('tabindex')) fig.setAttribute('tabindex', '0');
+      if (!fig.hasAttribute('role')) fig.setAttribute('role', 'group');
+      const steps = stepsOf(fig);
+      steps.forEach((s, i) => {
+        ['mouseenter', 'focus'].forEach(ev => s.addEventListener(ev, () => s.classList.add('focus')));
+        ['mouseleave', 'blur'].forEach(ev => s.addEventListener(ev, () => s.classList.remove('focus')));
+        s.addEventListener('click', () => seek(fig, i + 1, true));
+      });
+      fig.addEventListener('keydown', e => {
+        const n = Number(fig.dataset.n) || 0;
+        const map = { ArrowRight: n + 1, ArrowLeft: n - 1, Home: 0, End: steps.length };
+        if (!Object.prototype.hasOwnProperty.call(map, e.key)) return;
+        e.preventDefault();
+        seek(fig, map[e.key], true);
+      });
+      const replay = fig.querySelector('.replay');
+      if (replay) replay.addEventListener('click', () => {
+        if (AUTOPLAY) { play(fig); return; }
+        seek(fig, 0, true);
+        say(fig, `系统已减少动效：用 ← / → 逐步查看（共 ${steps.length} 步）`);
+      });
+      if (AUTOPLAY) render(fig, 0);
+      else {
+        finishSeq(fig);
+        if (REDUCED && !STATIC) say(fig, `${label(fig, steps.length)} · 系统已减少动效，用 ← / → 逐步查看`);
+      }
+    });
+
+    /* ---- 边 draw-in：起笔前藏箭头并把 dash 设成路径全长，画完复位 inline dash ---- */
+    const anims = $('figure.anim');
+    const drawEdges = fig => $('path.edge.draw', fig);
+    const drawers = new WeakMap();
+    const finishEdge = p => {
+      p.classList.add('drawn');
+      if (p.dataset.marker && !p.getAttribute('marker-end')) p.setAttribute('marker-end', p.dataset.marker);
+      p.style.strokeDasharray = ''; p.style.strokeDashoffset = ''; p.style.transition = '';
+    };
+    const armEdge = p => {
+      const marker = p.getAttribute('marker-end');
+      if (marker && !p.dataset.marker) p.dataset.marker = marker;
+      p.removeAttribute('marker-end');                          // 箭头延迟落地
+      const len = p.getTotalLength();
+      p.style.transition = 'none';                              // 设初值时不触发过渡
+      p.style.strokeDasharray = String(len); p.style.strokeDashoffset = String(len);
+      void p.getBoundingClientRect();
+      p.style.transition = '';
+      let done = false;
+      const finish = () => { if (!done) { done = true; finishEdge(p); } };
+      p.addEventListener('transitionend', e => { if (e.propertyName === 'stroke-dashoffset') finish(); });
+      drawers.set(p, () => requestAnimationFrame(() => {
+        const cs = getComputedStyle(p);
+        const total = (parseFloat(cs.transitionDelay) || 0) + (parseFloat(cs.transitionDuration) || 0);
+        p.style.strokeDashoffset = '0';
+        setTimeout(finish, total * 1000 + 250);                 // transitionend 未触发时的收尾
+      }));
+    };
+    const reveal = fig => { fig.classList.add('in-view'); drawEdges(fig).forEach(p => { const go = drawers.get(p); if (go) go(); }); };
+    const settle = fig => { fig.classList.add('in-view'); drawEdges(fig).forEach(finishEdge); if (STATIC) fig.dataset.frame = 'static'; };
+
+    /* ---- 进场触发（一次）：IntersectionObserver，触发后 unobserve ---- */
+    if (AUTOPLAY) {
+      anims.forEach(fig => drawEdges(fig).forEach(armEdge));
+      const io = new IntersectionObserver(entries => entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        io.unobserve(entry.target);
+        if (entry.target.matches('figure.anim')) reveal(entry.target);
+        if (entry.target.matches('figure.seq')) play(entry.target);
+      }), { rootMargin: '0px 0px -15% 0px' });
+      anims.forEach(fig => io.observe(fig));
+      seqs.forEach(fig => io.observe(fig));
+    } else {
+      anims.forEach(settle);
+    }
+
+    /* ---- 焦点降噪：压暗其余（.dim），不是只加亮邻居 ---- */
+    anims.forEach(fig => {
+      const nodes = $('[data-node]', fig);
+      if (nodes.length < 2) return;
+      const edges = $('[data-from][data-to]', fig);
+      const set = (id, on) => {
+        fig.classList.toggle('hl', on);
+        const near = new Set([id]);
+        edges.forEach(e => { if (e.dataset.from === id) near.add(e.dataset.to); if (e.dataset.to === id) near.add(e.dataset.from); });
+        nodes.forEach(n => n.classList.toggle('dim', on && !near.has(n.dataset.node)));
+        edges.forEach(e => {
+          const hit = on && (e.dataset.from === id || e.dataset.to === id);
+          e.classList.toggle('hl', hit); e.classList.toggle('dim', on && !hit);
+        });
+      };
+      nodes.forEach(n => {
+        if (!n.hasAttribute('tabindex')) n.setAttribute('tabindex', '0');
+        ['mouseenter', 'focus'].forEach(ev => n.addEventListener(ev, () => set(n.dataset.node, true)));
+        ['mouseleave', 'blur'].forEach(ev => n.addEventListener(ev, () => set(n.dataset.node, false)));
+      });
+    });
+
+    /* ---- 图文联动：click / Enter 滚到讲它的段落并高亮 1.2s ---- */
+    $('[data-explains]').forEach(n => {
+      if (!n.hasAttribute('tabindex')) n.setAttribute('tabindex', '0');
+      const go = () => {
+        const target = doc.getElementById(n.dataset.explains);
+        if (!target) return;
+        target.scrollIntoView({ behavior: AUTOPLAY ? 'smooth' : 'auto', block: 'center' });
+        target.classList.add('flash');
+        setTimeout(() => target.classList.remove('flash'), 1200);
+      };
+      n.addEventListener('click', go);
+      n.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    });
+
+    /* ---- 谱系聚焦：图例按钮 hover / focus 临时、click 固定、Escape 恢复 ---- */
+    $('figure').filter(fig => fig.querySelector('[data-lineage-focus]')).forEach(fig => {
+      const keys = $('[data-lineage-focus]', fig);
+      let pinned = '';
+      const show = id => {
+        $('[data-lineage]', fig).forEach(el => {          // 每次重查，让后生成的粒子也参与
+          el.classList.toggle('is-active', Boolean(id) && el.dataset.lineage === id);
+          el.classList.toggle('dim', Boolean(id) && el.dataset.lineage !== id);
+        });
+        keys.forEach(k => k.setAttribute('aria-pressed', String(Boolean(pinned) && k.dataset.lineageFocus === pinned)));
+      };
+      keys.forEach(k => {
+        const id = k.dataset.lineageFocus;
+        ['mouseenter', 'focus'].forEach(ev => k.addEventListener(ev, () => { if (!pinned) show(id); }));
+        ['mouseleave', 'blur'].forEach(ev => k.addEventListener(ev, () => { if (!pinned) show('')); }));
+        k.addEventListener('click', () => { pinned = pinned === id ? '' : id; show(pinned); });
+      });
+      fig.addEventListener('keydown', e => { if (e.key === 'Escape') { pinned = ''; show(''); } });
+    });
+
+    /* ---- 流粒子：沿 [data-flow] 轨道循环，全图同周期只错相位；粒子 aria-hidden ---- */
+    const flowState = [];
+    if (PARTICLES) {
+      const groups = new Map();
+      $('[data-flow]').filter(p => p.dataset.flowAuto !== 'false' && typeof p.getTotalLength === 'function').forEach(p => {
+        const key = p.closest('figure') || p.ownerSVGElement;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(p);
+      });
+      const dots = [];
+      groups.forEach((paths, key) => paths.forEach((p, i) => {
+        const dot = doc.createElementNS(SVG_NS, 'circle');
+        dot.setAttribute('r', '3.5'); dot.setAttribute('class', 'flow-dot'); dot.setAttribute('aria-hidden', 'true');
+        if (p.dataset.lineage) dot.dataset.lineage = p.dataset.lineage;
+        if (p.dataset.flowColor) dot.style.fill = p.dataset.flowColor;
+        p.parentNode.appendChild(dot);
+        const phase = (i * FLOW_MS) / paths.length;
+        dots.push({ p, dot, len: p.getTotalLength(), phase });
+        flowState.push({ fig: key && key.id ? key.id : '', dur: FLOW_MS, phase });
+      }));
+      if (dots.length) {
+        const t0 = performance.now();
+        const frame = t => {
+          dots.forEach(d => {
+            const pt = d.p.getPointAtLength((((t - t0 + d.phase) % FLOW_MS) / FLOW_MS) * d.len);
+            d.dot.setAttribute('cx', pt.x.toFixed(2)); d.dot.setAttribute('cy', pt.y.toFixed(2));
+          });
+          requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      }
+    }
+
+    /* ---- 插图查看器：原生 <dialog>，移动 SVG 节点而不克隆，关闭时归还 ---- */
+    const el = (tag, attrs, ...kids) => {
+      const node = doc.createElement(tag);
+      Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+      node.append(...kids);
+      return node;
+    };
+    let dialog = doc.querySelector('dialog.figure-lightbox');
+    if (!dialog) {
+      dialog = el('dialog', { class: 'figure-lightbox', 'aria-label': '插图查看器' },
+        el('div', { class: 'zoom-shell' },
+          el('div', { class: 'zoom-toolbar' },
+            el('span', { class: 'zoom-caption' }),
+            el('div', { class: 'zoom-controls', 'aria-label': '缩放控制' },
+              el('button', { type: 'button', 'data-zoom-out': '', 'aria-label': '缩小' }, '−'),
+              el('button', { type: 'button', 'data-zoom-fit': '', 'aria-label': '适合窗口' }, '适配'),
+              el('button', { type: 'button', 'data-zoom-actual': '', 'aria-label': '恢复百分之百' }, '100%'),
+              el('button', { type: 'button', 'data-zoom-in': '', 'aria-label': '放大' }, '＋'),
+              el('button', { type: 'button', class: 'zoom-close', 'data-zoom-close': '', 'aria-label': '关闭' }, '×'))),
+          el('div', { class: 'zoom-viewport', tabindex: '0', 'aria-label': '可滚动的放大插图' },
+            el('div', { class: 'zoom-stage' }))));
+      doc.body.append(dialog);
+    }
+    const viewport = dialog.querySelector('.zoom-viewport');
+    const stage = dialog.querySelector('.zoom-stage');
+    const caption = dialog.querySelector('.zoom-caption');
+    const captionOf = figure => {
+      const cap = figure.querySelector('figcaption');
+      if (!cap) return '插图';
+      return [...cap.childNodes]
+        .filter(n => !(n.nodeType === 1 && n.matches('.figure-controls, .replay, .step-hint')))
+        .map(n => n.textContent).join('').trim() || '插图';
+    };
+    let active = null, placeholder = null, previousFocus = null, originalStyle = null;
+    let baseWidth = 0, baseHeight = 0, scale = 1;
+    const clamp = value => Math.min(4, Math.max(.25, value));
+    const zoomTo = value => {
+      if (!active) return;
+      scale = clamp(value);
+      const width = baseWidth * scale, height = baseHeight * scale;
+      active.style.width = `${width}px`; active.style.height = `${height}px`;
+      stage.style.width = `${Math.max(viewport.clientWidth, width + 48)}px`;
+      stage.style.height = `${Math.max(viewport.clientHeight, height + 48)}px`;
+      dialog.dataset.scale = scale.toFixed(3);
+    };
+    const fit = () => zoomTo(Math.min((viewport.clientWidth - 48) / baseWidth, (viewport.clientHeight - 48) / baseHeight));
+    const close = () => {
+      if (!active) return;
+      placeholder.replaceWith(active);
+      if (originalStyle === null) active.removeAttribute('style'); else active.setAttribute('style', originalStyle);
+      active = null; placeholder = null; doc.body.classList.remove('figure-zoom-open');
+      if (dialog.open) dialog.close();
+      if (previousFocus) previousFocus.focus();
+    };
+    const open = figure => {
+      const media = figure && figure.querySelector('svg, img');
+      if (!media) return false;
+      if (active) close();
+      previousFocus = doc.activeElement;
+      const box = media.getBoundingClientRect();
+      const viewBox = media.tagName.toLowerCase() === 'svg' ? media.viewBox.baseVal : null;
+      baseWidth = (viewBox && viewBox.width) || media.naturalWidth || box.width;
+      baseHeight = (viewBox && viewBox.height) || media.naturalHeight || box.height;
+      originalStyle = media.getAttribute('style');
+      placeholder = el('div', { class: 'zoom-placeholder', 'aria-hidden': 'true' });
+      placeholder.style.height = `${box.height}px`;
+      media.replaceWith(placeholder); active = media; stage.append(media);
+      caption.textContent = captionOf(figure);
+      doc.body.classList.add('figure-zoom-open');
+      dialog.showModal();
+      requestAnimationFrame(() => { fit(); viewport.scrollTo(0, 0); viewport.focus(); });
+      return true;
+    };
+    const zoomables = $('figure').filter(figure => figure.querySelector('svg') && !dialog.contains(figure));
+    zoomables.forEach((figure, index) => {
+      figure.classList.add('zoomable');
+      const button = el('button', { type: 'button', class: 'figure-zoom-trigger', 'aria-label': `放大查看图 ${index + 1}`, title: `放大查看图 ${index + 1}` });
+      button.addEventListener('click', () => open(figure));
+      figure.append(button);
+    });
+    dialog.querySelector('[data-zoom-out]').addEventListener('click', () => zoomTo(scale / 1.25));
+    dialog.querySelector('[data-zoom-in]').addEventListener('click', () => zoomTo(scale * 1.25));
+    dialog.querySelector('[data-zoom-actual]').addEventListener('click', () => zoomTo(1));
+    dialog.querySelector('[data-zoom-fit]').addEventListener('click', fit);
+    dialog.querySelector('[data-zoom-close]').addEventListener('click', close);
+    dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
+    dialog.addEventListener('click', e => { if (e.target === dialog) close(); });
+    viewport.addEventListener('wheel', e => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault(); zoomTo(scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
+    }, { passive: false });
+    doc.addEventListener('keydown', e => {
+      if (!dialog.open) return;
+      if (e.key === '+' || e.key === '=') zoomTo(scale * 1.25);
+      else if (e.key === '-') zoomTo(scale / 1.25);
+      else if (e.key === '0') zoomTo(1);
+      else if (e.key.toLowerCase() === 'f') fit();
+    });
+    window.addEventListener('resize', () => { if (dialog.open) fit(); });
+    window.__figureZoom = {
+      open: index => open(zoomables[index]), close, fit, actual: () => zoomTo(1), scale: zoomTo,
+      state: () => ({ open: dialog.open, scale, hasFigure: Boolean(active) }),
+    };
+
+    /* ---- 打印、页面隐藏与取证探针（不产生 UI） ---- */
+    window.addEventListener('beforeprint', () => { anims.forEach(settle); seqs.forEach(finishSeq); });
+    doc.addEventListener('visibilitychange', () => { if (doc.visibilityState === 'hidden') seqs.forEach(stop); });
+    window.__seqSeek = (id, n) => {
+      const fig = doc.getElementById(String(id));
+      return fig && fig.matches('figure.seq') ? seek(fig, Number(n), true) : -1;
+    };
+    window.__flowState = () => flowState.map(s => ({ fig: s.fig, dur: s.dur, phase: s.phase }));
+    ok = true;
+  } catch (error) {
+    errors.push(`motion-runtime: ${String(error && error.stack || error)}`);
+  }
+
+  /* 失效安全：只有全部绑定成功才允许 CSS 隐藏初态；失败时完整静态源保持可见。 */
+  if (ok) {
+    root.classList.add('motion-ready');
+    window.__docReady = true;
+  }
+})();
+  </script>
+</body>
+</html>
