@@ -88,20 +88,21 @@
     .replay:focus-visible, figure.seq:focus-visible, .step:focus-visible, .node:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     .step-hint { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
     .legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 10px; color: var(--muted); font-size: 13px; }
-    .legend svg { width: 36px; height: 12px; margin-right: 6px; vertical-align: middle; }
+    figure.plate .legend svg { display: inline-block; width: 36px; height: 12px; margin-right: 6px; vertical-align: middle; }
     .legend line, .legend rect { fill: none; stroke: var(--muted); stroke-width: 1.5; }
     .legend .lg-inferred { stroke-dasharray: 2 3; }
     .legend .lg-bound { stroke-width: 1; stroke-dasharray: 4 4; }
     .legend button { padding: 0 8px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); color: var(--muted); font: 13px/1.6 var(--font-reading); cursor: pointer; }
     .legend button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-tint); }
-    .legend .lg-data { stroke: var(--accent); stroke-width: 3; }
-    .legend .lg-generated { stroke: #d9485f; stroke-width: 3; }
+    .legend .lg-lineage-data { stroke: var(--accent); stroke-width: 3; }
+    .legend .lg-lineage-generated { stroke: #d9485f; stroke-width: 3; }
 
     /* SVG 字阶三档（与页面五档独立）与节点类型处理，全部走 token */
     figure svg text { font: 400 12px var(--font-reading); fill: var(--muted); }
     figure svg .node text, figure svg .actor text { font: 600 14px var(--font-reading); fill: var(--ink); }
     figure svg .sub { font: 400 12px var(--font-mono); fill: var(--muted); }
     figure svg .node rect, figure svg .actor rect { fill: var(--accent-tint); stroke: var(--accent); stroke-width: 1.5; }
+    figure svg .node rect.hit, figure svg .actor rect.hit { fill: none; stroke: none; }
     figure svg .node.focal .inner { fill: none; stroke: var(--accent); stroke-width: 1; }
     figure svg .node.external rect { fill: var(--external); stroke: var(--muted); }
     figure svg .node.store rect, figure svg .node.role circle { fill: var(--surface); stroke: var(--muted); stroke-width: 1.5; }
@@ -249,11 +250,11 @@
     </header>
 
     <section id="product">
-      <h2>01 · 把"画一张图"变成一次可以审查的编译</h2>
+      <h2>01 · 把“画一张图”变成一次可以审查的编译</h2>
       <div class="annotation-row">
       <div class="annotation-main">
         <p>VizIR 是一个跑在命令行上的可视化编译器，用 Rust 写成。你给它一份<strong>语义文档</strong>——一种叫 <code>.viz.yaml</code> 的文件，里面写清数据、想看的视图和字段怎么映射——它交回一张 SVG 矢量图，或者一张由这份 SVG 栅格化来的 PNG 位图。</p>
-        <p>它给需要在代码里稳定出图的人用：在 CI 里给测试报告配图、给文档站批量出图、或者让上游的 agent 把"画一张柱状图"落成一份能被人审查的文件。这三种场景的共同要求只有一条——同一份输入，什么时候编译，出来的图都必须一模一样。</p>
+        <p>它给需要在代码里稳定出图的人用：在 CI 里给测试报告配图、给文档站批量出图、或者让上游的 agent 把“画一张柱状图”落成一份能被人审查的文件。这三种场景的共同要求只有一条——同一份输入，什么时候编译，出来的图都必须一模一样。</p>
         <p>和直接拼 SVG 字符串的绘图库相比，VizIR 把这件事拆成三级中间表示，每一级都能单独校验、落盘和逐字节比对；和把图交给浏览器渲染的方案相比，它不依赖任何运行中的服务，一个二进制就够了。它也有明确的不做什么：不解释自然语言里的作图意图，也不替你挑输出后端——命令行只收文件路径，仓库文档把这两件事划给上游的 create-plot 技能<sup class="note-ref"><a href="#note-boundary" role="doc-noteref" aria-describedby="note-boundary" aria-label="查看关于上游边界的注释">1</a></sup>。</p>
       </div>
       <aside class="sidenote" id="note-boundary" role="note"><span class="note-label">01 · 谁在它上游</span>create-plot 技能把意图变成语义文档、决定用哪个后端；VizIR 只对文档本身负责。所以第 04 节的总览图里，create-plot 画在本仓库边界之外。这一条来自仓库自己的文档，代码里没有它的痕迹——命令行只接受文件路径。</aside>
@@ -266,9 +267,9 @@
         <li><strong>编译前校验</strong>：数据集引用、字段类型、编码映射在编译前就查一遍，报错带错误码和出问题的位置；适合在 CI 里挡住写坏的文档。</li>
         <li><strong>一键渲染</strong>：<code>vizir render --format svg|png</code> 一条命令出图；适合文档站和 CI 产物。</li>
         <li><strong>三类图表方言</strong>：统计图（散点 / 折线 / 柱状）、关系图、自由几何，同一份文档可以混着用；适合一页报告里既有柱状图又有流程图。</li>
-        <li><strong>中间表示落盘</strong>：<code>vizir normalize</code> 导出带 JSON Schema 的中间表示，可以 diff、可以喂给别的工具；适合审查"编译器到底理解成了什么"。</li>
+        <li><strong>中间表示落盘</strong>：<code>vizir normalize</code> 导出带 JSON Schema 的中间表示，可以 diff、可以喂给别的工具；适合审查“编译器到底理解成了什么”。</li>
         <li><strong>分层布局服务</strong>：关系图给了坐标就用你的坐标，没给就自动分层排布，成环也有确定的兜底位置；适合不想手摆节点的场景。</li>
-        <li><strong>溯源查询</strong>：<code>vizir explain</code> 回答"图上这个元素从哪来"；适合核对生成结果有没有画错数据。</li>
+        <li><strong>溯源查询</strong>：<code>vizir explain</code> 回答“图上这个元素从哪来”；适合核对生成结果有没有画错数据。</li>
         <li><strong>能力协商与损失清单</strong>：渲染前问一遍目标后端能做什么，做不到就报错；PNG 这类有损路径在清单里写明降级了什么；适合在自动化里提前发现出不了图。</li>
         <li><strong>场景增量修订</strong>：场景以修订号描述差异，可以 diff 与应用；目前只有库接口，命令行还没有入口。</li>
       </ul>
@@ -313,34 +314,34 @@
             <text x="116" y="220" text-anchor="middle">调用子命令</text>
             <path class="edge draw" data-from="cli" data-to="doc" style="--i:1.5" d="M 235,202 V 92" marker-end="url(#fig-context-arr)"/>
             <text x="243" y="150">读取</text>
-            <path class="edge draw" data-from="cli" data-to="artifacts" style="--i:1.5" d="M 310,222 H 516" marker-end="url(#fig-context-arr)"/>
-            <text x="413" y="212" text-anchor="middle">写出制品</text>
+            <path class="edge draw" data-from="cli" data-to="artifacts" style="--i:1.5" d="M 314,230 H 470 Q 478,230 478,222 V 162 Q 478,154 486,154 H 516" marker-end="url(#fig-context-arr)"/>
+            <text x="413" y="220" text-anchor="middle">写出制品</text>
             <path class="edge draw" data-from="cli" data-to="backend" style="--i:1.5" d="M 235,254 V 266 Q 235,274 243,274 H 516" marker-end="url(#fig-context-arr)"/>
             <text x="380" y="264" text-anchor="middle">栅格化（PNG）</text>
           </g>
           <g class="node role" data-node="author" data-depth="0" style="--i:0" data-explains="features" tabindex="0" aria-label="图表作者">
-            <rect class="hit" x="20" y="200" width="60" height="82" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="28" y="208" width="44" height="44" fill="transparent" pointer-events="all"/>
             <circle cx="50" cy="230" r="22"/><text x="50" y="274" text-anchor="middle">图表作者</text>
           </g>
           <g class="node external" data-node="skill" data-depth="0" style="--i:0" data-explains="product" tabindex="0" aria-label="create-plot 技能">
-            <rect class="hit" x="52" y="32" width="166" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="60" y="40" width="150" height="48" fill="transparent" pointer-events="all"/>
             <rect x="60" y="40" width="150" height="48" rx="6"/><text x="135" y="69" text-anchor="middle">create-plot 技能</text>
           </g>
           <g class="node focal" data-node="cli" data-depth="1" style="--i:1" data-explains="pipeline" tabindex="0" aria-label="vizir 命令行">
-            <rect class="hit" x="152" y="198" width="166" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="160" y="206" width="150" height="48" rx="6"/><rect class="inner" x="163" y="209" width="144" height="42" rx="4"/><text x="235" y="239" text-anchor="middle">vizir 命令行</text><text class="sub" x="305" y="222" text-anchor="end">Rust</text>
+            <rect class="hit" x="160" y="206" width="150" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="160" y="206" width="150" height="48" rx="6"/><rect class="inner" x="163" y="209" width="144" height="42" rx="4"/><text x="235" y="229" text-anchor="middle">vizir 命令行</text><text class="sub" x="235" y="246" text-anchor="middle">Rust</text>
           </g>
           <g class="node store" data-node="doc" data-depth="2" style="--i:2" data-explains="lineage" tabindex="0" aria-label="语义文档">
-            <rect class="hit" x="322" y="32" width="166" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="330" y="40" width="150" height="48" rx="6"/><line x1="330" y1="47" x2="480" y2="47"/><text x="405" y="73" text-anchor="middle">语义文档</text><text class="sub" x="475" y="56" text-anchor="end">.viz.yaml</text>
+            <rect class="hit" x="330" y="40" width="150" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="330" y="40" width="150" height="48" rx="6"/><line x1="330" y1="47" x2="480" y2="47"/><text x="405" y="63" text-anchor="middle">语义文档</text><text class="sub" x="405" y="80" text-anchor="middle">.viz.yaml</text>
           </g>
           <g class="node store" data-node="artifacts" data-depth="2" style="--i:2" data-explains="render-seq" tabindex="0" aria-label="SVG 与 PNG 制品">
-            <rect class="hit" x="512" y="122" width="166" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="520" y="130" width="150" height="48" fill="transparent" pointer-events="all"/>
             <rect x="520" y="130" width="150" height="48" rx="6"/><line x1="520" y1="137" x2="670" y2="137"/><text x="595" y="163" text-anchor="middle">SVG / PNG 制品</text>
           </g>
           <g class="node external" data-node="backend" data-depth="2" style="--i:2" data-explains="capability" tabindex="0" aria-label="栅格化器">
-            <rect class="hit" x="512" y="242" width="166" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="520" y="250" width="150" height="48" rx="6"/><text x="595" y="283" text-anchor="middle">栅格化器</text><text class="sub" x="665" y="266" text-anchor="end">rsvg-convert</text>
+            <rect class="hit" x="520" y="250" width="150" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="520" y="250" width="150" height="48" rx="6"/><text x="595" y="273" text-anchor="middle">栅格化器</text><text class="sub" x="595" y="290" text-anchor="middle">rsvg-convert</text>
           </g>
         </svg>
         </div>
@@ -357,7 +358,7 @@
         <li><strong>写文档</strong>——图表作者（或 create-plot 技能）把数据与视图写进一份语义文档，数据集、视图、字段映射都在这一个文件里。</li>
         <li><strong>校验</strong>——vizir 命令行把文档交给 vizir-compiler，第一轮校验在语义层查数据集引用与字段类型，这一步过不去就没有后面。</li>
         <li><strong>降阶与布局</strong>——编译器把语义文档降成中间表示：表达式定下类型、标度定下值域；第二轮校验再查一遍，关系图在这一步拿到坐标。</li>
-        <li><strong>成场景并协商</strong>——场景构建产出 Scene2D，每个节点带上"我从哪来"的出身信息；能力协商逐条判定这些节点报出的需求，有一条不满足就整体失败。</li>
+        <li><strong>成场景并协商</strong>——场景构建产出 Scene2D，每个节点带上“我从哪来”的出身信息；能力协商逐条判定这些节点报出的需求，有一条不满足就整体失败。</li>
         <li><strong>出制品</strong>——SVG 后端逐字节确定地写出 SVG；目标为 PNG 时，命令行再调外部栅格化器把它变成位图并回读校验，清单里记下降级损失。</li>
       </ol>
       <div class="callout">
@@ -368,7 +369,7 @@
 
     <section id="pipeline">
       <h2>06 · 编译流水线：三个 crate 各管一段</h2>
-      <p>把命令行那个进程拆开看，是三个 crate 在接力：<strong>vizir-core</strong> 定契约、做校验与能力协商；<strong>vizir-compiler</strong> 负责降阶、布局与场景构建；<strong>vizir-cli</strong> 负责写出制品。下图按"这一步归谁负责"分成三条带，粒子沿主链跑。</p>
+      <p>把命令行那个进程拆开看，是三个 crate 在接力：<strong>vizir-core</strong> 定契约、做校验与能力协商；<strong>vizir-compiler</strong> 负责降阶、布局与场景构建；<strong>vizir-cli</strong> 负责写出制品。下图按“这一步归谁负责”分成三条带，粒子沿主链跑。</p>
 
       <!-- 图计划: 数据流图（责任泳道） · 无模式 · 命题句「校验与协商归契约层，降阶布局与场景归编译器，写出制品归命令行；能力协商在场景之后才判定」· 8节点/7边 · 预算删掉了清单写盘与错误退出路径 · A层动效: 流粒子 + 拓扑序错峰；交互: 焦点降噪 -->
       <figure class="plate anim zoomable" id="pipeline-fig">
@@ -386,8 +387,8 @@
             <rect class="lane" x="8" y="150" width="492" height="180" rx="6"/>
             <rect class="lane" x="368" y="340" width="344" height="88" rx="6"/>
             <text class="lane-name" x="20" y="54">vizir-core · 契约与校验</text>
-            <text class="lane-name" x="20" y="168">vizir-compiler · 降阶与场景</text>
-            <text class="lane-name" x="380" y="358">vizir-cli · 制品</text>
+            <text class="lane-name" x="200" y="168">vizir-compiler · 降阶与场景</text>
+            <text class="lane-name" x="380" y="355">vizir-cli · 制品</text>
           </g>
           <g class="edges">
             <path class="edge draw" data-from="hir" data-to="lower" style="--i:0.5" d="M 100,112 V 174" marker-end="url(#fig-pipeline-arr)"/>
@@ -406,35 +407,35 @@
             <text x="532" y="378" text-anchor="middle">栅格化</text>
           </g>
           <g class="node" data-node="hir" data-depth="0" style="--i:0" tabindex="0" aria-label="HIR 校验">
-            <rect class="hit" x="32" y="56" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="40" y="64" width="120" height="48" fill="transparent" pointer-events="all"/>
             <rect x="40" y="64" width="120" height="48" rx="6"/><text x="100" y="93" text-anchor="middle">HIR 校验</text>
           </g>
           <g class="node" data-node="mir" data-depth="0" style="--i:0" tabindex="0" aria-label="MIR 校验">
-            <rect class="hit" x="192" y="56" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="200" y="64" width="120" height="48" fill="transparent" pointer-events="all"/>
             <rect x="200" y="64" width="120" height="48" rx="6"/><text x="260" y="93" text-anchor="middle">MIR 校验</text>
           </g>
           <g class="node" data-node="negotiate" data-depth="0" style="--i:0" tabindex="0" aria-label="能力协商">
-            <rect class="hit" x="552" y="56" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="560" y="64" width="120" height="48" fill="transparent" pointer-events="all"/>
             <rect x="560" y="64" width="120" height="48" rx="6"/><text x="620" y="93" text-anchor="middle">能力协商</text>
           </g>
           <g class="node" data-node="lower" data-depth="1" style="--i:1" tabindex="0" aria-label="降阶到 MIR">
-            <rect class="hit" x="32" y="170" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="40" y="178" width="120" height="48" fill="transparent" pointer-events="all"/>
             <rect x="40" y="178" width="120" height="48" rx="6"/><text x="100" y="211" text-anchor="middle">降阶到 MIR</text>
           </g>
           <g class="node" data-node="layout" data-depth="1" style="--i:1" tabindex="0" aria-label="分层布局">
-            <rect class="hit" x="352" y="170" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="360" y="178" width="120" height="48" fill="transparent" pointer-events="all"/>
             <rect x="360" y="178" width="120" height="48" rx="6"/><text x="420" y="211" text-anchor="middle">分层布局</text>
           </g>
           <g class="node" data-node="scene" data-depth="2" style="--i:2" tabindex="0" aria-label="场景构建">
-            <rect class="hit" x="352" y="252" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="360" y="260" width="120" height="48" fill="transparent" pointer-events="all"/>
             <rect x="360" y="260" width="120" height="48" rx="6"/><text x="420" y="289" text-anchor="middle">场景构建</text>
           </g>
           <g class="node" data-node="pngout" data-depth="3" style="--i:3" tabindex="0" aria-label="PNG 栅格化">
-            <rect class="hit" x="372" y="356" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="380" y="364" width="120" height="48" fill="transparent" pointer-events="all"/>
             <rect x="380" y="364" width="120" height="48" rx="6"/><text x="440" y="393" text-anchor="middle">PNG 栅格化</text>
           </g>
           <g class="node" data-node="svgout" data-depth="3" style="--i:3" tabindex="0" aria-label="SVG 输出">
-            <rect class="hit" x="552" y="356" width="136" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="560" y="364" width="120" height="48" fill="transparent" pointer-events="all"/>
             <rect x="560" y="364" width="120" height="48" rx="6"/><text x="620" y="393" text-anchor="middle">SVG 输出</text>
           </g>
           <!-- 端到端不可见轨道：粒子沿它跑，几何检查不看它（stroke:none） -->
@@ -504,12 +505,12 @@
         </figcaption>
       </figure>
       <p class="explain"><strong>五条生命线，一条主动。</strong>命令行从第一步活到最后一步，它的激活条贯穿全图；编译器只在第一到第三步被打开，两轮校验它自己不判断，而是请核心契约来判；核心契约是契约层，校验诊断与能力协商的结论都出自它；SVG 后端只收场景、交文本；栅格化器是进程外的可执行程序。走一遍：命令行把文档交给编译器并取回场景 → 编译器请核心契约做两轮校验 → 有诊断就直接终止，后面的步骤都不会发生 → 命令行自己做能力协商 → SVG 后端把场景写成矢量图 → 目标为 PNG 时再调一次栅格化器。</p>
-      <p class="explain"><strong>易混点：</strong>OPT 框里的第六步只在目标是 PNG 时发生，SVG 目标到第五步就结束了；第四步的箭头从命令行直指核心契约，跳过编译器，因为协商由命令行发起、不需要编译器转手。返回消息用更细的灰线并以"返回"开头，好分清请求与应答。按预算删掉的是清单写盘与栅格化器缺失时的报错分支。</p>
+      <p class="explain"><strong>易混点：</strong>OPT 框里的第六步只在目标是 PNG 时发生，SVG 目标到第五步就结束了；第四步的箭头从命令行直指核心契约，跳过编译器，因为协商由命令行发起、不需要编译器转手。返回消息用更细的灰线并以“返回”开头，好分清请求与应答。按预算删掉的是清单写盘与栅格化器缺失时的报错分支。</p>
     </section>
 
     <section id="capability">
       <h2>08 · 能力协商：先问能不能，再动手</h2>
-      <p>渲染前有一道闸门。场景节点在生成时报出自己需要什么能力，闸门把它们逐条对照目标后端的<strong>能力档案</strong>——档案就是一份"我能做什么"的声明。结论只有三种：精确放行、降级放行、整体拒绝。</p>
+      <p>渲染前有一道闸门。场景节点在生成时报出自己需要什么能力，闸门把它们逐条对照目标后端的<strong>能力档案</strong>——档案就是一份“我能做什么”的声明。结论只有三种：精确放行、降级放行、整体拒绝。</p>
 
       <!-- 图计划: 安全铺路（上下文图 + 语义模式） · 无模式 · 命题句「有档案认领的需求才放行：SVG 精确放行，PNG 降级放行，没有档案认领的整次渲染拒绝」· 5节点/5边/2边界 · 预算删掉了清单里 capability_report 的字段展开 · A层动效: 边 draw-in（准入路径依次画出来）；交互: 焦点降噪 -->
       <figure class="plate anim zoomable" id="capability-fig">
@@ -530,9 +531,9 @@
             <path class="edge draw" data-from="demand" data-to="gate" style="--i:0.5" d="M 174,162 H 246" marker-end="url(#fig-capability-arr)"/>
             <text x="210" y="152" text-anchor="middle">逐条判定</text>
             <path class="edge draw" data-from="gate" data-to="svgout" style="--i:1.5" d="M 394,162 H 466 Q 474,162 474,154 V 102 Q 474,94 482,94 H 496" marker-end="url(#fig-capability-arr)"/>
-            <text x="430" y="152" text-anchor="middle">允许：精确</text>
+            <text x="426" y="152" text-anchor="middle">精确放行</text>
             <path class="edge draw" data-from="gate" data-to="pngout" style="--i:1.5" d="M 394,186 H 466 Q 474,186 474,194 V 262 Q 474,270 482,270 H 496" marker-end="url(#fig-capability-arr)"/>
-            <text x="430" y="206" text-anchor="middle">允许：栅格</text>
+            <text x="426" y="176" text-anchor="middle">降级放行</text>
             <path class="edge draw" data-from="gate" data-to="reject" style="--i:1.5" d="M 360,198 V 244" marker-end="url(#fig-capability-arr)"/>
             <text x="344" y="226" text-anchor="end">拒绝输出</text>
             <path class="edge inferred" data-from="future" data-to="gate" style="--i:0.5" d="M 115,290 V 240 Q 115,232 123,232 H 282 Q 290,232 290,224 V 202" marker-end="url(#fig-capability-arr)"/>
@@ -542,24 +543,24 @@
           <circle class="stop-ring" cx="360" cy="250" r="7"/>
           <text class="sub" x="344" y="268" text-anchor="end">VIZ-CAP-0002</text>
           <g class="node" data-node="demand" data-depth="0" style="--i:0" tabindex="0" aria-label="场景需求">
-            <rect class="hit" x="32" y="142" width="146" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="40" y="150" width="130" height="48" rx="6"/><text x="105" y="183" text-anchor="middle">场景需求</text><text class="sub" x="46" y="166">scene.2d</text>
+            <rect class="hit" x="40" y="150" width="130" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="40" y="150" width="130" height="48" rx="6"/><text x="105" y="173" text-anchor="middle">场景需求</text><text class="sub" x="105" y="190" text-anchor="middle">scene.2d</text>
           </g>
           <g class="node focal" data-node="gate" data-depth="1" style="--i:1" tabindex="0" aria-label="能力协商">
-            <rect class="hit" x="242" y="142" width="156" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="250" y="150" width="140" height="48" rx="6"/><rect class="inner" x="253" y="153" width="134" height="42" rx="4"/><text x="320" y="183" text-anchor="middle">能力协商</text><text class="sub" x="384" y="166" text-anchor="end">require_accepted</text>
+            <rect class="hit" x="250" y="150" width="140" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="250" y="150" width="140" height="48" rx="6"/><rect class="inner" x="253" y="153" width="134" height="42" rx="4"/><text x="320" y="173" text-anchor="middle">能力协商</text><text class="sub" x="320" y="190" text-anchor="middle">require_accepted</text>
           </g>
           <g class="node" data-node="svgout" data-depth="2" style="--i:2" tabindex="0" aria-label="SVG 文本（精确）">
-            <rect class="hit" x="492" y="74" width="192" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="500" y="82" width="176" height="48" fill="transparent" pointer-events="all"/>
             <rect x="500" y="82" width="176" height="48" rx="6"/><text x="588" y="111" text-anchor="middle">SVG 文本（精确）</text>
           </g>
           <g class="node" data-node="pngout" data-depth="2" style="--i:2" tabindex="0" aria-label="PNG 制品（栅格）">
-            <rect class="hit" x="492" y="238" width="192" height="64" fill="transparent" pointer-events="all"/>
+            <rect class="hit" x="500" y="246" width="176" height="48" fill="transparent" pointer-events="all"/>
             <rect x="500" y="246" width="176" height="48" rx="6"/><text x="588" y="275" text-anchor="middle">PNG 制品（栅格）</text>
           </g>
           <g class="node optional" data-node="future" data-depth="0" style="--i:0" tabindex="0" aria-label="未声明的需求?">
-            <rect class="hit" x="32" y="282" width="166" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="40" y="290" width="150" height="48" rx="6"/><text x="115" y="323" text-anchor="middle">未声明的需求?</text><text class="sub" x="48" y="306">animation / 3D</text>
+            <rect class="hit" x="40" y="290" width="150" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="40" y="290" width="150" height="48" rx="6"/><text x="115" y="313" text-anchor="middle">未声明的需求?</text><text class="sub" x="115" y="330" text-anchor="middle">animation / 3D</text>
           </g>
         </svg>
         </div>
@@ -570,13 +571,13 @@
           <span><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true" focusable="false"><rect class="lg-bound" x="1" y="2" width="34" height="8" rx="2"/></svg>后端能力档案边界</span>
         </div>
       </figure>
-      <p class="explain"><strong>判定逐条进行，结论只有三种。</strong>场景需求是 Scene2D 节点在生成时报出的"我需要什么"，比如二维场景本身、文本、或者透明背景。能力协商把它们逐条对照目标后端的能力档案：SVG 档案原生支持二维场景与文本，所以精确放行，产出 SVG 文本；PNG 档案要把这些需求降级成栅格制品，放行但在清单里记一笔损失；没有档案认领的需求（动画时间线、指针交互、三维网格、纯矢量目标）直接拒绝，整次渲染以错误码收场，一个字节都不产出。把鼠标放到任一盒子上，与它相连的路径会亮出来。</p>
-      <p class="explain"><strong>易混点：</strong>左下角那个虚线框里的需求目前不会出现——现在的语义文档表达不了动画与三维，所以拒绝分支画成短虚线并带问号，它是给未来留的闸门，不是已经在跑的分支。停止记号用实心墨点而不是主题蓝，表示"这里没有产物"。按预算删掉的是清单里 capability_report 的字段展开，它在页脚的核对信息里出现。</p>
+      <p class="explain"><strong>判定逐条进行，结论只有三种。</strong>场景需求是 Scene2D 节点在生成时报出的“我需要什么”，比如二维场景本身、文本、或者透明背景。能力协商把它们逐条对照目标后端的能力档案：SVG 档案原生支持二维场景与文本，所以精确放行，产出 SVG 文本；PNG 档案要把这些需求降级成栅格制品，放行但在清单里记一笔损失；没有档案认领的需求（动画时间线、指针交互、三维网格、纯矢量目标）直接拒绝，整次渲染以错误码收场，一个字节都不产出。把鼠标放到任一盒子上，与它相连的路径会亮出来。</p>
+      <p class="explain"><strong>易混点：</strong>左下角那个虚线框里的需求目前不会出现——现在的语义文档表达不了动画与三维，所以拒绝分支画成短虚线并带问号，它是给未来留的闸门，不是已经在跑的分支。停止记号用实心墨点而不是主题蓝，表示“这里没有产物”。按预算删掉的是清单里 capability_report 的字段展开，它在页脚的核对信息里出现。</p>
     </section>
 
     <section id="lineage">
       <h2>09 · 溯源与稳定身份：两条河，一个汇合点</h2>
-      <p>场景里每个节点都带着一份出身信息：它来自哪一行数据、由哪一步生成。这一份信息分成两条完全不同的河——<strong>数据行谱系</strong>回答"这个图形对应哪行数据"，<strong>生成谱系</strong>回答"这个图形是哪一步画出来的"。</p>
+      <p>场景里每个节点都带着一份出身信息：它来自哪一行数据、由哪一步生成。这一份信息分成两条完全不同的河——<strong>数据行谱系</strong>回答“这个图形对应哪行数据”，<strong>生成谱系</strong>回答“这个图形是哪一步画出来的”。</p>
 
       <!-- 图计划: 数据谱系河流图 · 色束扇入 · 命题句「柱矩形的出身是数据行，轴直线的出身是生成步骤，两者在 SVG 元素汇合但身份不同」· 8节点/2色束（≤6 色）· 预算删掉了文字标签与图例节点（同走生成谱系）· A层动效: 各色流粒子沿自身谱系运动（2 条，同周期错相位）；交互: 谱系聚焦（图例按钮 hover / click / Escape） -->
       <figure class="plate zoomable" id="lineage-fig">
@@ -587,40 +588,40 @@
           <defs></defs>
           <!-- 色束泳道先画（lineage-edges 容器豁免连接线几何检查），不透明节点最后画 -->
           <g class="lineage-edges">
-            <path class="lineage-lane lineage-data" data-lineage="data" style="--lane-width:4px" d="M 24,108 H 580 Q 588,108 588,116 V 158 Q 588,166 596,166"/>
-            <path class="lineage-lane lineage-generated" data-lineage="generated" style="--lane-width:4px" d="M 24,224 H 580 Q 588,224 588,216 V 190 Q 588,182 596,182"/>
+            <path class="lineage-lane lineage-data" data-lineage="data" style="--lane-width:4px" d="M 28,108 H 580 Q 588,108 588,116 V 158 Q 588,166 596,166"/>
+            <path class="lineage-lane lineage-generated" data-lineage="generated" style="--lane-width:4px" d="M 28,224 H 580 Q 588,224 588,216 V 190 Q 588,182 596,182"/>
           </g>
           <g class="node store" data-node="dataset" data-depth="0" style="--i:0" tabindex="0" aria-label="数据集 sales">
-            <rect class="hit" x="18" y="76" width="122" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="24" y="84" width="110" height="48" rx="6"/><line x1="24" y1="91" x2="134" y2="91"/><text x="79" y="117" text-anchor="middle">数据集</text><text class="sub" x="79" y="102" text-anchor="middle">sales</text>
+            <rect class="hit" x="24" y="84" width="110" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="24" y="84" width="110" height="48" rx="6"/><line x1="24" y1="91" x2="134" y2="91"/><text x="79" y="107" text-anchor="middle">数据集</text><text class="sub" x="79" y="124" text-anchor="middle">sales</text>
           </g>
           <g class="node" data-node="expr" data-depth="1" style="--i:1" tabindex="0" aria-label="行表达式">
-            <rect class="hit" x="162" y="76" width="122" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="168" y="84" width="110" height="48" rx="6"/><text x="223" y="117" text-anchor="middle">行表达式</text><text class="sub" x="223" y="102" text-anchor="middle">expr/…/value</text>
+            <rect class="hit" x="168" y="84" width="110" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="168" y="84" width="110" height="48" rx="6"/><text x="223" y="107" text-anchor="middle">行表达式</text><text class="sub" x="223" y="124" text-anchor="middle">expr/…/value</text>
           </g>
           <g class="node" data-node="scale" data-depth="2" style="--i:2" tabindex="0" aria-label="值标度">
-            <rect class="hit" x="306" y="76" width="122" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="312" y="84" width="110" height="48" rx="6"/><text x="367" y="117" text-anchor="middle">值标度</text><text class="sub" x="367" y="102" text-anchor="middle">…/value</text>
+            <rect class="hit" x="312" y="84" width="110" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="312" y="84" width="110" height="48" rx="6"/><text x="367" y="107" text-anchor="middle">值标度</text><text class="sub" x="367" y="124" text-anchor="middle">…/value</text>
           </g>
           <g class="node" data-node="bar" data-depth="3" style="--i:3" tabindex="0" aria-label="柱节点">
-            <rect class="hit" x="450" y="76" width="122" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="456" y="84" width="110" height="48" rx="6"/><text x="511" y="117" text-anchor="middle">柱节点</text><text class="sub" x="511" y="102" text-anchor="middle">bar/south</text>
+            <rect class="hit" x="456" y="84" width="110" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="456" y="84" width="110" height="48" rx="6"/><text x="511" y="107" text-anchor="middle">柱节点</text><text class="sub" x="511" y="124" text-anchor="middle">bar/south</text>
           </g>
           <g class="node" data-node="frame" data-depth="0" style="--i:0" tabindex="0" aria-label="图框">
-            <rect class="hit" x="18" y="192" width="122" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="24" y="200" width="110" height="48" rx="6"/><text x="79" y="233" text-anchor="middle">图框</text><text class="sub" x="79" y="218" text-anchor="middle">frame</text>
+            <rect class="hit" x="24" y="200" width="110" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="24" y="200" width="110" height="48" rx="6"/><text x="79" y="223" text-anchor="middle">图框</text><text class="sub" x="79" y="240" text-anchor="middle">frame</text>
           </g>
           <g class="node" data-node="grid" data-depth="1" style="--i:1" tabindex="0" aria-label="网格与轴">
-            <rect class="hit" x="162" y="192" width="122" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="168" y="200" width="110" height="48" rx="6"/><text x="223" y="233" text-anchor="middle">网格与轴</text><text class="sub" x="223" y="218" text-anchor="middle">guides</text>
+            <rect class="hit" x="168" y="200" width="110" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="168" y="200" width="110" height="48" rx="6"/><text x="223" y="223" text-anchor="middle">网格与轴</text><text class="sub" x="223" y="240" text-anchor="middle">guides</text>
           </g>
           <g class="node" data-node="axis" data-depth="2" style="--i:2" tabindex="0" aria-label="轴节点">
-            <rect class="hit" x="306" y="192" width="122" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="312" y="200" width="110" height="48" rx="6"/><text x="367" y="233" text-anchor="middle">轴节点</text><text class="sub" x="367" y="218" text-anchor="middle">grid/y/0</text>
+            <rect class="hit" x="312" y="200" width="110" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="312" y="200" width="110" height="48" rx="6"/><text x="367" y="223" text-anchor="middle">轴节点</text><text class="sub" x="367" y="240" text-anchor="middle">grid/y/0</text>
           </g>
           <g class="node" data-node="svg" data-depth="4" style="--i:4" tabindex="0" aria-label="SVG 元素">
-            <rect class="hit" x="594" y="134" width="122" height="64" fill="transparent" pointer-events="all"/>
-            <rect x="600" y="142" width="110" height="48" rx="6"/><text x="655" y="175" text-anchor="middle">SVG 元素</text><text class="sub" x="655" y="160" text-anchor="middle">data-*</text>
+            <rect class="hit" x="600" y="142" width="110" height="48" fill="transparent" pointer-events="all"/>
+            <rect x="600" y="142" width="110" height="48" rx="6"/><text x="655" y="165" text-anchor="middle">SVG 元素</text><text class="sub" x="655" y="182" text-anchor="middle">data-*</text>
           </g>
           <!-- 各色粒子沿自身谱系跑（不可见轨道，stroke:none） -->
           <g class="flow-guides">
@@ -631,11 +632,11 @@
         </div>
         <figcaption>柱矩形的出身是数据行，轴直线的出身是生成步骤，两者在 SVG 元素汇合但身份不同。</figcaption>
         <div class="legend">
-          <button type="button" data-lineage-focus="data" aria-pressed="false"><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true" focusable="false"><line class="lg-data" x1="1" y1="6" x2="35" y2="6"/></svg>数据行谱系</button>
-          <button type="button" data-lineage-focus="generated" aria-pressed="false"><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true" focusable="false"><line class="lg-generated" x1="1" y1="6" x2="35" y2="6"/></svg>生成谱系</button>
+          <button type="button" data-lineage-focus="data" aria-pressed="false"><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true" focusable="false"><line class="lg-lineage-data" x1="1" y1="6" x2="35" y2="6"/></svg>数据行谱系</button>
+          <button type="button" data-lineage-focus="generated" aria-pressed="false"><svg viewBox="0 0 36 12" width="36" height="12" aria-hidden="true" focusable="false"><line class="lg-lineage-generated" x1="1" y1="6" x2="35" y2="6"/></svg>生成谱系</button>
         </div>
       </figure>
-      <p class="explain"><strong>两条河，一个汇合点。</strong>蓝的一条是数据行谱系：数据集 sales 的每一行先变成带类型的行表达式，再经值标度定出值域，最后落到柱节点上；写出的 SVG 矩形带着 data-lineage 属性，回答"我来自哪一行"。朱红的一条是生成谱系：图框决定画布与绘图区，网格与轴把标度刻成参考线，轴节点（比如 grid/y/0）不来自任何一行数据；它写出的 SVG 直线只记生成步骤。在图例按钮上停留或点击可以只看一条河，按 Escape 恢复两条。</p>
+      <p class="explain"><strong>两条河，一个汇合点。</strong>蓝的一条是数据行谱系：数据集 sales 的每一行先变成带类型的行表达式，再经值标度定出值域，最后落到柱节点上；写出的 SVG 矩形带着 data-lineage 属性，回答“我来自哪一行”。朱红的一条是生成谱系：图框决定画布与绘图区，网格与轴把标度刻成参考线，轴节点（比如 grid/y/0）不来自任何一行数据；它写出的 SVG 直线只记生成步骤。在图例按钮上停留或点击可以只看一条河，按 Escape 恢复两条。</p>
       <p class="explain"><strong>易混点：</strong>两条河在 SVG 元素汇合，但身份不同——柱矩形的出身是数据行，轴直线的出身是生成步骤，SVG 里靠不同的属性区分，而不是靠类名。按预算删掉的是文字标签与图例节点，它们同样没有数据谱系，走的是生成谱系这一条。</p>
       <details class="technical-note">
         <summary>展开：用一条命令核对图上这两个出身</summary>
@@ -659,7 +660,7 @@ generated-by: build-guide-scene
             <tr><td>单进程编译，不依赖服务</td><td>一个二进制就能跑，CI 里没有额外部署</td><td>没有跨进程缓存，每次都全量重算</td></tr>
             <tr><td>能力协商先于渲染，缺能力就整体失败</td><td>不会悄悄产出一张缺元素的图</td><td>新后端必须显式声明档案，否则什么都渲染不了</td></tr>
             <tr><td>PNG 走外部栅格化器</td><td>不自己实现光栅化，SVG 与 PNG 来自同一条路径</td><td>机器上没有 rsvg-convert 或 magick 就出不了 PNG</td></tr>
-            <tr><td>每个场景节点携带出身信息</td><td>explain 能回答"这个图形从哪来"，测试能钉住稳定 id</td><td>SVG 里多出一批 data-* 属性</td></tr>
+            <tr><td>每个场景节点携带出身信息</td><td>explain 能回答“这个图形从哪来”，测试能钉住稳定 id</td><td>SVG 里多出一批 data-* 属性</td></tr>
           </tbody>
         </table>
       </div>
@@ -876,7 +877,7 @@ generated-by: build-guide-scene
       keys.forEach(k => {
         const id = k.dataset.lineageFocus;
         ['mouseenter', 'focus'].forEach(ev => k.addEventListener(ev, () => { if (!pinned) show(id); }));
-        ['mouseleave', 'blur'].forEach(ev => k.addEventListener(ev, () => { if (!pinned) show('')); }));
+        ['mouseleave', 'blur'].forEach(ev => k.addEventListener(ev, () => { if (!pinned) show(''); }));
         k.addEventListener('click', () => { pinned = pinned === id ? '' : id; show(pinned); });
       });
       fig.addEventListener('keydown', e => { if (e.key === 'Escape') { pinned = ''; show(''); } });
@@ -1038,6 +1039,7 @@ generated-by: build-guide-scene
     window.__docReady = true;
   }
 })();
+
   </script>
 </body>
 </html>
