@@ -1,9 +1,11 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use vizir_compiler::compile;
 use vizir_core::{
-    MirScale, MirView, Revision, SceneNode, ValueType, VizMir, apply_scene_patch,
-    capability_schema, diff_scene, find_scene_node, mir_schema, parse_document, scene_patch_schema,
+    Color, Document, FieldEncoding, Frame, MirScale, MirView, Revision, ScatterChart, Scene2D,
+    SceneNode, SceneOp, ValueType, View, VizMir, apply_scene_patch, capability_schema, diff_scene,
+    find_scene_node, mir_schema, parse_document, scene_patch_schema,
 };
 
 fn workspace() -> PathBuf {
@@ -124,6 +126,23 @@ fn incremental_scene_patch_matches_full_recompute() {
 
     assert_eq!(revision, Revision(42));
     assert_eq!(incremental, recomputed);
+
+    assert_eq!(patch.protocol_version, "0.1");
+    assert_eq!(patch.document_id, "service-health-dashboard");
+    assert_eq!(patch.transaction_id, "transaction/service-health-update");
+    assert_eq!(patch.base_revision, Revision(41));
+    assert_eq!(patch.target_revision, Revision(42));
+    assert_eq!(
+        patch.operations.len(),
+        1,
+        "a non-extremal datum change must not rescale guides or sibling marks"
+    );
+    let SceneOp::ReplaceNode { id, node } = &patch.operations[0] else {
+        panic!("changed datum should lower to a single replace-node operation")
+    };
+    assert_eq!(id, "latency-risk/point/gateway");
+    assert_eq!(node.id(), "latency-risk/point/gateway");
+    assert_eq!(node.origin().data_key.as_deref(), Some("gateway"));
 }
 
 #[test]
@@ -155,4 +174,66 @@ fn geometry_path_remains_typed_until_scene_construction() {
         panic!("geometry path should remain a typed path")
     };
     assert_eq!(commands.len(), 2);
+}
+
+#[test]
+fn resolved_scene_round_trips_and_rejects_unknown_node_fields() {
+    let path = workspace().join("examples/chart/sales-regions.viz.yaml");
+    let document = parse_document(path).expect("example parses");
+    let scene = compile(&document).expect("example compiles").scene;
+    let encoded = serde_json::to_value(&scene).unwrap();
+    let decoded: Scene2D = serde_json::from_value(encoded.clone()).unwrap();
+    assert_eq!(decoded, scene);
+
+    let mut unknown = encoded.clone();
+    unknown["nodes"][0]
+        .as_object_mut()
+        .unwrap()
+        .insert("backend_node".to_owned(), serde_json::json!("forbidden"));
+    assert!(serde_json::from_value::<Scene2D>(unknown).is_err());
+
+    let mut unknown_variant = encoded;
+    unknown_variant["nodes"][0]
+        .as_object_mut()
+        .unwrap()
+        .insert("type".to_owned(), serde_json::json!("dom-node"));
+    assert!(serde_json::from_value::<Scene2D>(unknown_variant).is_err());
+}
+
+#[test]
+fn compile_rejects_documents_with_unknown_datasets() {
+    let invalid = Document {
+        version: "0.1".to_owned(),
+        id: "unknown-dataset".to_owned(),
+        width: 400.0,
+        height: 300.0,
+        background: Color::transparent(),
+        title: None,
+        datasets: BTreeMap::new(),
+        views: vec![View::Scatter(ScatterChart {
+            id: "points".to_owned(),
+            title: None,
+            frame: Frame {
+                x: 0.0,
+                y: 0.0,
+                width: 400.0,
+                height: 300.0,
+            },
+            dataset: "missing".to_owned(),
+            x: FieldEncoding {
+                field: "x".to_owned(),
+                label: None,
+            },
+            y: FieldEncoding {
+                field: "y".to_owned(),
+                label: None,
+            },
+            color: None,
+            point_size: 7.0,
+        })],
+    };
+    let message = compile(&invalid).unwrap_err().to_string();
+    assert!(message.contains("VIZ-VALIDATE-0101"));
+    assert!(message.contains("unknown dataset \"missing\""));
+    assert!(message.contains("views[0].dataset"));
 }
