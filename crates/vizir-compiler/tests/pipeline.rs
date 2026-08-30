@@ -1,15 +1,26 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use vizir_compiler::compile;
+use vizir_compiler::{LayeredLayoutProvider, LayoutProvider, compile};
 use vizir_core::{
-    Color, Document, FieldEncoding, Frame, MirScale, MirView, Revision, ScatterChart, Scene2D,
-    SceneNode, SceneOp, ValueType, View, VizMir, apply_scene_patch, capability_schema, diff_scene,
-    find_scene_node, mir_schema, parse_document, scene_patch_schema,
+    Color, DiagramEdge, DiagramGraph, DiagramLayout, DiagramNode, Document, FieldEncoding, Frame,
+    MirScale, MirView, Point, Revision, ScatterChart, Scene2D, SceneNode, SceneOp, ShapeStyle,
+    ValueType, View, VizMir, apply_scene_patch, capability_schema, diff_scene, find_scene_node,
+    mir_schema, parse_document, scene_patch_schema,
 };
 
 fn workspace() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn diagram_node(id: &str, position: Option<Point>) -> DiagramNode {
+    DiagramNode {
+        id: id.to_owned(),
+        label: id.to_owned(),
+        group: None,
+        position,
+        style: ShapeStyle::default(),
+    }
 }
 
 #[test]
@@ -236,4 +247,133 @@ fn compile_rejects_documents_with_unknown_datasets() {
     assert!(message.contains("VIZ-VALIDATE-0101"));
     assert!(message.contains("unknown dataset \"missing\""));
     assert!(message.contains("views[0].dataset"));
+}
+
+#[test]
+fn cyclic_diagrams_fall_back_to_deterministic_layers_without_dropping_nodes() {
+    let document = Document {
+        version: "0.1".to_owned(),
+        id: "cycle-demo".to_owned(),
+        width: 400.0,
+        height: 300.0,
+        background: Color::transparent(),
+        title: None,
+        datasets: BTreeMap::new(),
+        views: vec![View::Diagram(DiagramGraph {
+            id: "cycle-demo".to_owned(),
+            title: None,
+            frame: Frame {
+                x: 0.0,
+                y: 0.0,
+                width: 400.0,
+                height: 300.0,
+            },
+            layout: DiagramLayout::Layered,
+            nodes: vec![
+                diagram_node("c", None),
+                diagram_node("a", None),
+                diagram_node("b", None),
+            ],
+            edges: vec![
+                DiagramEdge {
+                    from: "c".to_owned(),
+                    to: "a".to_owned(),
+                    label: None,
+                    style: ShapeStyle::default(),
+                },
+                DiagramEdge {
+                    from: "a".to_owned(),
+                    to: "b".to_owned(),
+                    label: None,
+                    style: ShapeStyle::default(),
+                },
+                DiagramEdge {
+                    from: "b".to_owned(),
+                    to: "a".to_owned(),
+                    label: None,
+                    style: ShapeStyle::default(),
+                },
+            ],
+        })],
+    };
+    let compilation = compile(&document).expect("cyclic topology compiles through the fallback");
+
+    let group =
+        find_scene_node(&compilation.scene.nodes, "cycle-demo").expect("diagram group exists");
+    assert_eq!(
+        group.origin().explanation,
+        "diagram.graph lowered to topology plus an explicit layout request; \
+         layout algorithm resolved to Layered; \
+         cycles were placed in deterministic fallback layers after acyclic ranking"
+    );
+
+    // Kahn only ranks c (rank 0) and a (rank 1, still indegree-gated from b);
+    // the fallback lifts a to rank 2 and b to rank 3, giving the three distinct
+    // ranks {0, 2, 3} -> columns 0/1/2 -> x centers 95 / 200 / 305.
+    for (node, expected_x) in [("c", 95.0), ("a", 200.0), ("b", 305.0)] {
+        let shape = find_scene_node(
+            &compilation.scene.nodes,
+            &format!("cycle-demo/node/{node}/shape"),
+        )
+        .expect("every node keeps a scene shape despite the cycle");
+        let SceneNode::Rect { bounds, .. } = shape else {
+            panic!("diagram node should lower to a concrete rect")
+        };
+        assert_eq!(bounds.x, expected_x - 75.0, "{node}");
+        assert_eq!(bounds.y, 131.5, "{node}");
+        assert_eq!(bounds.width, 150.0, "{node}");
+        assert_eq!(bounds.height, 62.0, "{node}");
+        assert_eq!(
+            shape.origin().explanation,
+            "node placed by cycles were placed in deterministic fallback layers after \
+             acyclic ranking; stable id preserved",
+            "{node}"
+        );
+    }
+
+    for edge in [
+        "cycle-demo/edge/0-c-a",
+        "cycle-demo/edge/1-a-b",
+        "cycle-demo/edge/2-b-a",
+    ] {
+        find_scene_node(&compilation.scene.nodes, edge)
+            .expect("every edge is routed from the fallback positions");
+    }
+}
+
+#[test]
+fn manual_layout_resolves_view_local_positions_into_document_coordinates() {
+    let frame = Frame {
+        x: 100.0,
+        y: 50.0,
+        width: 400.0,
+        height: 300.0,
+    };
+    let nodes = vec![diagram_node("origin", Some(Point { x: 10.0, y: 20.0 }))];
+    let result = LayeredLayoutProvider
+        .layout(&DiagramLayout::Manual, frame, &nodes, &[])
+        .expect("manual layout resolves every positioned node");
+    assert_eq!(result.positions.len(), 1);
+    assert_eq!(result.positions["origin"], Point { x: 110.0, y: 70.0 });
+    assert_eq!(
+        result.explanation,
+        "manual positions resolved from view-local to Scene2D coordinates"
+    );
+}
+
+#[test]
+fn manual_layout_rejects_nodes_without_a_position() {
+    let frame = Frame {
+        x: 0.0,
+        y: 0.0,
+        width: 400.0,
+        height: 300.0,
+    };
+    let nodes = vec![diagram_node("ghost", None)];
+    let error = LayeredLayoutProvider
+        .layout(&DiagramLayout::Manual, frame, &nodes, &[])
+        .unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("VIZ-LAYOUT-0001"));
+    assert!(message.contains("node \"ghost\" has no position for manual layout"));
 }

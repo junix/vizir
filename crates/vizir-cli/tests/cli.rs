@@ -164,6 +164,14 @@ fn renders_exact_svg_without_an_opaque_background() {
         .output()
         .unwrap();
     assert!(result.status.success(), "{}", stderr_of(&result));
+    assert_eq!(
+        stdout_of(&result),
+        format!(
+            "emitted: {}\nrendered: visual-grammar-map -> {} (svg, 0 loss records)\n",
+            manifest.display(),
+            output.display()
+        )
+    );
     let svg = std::fs::read_to_string(&output).unwrap();
     assert!(svg.starts_with("<svg"));
     assert!(!svg.contains("width=\"100%\" height=\"100%\""));
@@ -176,6 +184,7 @@ fn renders_exact_svg_without_an_opaque_background() {
         report["compiler"],
         format!("vizir/{}", env!("CARGO_PKG_VERSION"))
     );
+    assert_eq!(report["output"], output.display().to_string());
     assert_eq!(report["document_id"], "visual-grammar-map");
     assert_eq!(report["source_ir_version"], "0.1");
     assert_eq!(report["format"], "svg");
@@ -364,4 +373,132 @@ fn normalize_writes_canonical_mir_and_confirms_the_emitted_path() {
     assert!(to_stdout.status.success());
     let stdout_mir: serde_json::Value = serde_json::from_slice(&to_stdout.stdout).unwrap();
     assert_eq!(stdout_mir, mir);
+}
+
+#[test]
+fn lower_writes_the_resolved_scene_and_stdout_matches_the_file() {
+    let input = workspace().join("examples/chart/service-health.viz.yaml");
+    let temporary = tempfile::tempdir().unwrap();
+    let output = temporary.path().join("scene.json");
+    let result = vizir()
+        .args(["lower", "--output"])
+        .arg(&output)
+        .arg(&input)
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{}", stderr_of(&result));
+    assert_eq!(
+        stdout_of(&result),
+        format!("emitted: {}\n", output.display())
+    );
+
+    let scene: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&output).unwrap()).unwrap();
+    assert_eq!(scene["document_id"], "service-health-dashboard");
+    assert_eq!(scene["width"], 1280.0);
+    assert_eq!(scene["height"], 720.0);
+    assert_eq!(scene["background"], "transparent");
+    assert_eq!(scene["losses"], serde_json::json!([]));
+    let view_groups: Vec<&str> = scene["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| node["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(view_groups, ["latency-risk", "availability-ranking"]);
+
+    let to_stdout = vizir().arg("lower").arg(&input).output().unwrap();
+    assert!(to_stdout.status.success());
+    let stdout_scene: serde_json::Value = serde_json::from_slice(&to_stdout.stdout).unwrap();
+    assert_eq!(stdout_scene, scene);
+}
+
+#[test]
+fn png_render_without_a_rasterizer_fails_without_partial_output() {
+    let input = workspace().join("examples/geometry/visual-grammar.viz.yaml");
+    let temporary = tempfile::tempdir().unwrap();
+    let output = temporary.path().join("unrasterized.png");
+    let manifest = temporary.path().join("unrasterized.manifest.json");
+    let result = vizir()
+        .arg("render")
+        .arg(input)
+        .args(["--format", "png", "--background", "transparent", "--output"])
+        .arg(&output)
+        .arg("--manifest")
+        .arg(&manifest)
+        // An empty search path hides rsvg-convert and magick so the PNG path
+        // must fail on capability grounds instead of silently degrading.
+        .env("PATH", temporary.path())
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert_eq!(
+        stderr_of(&result),
+        "VIZ-CAP-0001: PNG output needs rsvg-convert or ImageMagick; SVG output remains available\n"
+    );
+    assert!(!output.exists());
+    assert!(!manifest.exists());
+}
+
+#[test]
+fn background_accepts_exact_hex_lengths_and_rejects_off_by_one() {
+    let input = workspace().join("examples/geometry/visual-grammar.viz.yaml");
+    let temporary = tempfile::tempdir().unwrap();
+    for (index, (background, accepted)) in [
+        ("#112233", true),
+        ("#11223344", true),
+        ("#11223", false),
+        ("#1122334", false),
+        ("#11223G", false),
+        ("1122334", false),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // Accepted backgrounds render into a nested path, proving missing
+        // parent directories are created; rejected ones must leave nothing.
+        let output = if accepted {
+            temporary
+                .path()
+                .join("nested")
+                .join(format!("bg-{index}.svg"))
+        } else {
+            temporary.path().join(format!("bg-{index}.svg"))
+        };
+        let manifest = temporary.path().join(format!("bg-{index}.manifest.json"));
+        let result = vizir()
+            .arg("render")
+            .arg(&input)
+            .args(["--format", "svg", "--background"])
+            .arg(background)
+            .arg("--output")
+            .arg(&output)
+            .arg("--manifest")
+            .arg(&manifest)
+            .output()
+            .unwrap();
+        assert_eq!(
+            result.status.success(),
+            accepted,
+            "{background}: {}",
+            stderr_of(&result)
+        );
+        if accepted {
+            let report: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+            assert_eq!(report["background"], background, "{background}");
+            assert!(output.exists(), "{background}");
+        } else {
+            assert_eq!(
+                stderr_of(&result),
+                format!(
+                    "VIZ-TYPE-0004: invalid background {background:?}; \
+                     use transparent, #RRGGBB, or #RRGGBBAA\n"
+                ),
+                "{background}"
+            );
+            assert!(!output.exists(), "{background}");
+            assert!(!manifest.exists(), "{background}");
+        }
+    }
 }
