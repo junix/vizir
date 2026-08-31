@@ -4,9 +4,9 @@ use std::path::PathBuf;
 use vizir_compiler::{LayeredLayoutProvider, LayoutProvider, compile};
 use vizir_core::{
     Color, DiagramEdge, DiagramGraph, DiagramLayout, DiagramNode, Document, FieldEncoding, Frame,
-    MirScale, MirView, Point, Revision, ScatterChart, Scene2D, SceneNode, SceneOp, ShapeStyle,
-    ValueType, View, VizMir, apply_scene_patch, capability_schema, diff_scene, find_scene_node,
-    mir_schema, parse_document, scene_patch_schema,
+    MirScale, MirView, PathCommand, Point, Rect, Revision, ScatterChart, Scene2D, SceneNode,
+    SceneOp, ShapeStyle, ValueType, View, VizMir, apply_scene_patch, capability_schema, diff_scene,
+    find_scene_node, mir_schema, parse_document, scene_patch_schema,
 };
 
 fn workspace() -> PathBuf {
@@ -170,8 +170,23 @@ fn layered_layout_is_resolved_before_backend_emission() {
     let SceneNode::Rect { bounds, .. } = shape else {
         panic!("diagram node should lower to a concrete rect")
     };
-    assert!(bounds.x.is_finite() && bounds.y.is_finite());
-    assert!(shape.origin().explanation.contains("Kahn"));
+    // Kahn ranks request=0, chart/diagram/geometry=1, normalize=2, scene=3,
+    // svg=4, png=5 -> 6 columns at x = 95 + 186 * column; normalize is column
+    // 2 (x center 467) on the single-row midline y = (80 + 625) / 2 = 352.5.
+    assert_eq!(
+        bounds,
+        &Rect {
+            x: 392.0,
+            y: 321.5,
+            width: 150.0,
+            height: 62.0
+        }
+    );
+    assert_eq!(
+        shape.origin().explanation,
+        "node placed by directed acyclic topology ranked with deterministic Kahn traversal; \
+         stable id preserved"
+    );
 }
 
 #[test]
@@ -181,10 +196,36 @@ fn geometry_path_remains_typed_until_scene_construction() {
     let compilation = compile(&document).expect("example compiles");
     let path = find_scene_node(&compilation.scene.nodes, "compiler-poster/hir-to-mir")
         .expect("typed path lowers to scene");
-    let SceneNode::Path { commands, .. } = path else {
+    let SceneNode::Path {
+        bounds, commands, ..
+    } = path
+    else {
         panic!("geometry path should remain a typed path")
     };
-    assert_eq!(commands.len(), 2);
+    // The typed commands must survive lowering verbatim (lossless carry, not
+    // re-derived pixel geometry) and the bounds must fold the control points.
+    assert_eq!(
+        commands,
+        &[
+            PathCommand::Move {
+                to: Point { x: 292.0, y: 215.0 }
+            },
+            PathCommand::Cubic {
+                control1: Point { x: 322.0, y: 215.0 },
+                control2: Point { x: 340.0, y: 215.0 },
+                to: Point { x: 368.0, y: 215.0 },
+            },
+        ]
+    );
+    assert_eq!(
+        bounds,
+        &Rect {
+            x: 292.0,
+            y: 215.0,
+            width: 76.0,
+            height: 0.0
+        }
+    );
 }
 
 #[test]
