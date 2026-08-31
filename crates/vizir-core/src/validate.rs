@@ -831,7 +831,69 @@ mod tests {
             "color",
             &mut diagnostics,
         );
-        assert_eq!(diagnostics[0].code, "VIZ-TYPE-0004");
+        assert_eq!(diagnostics.len(), 1);
+        let diagnostic = diagnostics.pop().unwrap();
+        assert_eq!(diagnostic.code, "VIZ-TYPE-0004");
+        assert_eq!(
+            diagnostic.message,
+            "invalid portable color \"rebeccapurple\""
+        );
+        assert_eq!(diagnostic.source.as_deref(), Some("color"));
+        assert_eq!(
+            diagnostic.help.as_deref(),
+            Some("use transparent, #RRGGBB, or #RRGGBBAA")
+        );
+    }
+
+    #[test]
+    fn color_validation_enforces_exact_hex_lengths() {
+        for (value, accepted) in [
+            ("#12aBcD", true),     // #RRGGBB
+            ("#12aBcDff", true),   // #RRGGBBAA
+            ("#12aBc", false),     // one short of #RRGGBB
+            ("#12aBcDf", false),   // between the two portable lengths
+            ("#12aBcDff0", false), // one past #RRGGBBAA
+            ("12aBcD", false),     // right shape, missing the '#' prefix
+            ("#12aBGcD", false),   // right length, non-hex digit
+        ] {
+            let mut diagnostics = Vec::new();
+            validate_color(&Color(value.to_owned()), "color", &mut diagnostics);
+            assert_eq!(diagnostics.len(), usize::from(!accepted), "{value}");
+            if !accepted {
+                assert_eq!(diagnostics[0].code, "VIZ-TYPE-0004", "{value}");
+            }
+        }
+    }
+
+    #[test]
+    fn unit_validation_enforces_the_inclusive_zero_to_one_range() {
+        for value in [0.0, 1.0, 0.5] {
+            let mut diagnostics = Vec::new();
+            validate_unit(value, "opacity", &mut diagnostics);
+            assert!(diagnostics.is_empty(), "{value}");
+        }
+        for value in [-0.1, 1.1, f64::NAN, f64::INFINITY] {
+            let mut diagnostics = Vec::new();
+            validate_unit(value, "opacity", &mut diagnostics);
+            assert_eq!(diagnostics.len(), 1, "{value}");
+            assert_eq!(diagnostics[0].code, "VIZ-TYPE-0005", "{value}");
+            assert_eq!(diagnostics[0].source.as_deref(), Some("opacity"), "{value}");
+        }
+    }
+
+    #[test]
+    fn finite_validation_rejects_nan_and_infinities_only() {
+        for value in [0.0, -1.5, 1e300] {
+            let mut diagnostics = Vec::new();
+            validate_finite(value, "width", &mut diagnostics);
+            assert!(diagnostics.is_empty(), "{value}");
+        }
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut diagnostics = Vec::new();
+            validate_finite(value, "width", &mut diagnostics);
+            assert_eq!(diagnostics.len(), 1, "{value}");
+            assert_eq!(diagnostics[0].code, "VIZ-TYPE-0006", "{value}");
+        }
     }
 
     #[test]
