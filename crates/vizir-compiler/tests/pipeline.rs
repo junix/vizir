@@ -372,14 +372,93 @@ fn cyclic_diagrams_fall_back_to_deterministic_layers_without_dropping_nodes() {
         );
     }
 
-    for edge in [
-        "cycle-demo/edge/0-c-a",
-        "cycle-demo/edge/1-a-b",
-        "cycle-demo/edge/2-b-a",
+    // Edges route horizontally from the pinned centers: anchors sit on the
+    // node border (center ± 75) and the bend clamps to the 28pt minimum, so
+    // neighbors 105pt apart produce end points that cross backwards.
+    for (edge, endpoints, start, control1, control2, end) in [
+        (
+            "cycle-demo/edge/0-c-a",
+            "c -> a",
+            Point { x: 170.0, y: 162.5 },
+            Point { x: 198.0, y: 162.5 },
+            Point { x: 97.0, y: 162.5 },
+            Point { x: 125.0, y: 162.5 },
+        ),
+        (
+            "cycle-demo/edge/1-a-b",
+            "a -> b",
+            Point { x: 275.0, y: 162.5 },
+            Point { x: 303.0, y: 162.5 },
+            Point { x: 202.0, y: 162.5 },
+            Point { x: 230.0, y: 162.5 },
+        ),
+        (
+            "cycle-demo/edge/2-b-a",
+            "b -> a",
+            Point { x: 230.0, y: 162.5 },
+            Point { x: 202.0, y: 162.5 },
+            Point { x: 303.0, y: 162.5 },
+            Point { x: 275.0, y: 162.5 },
+        ),
     ] {
-        find_scene_node(&compilation.scene.nodes, edge)
-            .expect("every edge is routed from the fallback positions");
+        let routed = find_scene_node(&compilation.scene.nodes, edge)
+            .unwrap_or_else(|| panic!("every edge is routed: {edge}"));
+        let SceneNode::Path {
+            commands, origin, ..
+        } = routed
+        else {
+            panic!("diagram edge should lower to a routed path: {edge}")
+        };
+        assert_eq!(
+            commands,
+            &[
+                PathCommand::Move { to: start },
+                PathCommand::Cubic {
+                    control1,
+                    control2,
+                    to: end
+                },
+            ],
+            "{edge}"
+        );
+        assert_eq!(origin.generated_by, "route-diagram-edge", "{edge}");
+        assert_eq!(
+            origin.explanation,
+            format!(
+                "edge {endpoints} routed after cycles were placed in \
+                 deterministic fallback layers after acyclic ranking"
+            ),
+            "{edge}"
+        );
     }
+}
+
+#[test]
+fn layered_layout_centers_a_single_column_and_distributes_rows() {
+    let frame = Frame {
+        x: 0.0,
+        y: 0.0,
+        width: 400.0,
+        height: 300.0,
+    };
+    let nodes = vec![diagram_node("upper", None), diagram_node("lower", None)];
+    let result = LayeredLayoutProvider
+        .layout(&DiagramLayout::Layered, frame, &nodes, &[])
+        .expect("edgeless nodes form one acyclic layer");
+    // With no edges both nodes share rank 0: the single column centers
+    // horizontally at (95 + 305) / 2 = 200 while the two rows spread across
+    // the full top..bottom band, assigned in sorted-id order ("lower" first).
+    assert_eq!(
+        result.positions,
+        BTreeMap::from([
+            ("lower".to_owned(), Point { x: 200.0, y: 80.0 }),
+            ("upper".to_owned(), Point { x: 200.0, y: 245.0 }),
+        ])
+    );
+    assert_eq!(
+        result.explanation,
+        "directed acyclic topology ranked with deterministic Kahn traversal"
+    );
 }
 
 #[test]

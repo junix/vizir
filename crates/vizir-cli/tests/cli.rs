@@ -447,6 +447,11 @@ fn background_accepts_exact_hex_lengths_and_rejects_off_by_one() {
     for (index, (background, accepted)) in [
         ("#112233", true),
         ("#11223344", true),
+        // Uppercase hex digits stay portable; only the literal "transparent"
+        // is accepted, not its case variants.
+        ("#A1B2C3", true),
+        ("#A1B2C3D4", true),
+        ("Transparent", false),
         ("#11223", false),
         ("#1122334", false),
         ("#11223G", false),
