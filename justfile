@@ -13,6 +13,10 @@ schemas:
 gallery:
     mkdir -p gallery
     for file in examples/*/*.viz.yaml; do name="$(basename "$file" .viz.yaml)"; cargo run -q -p vizir-cli -- render "$file" --format png --background transparent --output "gallery/${name}.png"; done
+    python3 tools/build_gallery.py
+
+gallery-check: gallery
+    python3 tools/build_gallery.py --check
 
 inspect:
     identify -format '%f %wx%h %[channels]\n' gallery/*.png

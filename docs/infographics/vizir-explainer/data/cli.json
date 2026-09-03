@@ -1,0 +1,33 @@
+{
+ "subcommands": [
+  {
+   "name": "validate",
+   "about": "Validate VizHIR structure, references, types, and stable identity"
+  },
+  {
+   "name": "normalize",
+   "about": "Emit canonical normalized VizMIR as JSON"
+  },
+  {
+   "name": "lower",
+   "about": "Emit resolved Scene2D as JSON"
+  },
+  {
+   "name": "render",
+   "about": "Render exact SVG or alpha-preserving PNG"
+  },
+  {
+   "name": "explain",
+   "about": "Explain the provenance of one stable Scene2D node"
+  },
+  {
+   "name": "capabilities",
+   "about": "Report a backend's supported capability surface"
+  },
+  {
+   "name": "schema",
+   "about": "Emit a canonical JSON Schema for a persisted IR contract"
+  }
+ ],
+ "subcommand_count": 7
+}

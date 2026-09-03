@@ -1,0 +1,14 @@
+{
+ "cap0001": {
+  "command": "env PATH=<empty> vizir render service-health.viz.yaml --format png --output should-not-exist.png",
+  "exit": 1,
+  "stderr": "VIZ-CAP-0001: PNG output needs rsvg-convert or ImageMagick; SVG output remains available",
+  "output_file_exists": false,
+  "manifest_file_exists": false
+ },
+ "explain0001": {
+  "command": "vizir explain service-health.viz.yaml --node does/not/exist",
+  "exit": 1,
+  "stderr": "VIZ-EXPLAIN-0001: no Scene2D node named \"does/not/exist\""
+ }
+}

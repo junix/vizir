@@ -1,0 +1,133 @@
+{
+ "svg_backend": {
+  "backend": "svg",
+  "version": "1",
+  "accepted_ir": "scene2d",
+  "supports": [
+   "paint.alpha",
+   "paint.marker-end",
+   "scene.2d",
+   "scene.2d.circle",
+   "scene.2d.group",
+   "scene.2d.line",
+   "scene.2d.path",
+   "scene.2d.rect",
+   "scene.2d.text",
+   "scene.2d.transform"
+  ],
+  "unsupported": [
+   "animation.timeline",
+   "interaction.pointer",
+   "scene.3d.mesh"
+  ],
+  "limits": {
+   "max-clip-depth": 32
+  },
+  "unsupported_policy": "error"
+ },
+ "png_backend": {
+  "backend": "png",
+  "version": "1",
+  "accepted_ir": "scene2d-through-svg",
+  "supports": [
+   "paint.alpha",
+   "paint.marker-end",
+   "scene.2d",
+   "scene.2d.circle",
+   "scene.2d.group",
+   "scene.2d.line",
+   "scene.2d.path",
+   "scene.2d.rect",
+   "scene.2d.text",
+   "scene.2d.transform"
+  ],
+  "unsupported": [
+   "animation.timeline",
+   "interaction.pointer",
+   "scene.3d.mesh",
+   "target.vector"
+  ],
+  "lowering": {
+   "scene.2d": "rasterized",
+   "scene.2d.circle": "rasterized",
+   "scene.2d.group": "rasterized",
+   "scene.2d.line": "rasterized",
+   "scene.2d.path": "rasterized",
+   "scene.2d.rect": "rasterized",
+   "scene.2d.text": "rasterized",
+   "scene.2d.transform": "rasterized"
+  },
+  "unsupported_policy": "error"
+ },
+ "svg_manifest_decisions": {
+  "total": 174,
+  "by_status": {
+   "exact": 174
+  },
+  "by_feature": {
+   "paint.alpha": 63,
+   "scene.2d.text": 46,
+   "scene.2d.line": 28,
+   "scene.2d.circle": 22,
+   "scene.2d.rect": 12,
+   "scene.2d.group": 2,
+   "scene.2d": 1
+  },
+  "sample": [
+   {
+    "feature": "scene.2d.group",
+    "reason": "backend declares exact support",
+    "source": "availability-ranking",
+    "status": "exact"
+   },
+   {
+    "feature": "paint.alpha",
+    "reason": "backend declares exact support",
+    "source": "availability-ranking/axis/x",
+    "status": "exact"
+   },
+   {
+    "feature": "scene.2d.line",
+    "reason": "backend declares exact support",
+    "source": "availability-ranking/axis/x",
+    "status": "exact"
+   }
+  ]
+ },
+ "png_manifest_decisions": {
+  "total": 174,
+  "by_status": {
+   "rasterized": 111,
+   "exact": 63
+  },
+  "sample_rasterized": {
+   "feature": "scene.2d.group",
+   "reason": "backend declares an explicit lowering strategy",
+   "source": "availability-ranking",
+   "status": "rasterized"
+  }
+ },
+ "manifest_keys": [
+  "background",
+  "capability_report",
+  "compiler",
+  "document_id",
+  "format",
+  "losses",
+  "output",
+  "rasterizer",
+  "source_ir_version"
+ ],
+ "compiler": "vizir/0.1.0",
+ "source_ir_version": "0.1",
+ "accepted_ir": "scene2d",
+ "png_losses": [
+  {
+   "fidelity": "rasterized",
+   "reason": "vector Scene2D was rasterized after exact SVG emission",
+   "source": "scene2d",
+   "target": "png"
+  }
+ ],
+ "png_rasterizer": "rsvg-convert"
+}

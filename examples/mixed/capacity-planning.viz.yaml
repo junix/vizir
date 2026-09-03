@@ -1,0 +1,177 @@
+version: "0.1"
+id: capacity-planning-brief
+width: 1400
+height: 900
+background: transparent
+
+# Deterministic illustrative planning data. Values are examples, not measurements.
+datasets:
+  capacity:
+    key: sample_id
+    rows:
+      - {sample_id: demand-1, week: 1, requests_k: 62, series: forecast demand}
+      - {sample_id: demand-2, week: 2, requests_k: 68, series: forecast demand}
+      - {sample_id: demand-3, week: 3, requests_k: 73, series: forecast demand}
+      - {sample_id: demand-4, week: 4, requests_k: 81, series: forecast demand}
+      - {sample_id: demand-5, week: 5, requests_k: 88, series: forecast demand}
+      - {sample_id: demand-6, week: 6, requests_k: 96, series: forecast demand}
+      - {sample_id: demand-7, week: 7, requests_k: 104, series: forecast demand}
+      - {sample_id: safe-1, week: 1, requests_k: 92, series: safe capacity}
+      - {sample_id: safe-2, week: 2, requests_k: 92, series: safe capacity}
+      - {sample_id: safe-3, week: 3, requests_k: 92, series: safe capacity}
+      - {sample_id: safe-4, week: 4, requests_k: 92, series: safe capacity}
+      - {sample_id: safe-5, week: 5, requests_k: 92, series: safe capacity}
+      - {sample_id: safe-6, week: 6, requests_k: 92, series: safe capacity}
+      - {sample_id: safe-7, week: 7, requests_k: 92, series: safe capacity}
+
+views:
+  - kind: chart.line
+    id: capacity-curves
+    title: Forecast demand versus safe serving capacity
+    frame: {x: 0, y: 0, width: 850, height: 520}
+    dataset: capacity
+    x: {field: week, label: planning week}
+    y: {field: requests_k, label: requests per second (thousands)}
+    series:
+      field: series
+      palette: ["#E45756", "#2A9D8F"]
+    line_width: 3
+    show_points: true
+
+  - kind: diagram.graph
+    id: scale-out-plan
+    title: Capacity change path
+    frame: {x: 850, y: 0, width: 550, height: 520}
+    layout: manual
+    nodes:
+      - {id: observe, label: Observe demand, group: evidence, position: {x: 90, y: 120}}
+      - {id: approve, label: Approve target, group: action, position: {x: 275, y: 120}}
+      - {id: provision, label: Provision, group: action, position: {x: 460, y: 120}}
+      - {id: canary, label: Canary load, group: evidence, position: {x: 460, y: 320}}
+      - {id: verify, label: Verify headroom, group: evidence, position: {x: 275, y: 320}}
+      - {id: release, label: Release capacity, group: action, position: {x: 90, y: 320}}
+    edges:
+      - {from: observe, to: approve, label: forecast}
+      - {from: approve, to: provision, label: budget}
+      - {from: provision, to: canary, label: deploy}
+      - {from: canary, to: verify, label: measure}
+      - {from: verify, to: release, label: evidence}
+      - {from: release, to: observe, label: monitor}
+
+  - kind: geometry.scene
+    id: planning-decisions
+    frame: {x: 0, y: 520, width: 1400, height: 380}
+    children:
+      - type: text
+        id: strip-title
+        x: 34
+        y: 52
+        text: Planning decision
+        font_size: 25
+        anchor: start
+        weight: bold
+        color: "#1C2736"
+      - type: rect
+        id: crossover-card
+        x: 34
+        y: 82
+        width: 410
+        height: 220
+        radius: 22
+        style: {fill: "#FBE9F1", stroke: "#E5A3BF", stroke_width: 2, opacity: 1}
+      - type: text
+        id: crossover-label
+        x: 64
+        y: 126
+        text: Forecast crossover
+        font_size: 15
+        anchor: start
+        weight: bold
+        color: "#A53A6D"
+      - type: text
+        id: crossover-value
+        x: 64
+        y: 174
+        text: Week 6 exceeds safe capacity
+        font_size: 22
+        anchor: start
+        weight: bold
+        color: "#1C2736"
+      - type: text
+        id: crossover-note
+        x: 64
+        y: 218
+        text: illustrative threshold from the plotted rows
+        font_size: 15
+        anchor: start
+        color: "#596579"
+
+      - type: rect
+        id: action-card
+        x: 495
+        y: 82
+        width: 410
+        height: 220
+        radius: 22
+        style: {fill: "#EAF0FF", stroke: "#9AB2F8", stroke_width: 2, opacity: 1}
+      - type: text
+        id: action-label
+        x: 525
+        y: 126
+        text: Required action
+        font_size: 15
+        anchor: start
+        weight: bold
+        color: "#2446A8"
+      - type: text
+        id: action-value
+        x: 525
+        y: 174
+        text: Add 20k requests/s headroom
+        font_size: 22
+        anchor: start
+        weight: bold
+        color: "#1C2736"
+      - type: text
+        id: action-note
+        x: 525
+        y: 218
+        text: approve, provision, canary, then release
+        font_size: 15
+        anchor: start
+        color: "#596579"
+
+      - type: rect
+        id: evidence-card
+        x: 956
+        y: 82
+        width: 410
+        height: 220
+        radius: 22
+        style: {fill: "#E5F7F3", stroke: "#80CFC0", stroke_width: 2, opacity: 1}
+      - type: text
+        id: evidence-label
+        x: 986
+        y: 126
+        text: Exit evidence
+        font_size: 15
+        anchor: start
+        weight: bold
+        color: "#137768"
+      - type: text
+        id: evidence-value
+        x: 986
+        y: 174
+        text: 20% measured headroom
+        font_size: 22
+        anchor: start
+        weight: bold
+        color: "#1C2736"
+      - type: text
+        id: evidence-note
+        x: 986
+        y: 218
+        text: stable latency, errors, saturation, and cost
+        font_size: 15
+        anchor: start
+        color: "#596579"

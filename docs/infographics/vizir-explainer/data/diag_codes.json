@@ -1,0 +1,670 @@
+{
+ "total_codes": 81,
+ "family_count": 14,
+ "families": {
+  "VIZ-PATCH": 14,
+  "VIZ-VALIDATE": 11,
+  "VIZ-EXPR": 10,
+  "VIZ-TYPE": 10,
+  "VIZ-RESOLVE": 8,
+  "VIZ-MIR": 6,
+  "VIZ-CAP": 5,
+  "VIZ-LAYOUT": 4,
+  "VIZ-BACKEND": 4,
+  "VIZ-SCENE": 3,
+  "VIZ-ARTIFACT": 3,
+  "VIZ-LOWER": 1,
+  "VIZ-SCHEMA": 1,
+  "VIZ-EXPLAIN": 1
+ },
+ "codes": {
+  "VIZ-ARTIFACT-0001": {
+   "first": {
+    "file": "crates/vizir-cli/src/main.rs",
+    "line": 347
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-ARTIFACT-0002": {
+   "first": {
+    "file": "crates/vizir-cli/src/main.rs",
+    "line": 374
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-ARTIFACT-0003": {
+   "first": {
+    "file": "crates/vizir-cli/src/main.rs",
+    "line": 384
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-BACKEND-0001": {
+   "first": {
+    "file": "crates/vizir-cli/src/main.rs",
+    "line": 306
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-BACKEND-0002": {
+   "first": {
+    "file": "crates/vizir-cli/src/main.rs",
+    "line": 312
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-BACKEND-0003": {
+   "first": {
+    "file": "crates/vizir-cli/src/main.rs",
+    "line": 322
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-BACKEND-0004": {
+   "first": {
+    "file": "crates/vizir-cli/src/main.rs",
+    "line": 328
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-CAP-0001": {
+   "first": {
+    "file": "crates/vizir-cli/tests/cli.rs",
+    "line": 437
+   },
+   "src_hits": 1,
+   "test_hits": 1
+  },
+  "VIZ-CAP-0002": {
+   "first": {
+    "file": "crates/vizir-core/src/capability.rs",
+    "line": 128
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-CAP-0003": {
+   "first": {
+    "file": "crates/vizir-core/src/capability.rs",
+    "line": 39
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-CAP-0004": {
+   "first": {
+    "file": "crates/vizir-core/src/capability.rs",
+    "line": 44
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-CAP-0005": {
+   "first": {
+    "file": "crates/vizir-core/src/capability.rs",
+    "line": 53
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-EXPLAIN-0001": {
+   "first": {
+    "file": "crates/vizir-cli/tests/cli.rs",
+    "line": 92
+   },
+   "src_hits": 1,
+   "test_hits": 1
+  },
+  "VIZ-EXPR-0001": {
+   "first": {
+    "file": "crates/vizir-core/src/expression.rs",
+    "line": 216
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-EXPR-0002": {
+   "first": {
+    "file": "crates/vizir-core/src/expression.rs",
+    "line": 222
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-EXPR-0003": {
+   "first": {
+    "file": "crates/vizir-core/src/expression.rs",
+    "line": 225
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-EXPR-0004": {
+   "first": {
+    "file": "crates/vizir-core/src/expression.rs",
+    "line": 230
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-EXPR-0005": {
+   "first": {
+    "file": "crates/vizir-core/src/expression.rs",
+    "line": 281
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-EXPR-0006": {
+   "first": {
+    "file": "crates/vizir-core/src/expression.rs",
+    "line": 335
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-EXPR-0007": {
+   "first": {
+    "file": "crates/vizir-core/src/expression.rs",
+    "line": 442
+   },
+   "src_hits": 3,
+   "test_hits": 0
+  },
+  "VIZ-EXPR-0008": {
+   "first": {
+    "file": "crates/vizir-core/src/expression.rs",
+    "line": 496
+   },
+   "src_hits": 5,
+   "test_hits": 0
+  },
+  "VIZ-EXPR-0009": {
+   "first": {
+    "file": "crates/vizir-core/src/expression.rs",
+    "line": 197
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-EXPR-0010": {
+   "first": {
+    "file": "crates/vizir-core/src/expression.rs",
+    "line": 204
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-LAYOUT-0001": {
+   "first": {
+    "file": "crates/vizir-compiler/tests/pipeline.rs",
+    "line": 497
+   },
+   "src_hits": 1,
+   "test_hits": 1
+  },
+  "VIZ-LAYOUT-0002": {
+   "first": {
+    "file": "crates/vizir-compiler/src/scene_builder.rs",
+    "line": 518
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-LAYOUT-0003": {
+   "first": {
+    "file": "crates/vizir-compiler/src/scene_builder.rs",
+    "line": 524
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-LAYOUT-0202": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 187
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-LOWER-0001": {
+   "first": {
+    "file": "crates/vizir-compiler/src/lower.rs",
+    "line": 945
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-MIR-0001": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 258
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-MIR-0002": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 269
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-MIR-0003": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 295
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-MIR-0004": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 321
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-MIR-0005": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 383
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-MIR-0006": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 407
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0001": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 73
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0002": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 79
+   },
+   "src_hits": 4,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0003": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 120
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0004": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 126
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0005": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 132
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0006": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 282
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0007": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 288
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0008": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 301
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0009": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 308
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0010": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 314
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0011": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 329
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0012": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 354
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0013": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 360
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-PATCH-0014": {
+   "first": {
+    "file": "crates/vizir-core/src/patch.rs",
+    "line": 401
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-RESOLVE-0001": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 283
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-RESOLVE-0002": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 304
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-RESOLVE-0003": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 330
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-RESOLVE-0004": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 357
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-RESOLVE-0005": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 393
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-RESOLVE-0006": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 415
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-RESOLVE-0007": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 426
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-RESOLVE-0008": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 505
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-SCENE-0001": {
+   "first": {
+    "file": "crates/vizir-compiler/src/scene_builder.rs",
+    "line": 210
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-SCENE-0002": {
+   "first": {
+    "file": "crates/vizir-compiler/src/scene_builder.rs",
+    "line": 954
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-SCENE-0003": {
+   "first": {
+    "file": "crates/vizir-compiler/src/scene_builder.rs",
+    "line": 971
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-SCHEMA-0001": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 37
+   },
+   "src_hits": 1,
+   "test_hits": 1
+  },
+  "VIZ-TYPE-0001": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 768
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-TYPE-0002": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 784
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-TYPE-0003": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 795
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-TYPE-0004": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 754
+   },
+   "src_hits": 4,
+   "test_hits": 2
+  },
+  "VIZ-TYPE-0005": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 803
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-TYPE-0006": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 810
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-TYPE-0104": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 557
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-TYPE-0105": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 568
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-TYPE-0201": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 516
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-TYPE-0202": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 459
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-VALIDATE-0002": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 88
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-VALIDATE-0003": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 243
+   },
+   "src_hits": 1,
+   "test_hits": 1
+  },
+  "VIZ-VALIDATE-0101": {
+   "first": {
+    "file": "crates/vizir-compiler/tests/pipeline.rs",
+    "line": 288
+   },
+   "src_hits": 1,
+   "test_hits": 1
+  },
+  "VIZ-VALIDATE-0102": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 58
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-VALIDATE-0103": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 63
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-VALIDATE-0106": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 73
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-VALIDATE-0201": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 178
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-VALIDATE-0203": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 206
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-VALIDATE-0204": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 215
+   },
+   "src_hits": 2,
+   "test_hits": 0
+  },
+  "VIZ-VALIDATE-0301": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 611
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  },
+  "VIZ-VALIDATE-0302": {
+   "first": {
+    "file": "crates/vizir-core/src/validate.rs",
+    "line": 691
+   },
+   "src_hits": 1,
+   "test_hits": 0
+  }
+ }
+}

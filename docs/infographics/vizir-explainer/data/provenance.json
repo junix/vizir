@@ -1,0 +1,24 @@
+{
+ "engine_commit": "52840b807ee6efcee8927ab60c7aec81ad0998df",
+ "engine_repo": "/Users/junix/projects/plot/vizir",
+ "vizir_binary": "/Users/junix/projects/plot/vizir/target/release/vizir",
+ "sandbox": "/tmp/vizir-explainer-freeze",
+ "primary_example": "examples/chart/service-health.viz.yaml",
+ "primary_example_sha256": "6e21b678fb85eec2e20f17b9f438998b865d15cd441e14b725c865ba3162a21d",
+ "source_refs": {
+  "origin_struct": "crates/vizir-core/src/scene.rs:132-142",
+  "scene_capability_requirements": "crates/vizir-core/src/capability.rs:134",
+  "negotiate_scene": "crates/vizir-core/src/capability.rs:152",
+  "cap0002_diagnostic": "crates/vizir-core/src/capability.rs:127-131",
+  "diff_scene": "crates/vizir-core/src/patch.rs:64",
+  "apply_scene_patch": "crates/vizir-core/src/patch.rs:113",
+  "patch_equivalence_test": "crates/vizir-core/src/patch.rs:457",
+  "cli_commands_enum": "crates/vizir-cli/src/main.rs:22-23",
+  "cap0001_diagnostic": "crates/vizir-cli/src/main.rs:334",
+  "nice_domain": "crates/vizir-compiler/src/lower.rs:165-166",
+  "chart_provenance_strings": "crates/vizir-compiler/src/lower.rs:217-222",
+  "schema_anti_drift_test": "crates/vizir-cli/tests/cli.rs:312"
+ },
+ "frozen_at": "2026-09-02",
+ "method": "prep_data.py 一次性冻结；运行期噪声（manifest output 路径）以固定输出路径消除"
+}

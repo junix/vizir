@@ -1,0 +1,82 @@
+{
+ "samples": [
+  {
+   "queried": "latency-risk/point/gateway",
+   "expected_ok": true,
+   "exit": 0,
+   "fields": {
+    "node": "latency-risk/point/gateway",
+    "hir-node": "latency-risk",
+    "mir-node": "latency-risk/marks/points",
+    "data-key": "gateway",
+    "data-lineage": "data/services",
+    "generated-by": "build-symbol-scene",
+    "reason": "datum gateway mapped through scales latency-risk/x and latency-risk/y"
+   },
+   "stderr": ""
+  },
+  {
+   "queried": "latency-risk/point/inference",
+   "expected_ok": true,
+   "exit": 0,
+   "fields": {
+    "node": "latency-risk/point/inference",
+    "hir-node": "latency-risk",
+    "mir-node": "latency-risk/marks/points",
+    "data-key": "inference",
+    "data-lineage": "data/services",
+    "generated-by": "build-symbol-scene",
+    "reason": "datum inference mapped through scales latency-risk/x and latency-risk/y"
+   },
+   "stderr": ""
+  },
+  {
+   "queried": "latency-risk/axis/x",
+   "expected_ok": true,
+   "exit": 0,
+   "fields": {
+    "node": "latency-risk/axis/x",
+    "hir-node": "latency-risk",
+    "mir-node": "latency-risk",
+    "generated-by": "build-guide-scene",
+    "reason": "bottom axis emitted from explicit MIR guide"
+   },
+   "stderr": ""
+  },
+  {
+   "queried": "availability-ranking/bar/billing",
+   "expected_ok": true,
+   "exit": 0,
+   "fields": {
+    "node": "availability-ranking/bar/billing",
+    "hir-node": "availability-ranking",
+    "mir-node": "availability-ranking/marks/bars",
+    "data-key": "billing",
+    "data-lineage": "data/services",
+    "generated-by": "build-bar-scene",
+    "reason": "bar billing mapped through availability-ranking/category and zero-preserving availability-ranking/value"
+   },
+   "stderr": ""
+  },
+  {
+   "queried": "availability-ranking/axis/x/category/3",
+   "expected_ok": true,
+   "exit": 0,
+   "fields": {
+    "node": "availability-ranking/axis/x/category/3",
+    "hir-node": "availability-ranking",
+    "mir-node": "availability-ranking",
+    "generated-by": "shape-native-text",
+    "reason": "category label generated from band scale domain"
+   },
+   "stderr": ""
+  },
+  {
+   "queried": "does/not/exist",
+   "expected_ok": false,
+   "exit": 1,
+   "fields": {},
+   "stderr": "VIZ-EXPLAIN-0001: no Scene2D node named \"does/not/exist\""
+  }
+ ]
+}

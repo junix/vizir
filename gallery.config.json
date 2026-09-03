@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "project": "VizIR",
+  "title": "Semantic visualization compiler gallery",
+  "description": "Versioned VizHIR examples lowered deterministically through VizMIR and Scene2D into transparent PNG proof, grouped by visual dialect.",
+  "output": "gallery.html",
+  "discovery": {
+    "mode": "glob",
+    "patterns": ["examples/**/*.viz.yaml"],
+    "base": "examples",
+    "remove_suffix": ".viz.yaml",
+    "preview": "gallery/{stem}.png",
+    "artifact": "gallery/{stem}.png",
+    "default_category": "mixed",
+    "summary": "Executable {category} scenario with semantic source and deterministic lowering.",
+    "tags": ["VizHIR", "transparent PNG"]
+  }
+}
