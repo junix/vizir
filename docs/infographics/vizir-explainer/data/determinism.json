@@ -1,0 +1,32 @@
+{
+ "pairs": [
+  {
+   "artifact": "VizMIR (normalize)",
+   "file": "run-?.mir.json",
+   "run_a": "5898b8dc154182a58b8f3d7e10f58794fe1431b78cdf1f7dba33ac17d2df7bc3",
+   "run_b": "5898b8dc154182a58b8f3d7e10f58794fe1431b78cdf1f7dba33ac17d2df7bc3",
+   "identical": true
+  },
+  {
+   "artifact": "Scene2D (lower)",
+   "file": "run-?.scene.json",
+   "run_a": "70b6e2a9a7bd858d0bc3f54aae713067bcbea624d9d6709acdbe3b6538451216",
+   "run_b": "70b6e2a9a7bd858d0bc3f54aae713067bcbea624d9d6709acdbe3b6538451216",
+   "identical": true
+  },
+  {
+   "artifact": "SVG (render)",
+   "file": "run-?.svg",
+   "run_a": "6a2caf37cb97841aa23447b6ed6ba527aaf3e50a39a506cfed6f76c1b2cc2f47",
+   "run_b": "6a2caf37cb97841aa23447b6ed6ba527aaf3e50a39a506cfed6f76c1b2cc2f47",
+   "identical": true
+  }
+ ],
+ "manifest_noise": {
+  "same_output_path_reruns_byte_identical": true,
+  "differing_keys_when_output_path_differs": [
+   "output"
+  ]
+ },
+ "note": "同一进程外因只允许 manifest 的 output 路径一行变化；产物字节不变。"
+}

@@ -1,0 +1,113 @@
+{
+ "views": [
+  {
+   "id": "latency-risk",
+   "provenance": [
+    "x domain inferred from 12 finite values",
+    "y domain inferred from 12 finite values",
+    "linear domains expanded with deterministic nice-domain policy",
+    "axes made explicit during chart dialect lowering"
+   ],
+   "scales": [
+    {
+     "id": "latency-risk/x",
+     "domain": [
+      50.0,
+      350.0
+     ],
+     "range": [
+      64.0,
+      730.0
+     ]
+    },
+    {
+     "id": "latency-risk/y",
+     "domain": [
+      0.2,
+      1.4000000000000001
+     ],
+     "range": [
+      658.0,
+      50.0
+     ]
+    },
+    {
+     "id": "latency-risk/color",
+     "domain": [
+      "Commerce",
+      "Core",
+      "Data",
+      "Edge",
+      "ML"
+     ],
+     "range": [
+      "#3B6EF5",
+      "#18A999",
+      "#F2A541",
+      "#D94891",
+      "#7A5AF8"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "availability-ranking",
+   "provenance": [
+    "one bar generated per unique category",
+    "quantitative domain includes zero to preserve bar-chart truth",
+    "band placement remains unresolved until Scene2D construction"
+   ],
+   "scales": [
+    {
+     "id": "availability-ranking/category",
+     "domain": [
+      "Gateway",
+      "Identity",
+      "Billing",
+      "Catalog",
+      "Ranking",
+      "Search",
+      "Events",
+      "Profiles",
+      "Ledger",
+      "Features",
+      "Inference",
+      "Notify"
+     ],
+     "range": [
+      824.0,
+      1250.0
+     ]
+    },
+    {
+     "id": "availability-ranking/value",
+     "domain": [
+      0.0,
+      120.0
+     ],
+     "range": [
+      658.0,
+      50.0
+     ]
+    },
+    {
+     "id": "availability-ranking/color",
+     "domain": [
+      "Commerce",
+      "Core",
+      "Data",
+      "Edge",
+      "ML"
+     ],
+     "range": [
+      "#3B6EF5",
+      "#18A999",
+      "#F2A541",
+      "#D94891",
+      "#7A5AF8"
+     ]
+    }
+   ]
+  }
+ ]
+}

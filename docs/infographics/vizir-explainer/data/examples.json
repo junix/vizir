@@ -1,0 +1,22 @@
+{
+ "files": [
+  "chart/incident-latency.viz.yaml",
+  "chart/model-evaluation.viz.yaml",
+  "chart/sales-regions.viz.yaml",
+  "chart/service-health.viz.yaml",
+  "diagram/agent-runtime.viz.yaml",
+  "diagram/data-platform.viz.yaml",
+  "diagram/dialect-lowering.viz.yaml",
+  "geometry/compiler-pipeline.viz.yaml",
+  "geometry/visual-grammar.viz.yaml",
+  "mixed/capacity-planning.viz.yaml",
+  "mixed/reliability-brief.viz.yaml"
+ ],
+ "count": 11,
+ "by_family": {
+  "chart": 4,
+  "diagram": 3,
+  "geometry": 2,
+  "mixed": 2
+ }
+}
