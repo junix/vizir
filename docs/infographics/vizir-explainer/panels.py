@@ -50,8 +50,8 @@ def p_hero(d) -> str:
          "每个 Scene2D 节点携带 Origin 责任链：HIR 来源 / MIR 来源 / data-key / 数据 lineage / 生成 pass / 人类可读解释。", FLOW),
         ("机制二 · 能力谈判", "negotiate",
          "编译前为每个节点显式谈判后端能力：174 条逐节点 decision 写进 manifest；不支持即 VIZ-CAP 报错，绝不静默消失。", TEAL),
-        ("机制三 · 补丁等价", "apply_scene_patch",
-         "ScenePatch 带 revision 校验：局部补丁必须证明自己与全量重算语义等价，base 对不上就拒绝，不猜。", WARN),
+        ("机制三 · 补丁等价", "schema scene-patch",
+         "场景补丁带版本对账：局部补丁必须证明自己与全量重算语义等价，基线版本对不上就拒绝，不猜。", WARN),
     ]
     cw3 = (CW - 2 * 24) / 3
     for i, (kick, sym, body, accent) in enumerate(cards):
@@ -86,7 +86,7 @@ def p_hero(d) -> str:
 
     out.append(rect(X, 512, CW, 4, fill=RULE, sw=0))
     out.append(text(X, 544,
-                    "本页每个数字都冻结自引擎真实运行（data/*.json + provenance.json），可逐项复现；本图构建未改动引擎任何已跟踪文件、未提交任何 commit。",
+                    "本页每个数字都冻结自一次真实引擎运行，可逐项复现（证据链见 VERIFICATION.md）；本图构建未改动引擎任何已跟踪文件、未提交任何 commit。",
                     size=12.5, fill=MUTED))
     out.append(src_note(X, 566,
                         f'engine commit {eng["commit"][:12]} · rustc '
@@ -96,7 +96,7 @@ def p_hero(d) -> str:
                         "差异化边界：本图不讲「又一套分层 IR」也不讲「渲染确定性」——"
                         "那些属于姊妹图 graph-ir-rs / plot-go；本图只讲问责三机制。"))
     out.append(src_note(X, 610,
-                        "mechanisms: scene.rs:132-142 · capability.rs:134/152 · patch.rs:64/113/457"))
+                        "机制源码锚点与冻结数据收录于 VERIFICATION.md 证据链（本页不印代码坐标）· 声明 E1/E2/E3"))
     out.append(src_note(X, 632,
                         "examples 口径：工作树 11 = 已跟踪 10 + 未跟踪 WIP 1"
                         "（mixed/capacity-planning，见 engine.json 基线）；"
@@ -207,11 +207,11 @@ def p_pipeline(d) -> str:
         out.append(text(px, 500, ok, size=10.5,
                         fill=TEAL if pair["identical"] else WARN))
     out.append(src_note(X, 538,
-                        "determinism.json：normalize/lower/render 各两跑，sha256 全等；"
-                        "manifest 仅 output 路径一行随路径变化，同路径重跑 byte 级一致"))
+                        "三对指纹全等（规范化/降级/渲染各两跑）；"
+                        "manifest 仅 output 路径一行随路径变化，同路径重跑 byte 级一致 · 声明 E4"))
     out.append(src_note(X, 560,
                         f'输入 {eng["example_input"]}（sha256 见 VERIFICATION.md）· '
-                        "scene_nodes.json / determinism.json"))
+                        "证据链见 VERIFICATION.md"))
     return svg(W, h, *out)
 
 
@@ -222,24 +222,25 @@ def p_origin(d) -> str:
     out = [panel_head(28, "02 · Origin 责任链", "每个 Scene2D 节点都自带六字段档案",
                       f'例：explain --node latency-risk/point/gateway —— 下表全部为真实字段值，非示意')]
     fields = [
-        ("hir_node", o["hir_node"], "它来自哪个 HIR 视图声明"),
-        ("mir_node", o["mir_node"], "它由哪个 MIR 标记组实例化"),
-        ("data_key", o["data_key"], "绑定到哪一行数据（stable key）"),
-        ("data_lineage", " → ".join(o["data_lineage"]), "数据从哪个 dataset 流入"),
-        ("generated_by", o["generated_by"], "由哪条生成 pass 产出"),
-        ("explanation", o["explanation"], "人类可读的一句话解释"),
+        ("HIR 视图声明", o["hir_node"], "它由哪条视图声明展开"),
+        ("MIR 标记组", o["mir_node"], "它由哪个标记组实例化"),
+        ("数据键", o["data_key"], "绑定到哪一行数据（稳定键）"),
+        ("数据谱系", " → ".join(o["data_lineage"]), "数据从哪个数据集流入"),
+        ("生成 pass", o["generated_by"], "由哪条生成 pass 产出"),
+        ("人读解释", o["explanation"], "一句话解释它为什么长这样"),
     ]
     y = 152
     out.append(rect(X, y, 700, 330, fill=PANEL, stroke=RULE, sw=1, rx=10))
-    out.append(code(X + 16, y + 26, "struct Origin", size=12, fill=FLOW,
-                    weight="700"))
-    out.append(code(X + 16, y + 44, "// crates/vizir-core/src/scene.rs:132-142",
+    out.append(text(X + 16, y + 26, "六字段责任档案（下表全部为真实字段值，非示意）",
+                    size=12.5, fill=FLOW, weight="700"))
+    out.append(text(X + 16, y + 44, "字段原文键名见右卡真实输出节选；源码锚点见 VERIFICATION.md · 声明 E3",
                     size=10, fill=MUTED))
     yy = y + 76
     for name, value, meaning in fields:
         out.append(rect(X + 12, yy - 14, 676, 40, fill=PAPER, stroke=RULE,
                         sw=1, rx=6))
-        out.append(code(X + 22, yy, name, size=11.5, fill=FLOW_DK))
+        out.append(text(X + 22, yy, name, size=11.5, fill=FLOW_DK,
+                        weight="700"))
         out.append(code(X + 150, yy, value if len(str(value)) <= 52
                         else str(value)[:49] + "…", size=11, fill=INK))
         out.append(text(X + 150, yy + 15, meaning, size=10, fill=MUTED))
@@ -264,10 +265,11 @@ def p_origin(d) -> str:
     ]
     out.append(code_box(X + 724, y, 380, 250, json_lines, size=10.5,
                         title="vizir lower → run-a.scene.json（真实输出节选）"))
-    # serde omission rule, right under the JSON box (2026-09 R3 fix)
+    # serde omission rule, right under the JSON box (2026-09 R3 fix;
+    # 2026-09-03 retrofit: domain wording, engine coords stay in VERIFICATION)
     out.append(src_note(X + 724, y + 260,
-                        "省略规则：Option None / Vec 空则整键不序列化"
-                        "（scene.rs:136/138）"))
+                        "省略规则：可选字段缺省时整键不写入输出 JSON"
+                        "（细则见声明 E3）"))
     out.append(rect(X + 724, y + 274, 380, 88, fill=TINT, stroke=TEAL, sw=1,
                     rx=8))
     out.append(text(X + 738, y + 298,
@@ -280,8 +282,8 @@ def p_origin(d) -> str:
                     "data_key / data_lineage 可选：序列化省略 86 / 74。",
                     size=10.5, fill=INK))
     out.append(src_note(X, y + 384,
-                        "scene_nodes.json:origin_example · scene.rs:132-142 · "
-                        "scene_nodes.json:total_nodes"))
+                        "六字段值逐字取自真实降级输出（右卡节选）；110 节点全覆盖 · "
+                        "声明 E3 · 证据链见 VERIFICATION"))
     out.append(src_note(X, y + 406,
                         "「谁是它的爹、吃了哪行数据、哪个 pass 造的、为什么长这样」——四问全部可机器读取"))
     return svg(W, h, *out)
@@ -343,7 +345,7 @@ def p_explain(d) -> str:
                         weight="700"))
         y += 78
     out.append(src_note(X, y + 6,
-                        "explain_samples.json（verbatim 字段值）· VIZ-EXPLAIN-0001 = 唯一的 explain 失败码"))
+                        "六查询输出逐字段实录 · VIZ-EXPLAIN-0001 = 唯一的 explain 失败码 · 声明 E1"))
     out.append(src_note(X, y + 28,
                         "generated_by 即着色：五个查询命中四条不同生成 pass —— 溯源粒度到 pass，不只到层级"))
     return svg(W, h, *out)
@@ -382,7 +384,7 @@ def p_coverage(d) -> str:
                         fill=MUTED))
         y += 52
     out.append(src_note(X, y + 18,
-                        "scene_nodes.json:generated_by_histogram · 两个视图（latency-risk + availability-ranking）合并统计"))
+                        "直方图由两个视图（latency-risk + availability-ranking）合并统计 · 声明 E1 · 证据链见 VERIFICATION"))
     return svg(W, h, *out)
 
 
@@ -392,7 +394,7 @@ def p_capsurface(d) -> str:
     svgb = cap["svg_backend"]; pngb = cap["png_backend"]
     h = 756
     out = [panel_head(28, "05 · 能力面", "后端必须先递名片，编译才开始谈判",
-                      "vizir capabilities <backend> 的逐字输出：supports / unsupported / lowering / unsupported_policy")]
+                      "vizir capabilities <backend> 的逐字输出分四节：支持 / 不支持 / 显式降级 / 处置策略")]
     colw = (CW - 24) / 2
 
     def backend_card(x, title, b, accent):
@@ -401,7 +403,7 @@ def p_capsurface(d) -> str:
         o.append(text(x + 16, 180, title, size=16, fill=INK,
                       family=FONT_DISPLAY, weight="700"))
         o.append(code(x + 16, 200,
-                      f'accepted_ir: {b["accepted_ir"]} · version {b["version"]}',
+                      f'接受输入 {b["accepted_ir"]} · 能力面版本 {b["version"]}',
                       size=10.5, fill=MUTED))
         o.append(text(x + 16, 228, f'supports（{len(b["supports"])} 项）',
                       size=12, fill=accent, weight="700"))
@@ -433,17 +435,18 @@ def p_capsurface(d) -> str:
         o.append(rect(x + 12, ly, colw - 24, 30,
                       fill="#FDEEE8" if accent == WARN else FLOW_TINT,
                       stroke=accent, sw=1, rx=6))
-        o.append(code(x + 24, ly + 20,
-                      f'unsupported_policy: "{b["unsupported_policy"]}"',
+        o.append(text(x + 24, ly + 20,
+                      f'处置策略：不支持即 {b["unsupported_policy"]}（中止）',
                       size=11, fill=accent, weight="700"))
         return "".join(o)
 
     out.append(backend_card(X, "svg 后端", svgb, FLOW))
     out.append(backend_card(X + colw + 24, "png 后端（经 svg）", pngb, TEAL))
     out.append(src_note(X, 646,
-                        "capability.json:svg_backend/png_backend（verbatim）· capability.rs:134 scene_capability_requirements · :152 negotiate_scene"))
+                        "能力面逐字冻结自 capabilities 真实输出；谈判两步构成：先逐节点收集能力要求，再逐节点谈判判决"
+                        "（声明 E2 · 源码锚点见 VERIFICATION）"))
     out.append(src_note(X, 668,
-                        "谈判单位是「节点 × feature」：BTreeSet 去重后逐条判决，决策连同 reason 与 source 节点路径落进 manifest"))
+                        "谈判单位是「节点 × 能力项」：先去重再逐条判决，决策连同理由与来源节点路径落进 manifest"))
     return svg(W, h, *out)
 
 
@@ -468,7 +471,7 @@ def p_decisions_impl(d) -> str:
                         vlabel_w=40, size=11))
         y += 32
     out.append(text(X + 16, y + 16,
-                    f'合计 {sm["total"]} 条 decision = 每个节点 × 它用到的 feature（BTreeSet 去重）',
+                    f'合计 {sm["total"]} 条 decision = 每个节点 × 它用到的能力项（先去重再逐条判决）',
                     size=11, fill=MUTED))
 
     # right: svg vs png stacked
@@ -526,9 +529,9 @@ def p_decisions_impl(d) -> str:
          OUTCOME),
     ], size=10.5, title="render --manifest 逐节点判决（真实样本）"))
     out.append(src_note(X, 606,
-                        "capability.json:svg_manifest_decisions / png_manifest_decisions · manifest 键：capability_report/losses/rasterizer/compiler"))
+                        "逐节点判决统计逐字冻结自真实 manifest（报告/损耗/栅格化器/编译器各键在档）· 声明 E2"))
     out.append(src_note(X, 628,
-                        "判决在渲染之前：谈不拢就 VIZ-CAP-0002 中止（capability.rs:127-131），不会产出半张图"))
+                        "判决在渲染之前：谈不拢就 VIZ-CAP-0002 中止（声明 E2 · 坐标见 VERIFICATION），不会产出半张图"))
     return svg(W, h, *out)
 
 
@@ -584,18 +587,21 @@ def p_fail_loud(d) -> str:
         yy += 20
     out.append(text(X + 680, yy + 10, "vizir 的回答：unsupported_policy = \"error\"",
                     size=11.5, fill=FLOW_DK, weight="700"))
+    # 2026-09-03 retrofit: verbatim source excerpt card replaced by a
+    # domain-named numbered pseudocode card (claim preserved; excerpt itself
+    # lives in VERIFICATION.md).
     out.append(code_box(X + 664, 356, 440, 194, [
-        ('VizError::Diagnostic(format!(', INK),
-        ('  "VIZ-CAP-0002: backend {:?} cannot lower: {failures}",', WARN),
-        ('  self.backend', INK),
-        ('))', INK),
-        ("// crates/vizir-core/src/capability.rs:127-131", MUTED),
-        ("", INK),
-        ("谈不拢 = 全部 Error 决策汇总成一条诊断，", FLOW_DK),
-        ("点名 backend 与它给不了的 feature。", FLOW_DK),
-    ], size=10.5, title="谈判破裂的唯一出口"))
+        ("① 汇总：本轮全部「不支持」判决收拢成清单", INK),
+        ("   （能力项 + 来源节点路径）", INK),
+        ("② 定名：清单打成一条稳定诊断 VIZ-CAP-0002，", WARN),
+        ("   点名后端与它给不了的每一项能力", WARN),
+        ("③ 中止：立即停止渲染——不写输出、", FLOW_DK),
+        ("   不写 manifest（exit 1）", FLOW_DK),
+        ("谈不拢 = 一条命名诊断 + 零产出。", MUTED),
+    ], size=10.5, title="谈判破裂的唯一出口（伪代码）· 声明 E2"))
     out.append(src_note(X, 580,
-                        "fail_loud.json:cap0001（exit/stderr/文件不存在性均为实测）· cli.rs 测试 png_render_without_a_rasterizer_fails_without_partial_output 同断言"))
+                        "实验 exit/stderr/文件不存在性均为实测 · 失败原子性另有引擎测试钉死：不残留输出与 manifest"
+                        "（声明 E2 · 测试名与源码锚点见 VERIFICATION）"))
     out.append(src_note(X, 602,
                         "explain 的失败同样稳定：VIZ-EXPLAIN-0001 no Scene2D node named …（exit 1）"))
     return svg(W, h, *out)
@@ -636,9 +642,10 @@ def p_loss(d) -> str:
             out.append(text(cx + 16, yy, seg, size=11, fill=INK))
             yy += 17
     out.append(src_note(X, 494,
-                        "capability.json:png_losses / png_rasterizer · determinism.json:manifest_noise（同路径重跑 manifest byte 级一致）"))
+                        "损耗记录与栅格化器名逐字冻结自真实 manifest；manifest 仅 output 路径一行随路径变化，"
+                        "同路径重跑 byte 级一致 · 声明 E5"))
     out.append(src_note(X, 516,
-                        "alpha 校验另有 VIZ-ARTIFACT-0001/0002/0003 把关：透明背景必须真的透明（cli.rs verify_png_alpha）"))
+                        "alpha 校验另有 VIZ-ARTIFACT-0001/0002/0003 三码把关：透明背景必须真的透明 · 声明 E5（测试锚点见 VERIFICATION）"))
     return svg(W, h, *out)
 
 
@@ -648,18 +655,27 @@ def p_patch_gate(d) -> str:
     codes = {c: diag["codes"][c] for c in p["diagnostic_codes"]}
     h = 730
     out = [panel_head(28, "09 · revision 校验", "局部补丁要过四道门才被接受",
-                      "ScenePatch 携带 base/target revision；apply 侧逐门核对，任何一门不符即拒绝")]
-    # patch envelope
-    out.append(code_box(X, 150, 470, 208, [
-        ('ScenePatch {', INK),
-        (f'  protocol_version: "{p["protocol_version"]}",', FLOW_DK),
-        ('  document_id: "doc",', INK),
-        ('  transaction_id: "transaction/test",', INK),
-        ('  base_revision: Revision(7),  → 必须对上当前', FLOW),
-        ('  target_revision: Revision(8), → 必须严格前进', FLOW),
-        ('  operations: [ … ]', INK),
-        ("}", INK),
-    ], size=11, title="crates/vizir-core/src/patch.rs — 补丁信封"))
+                      "场景补丁携带基线/目标版本；执行侧逐门核对，任何一门不符即拒绝")]
+    # patch envelope — 2026-09-03 retrofit: verbatim struct-literal excerpt
+    # replaced by a domain-named envelope card (six elements; example values
+    # from the patch test sample; the source excerpt lives in VERIFICATION).
+    env = [
+        ("协议版本", f'{p["protocol_version"]}', "协议对不上即拒（0003 把关）", FLOW_DK),
+        ("文档标识", "doc（示例）", "别家的补丁贴不进本文档（0004）", INK),
+        ("事务标识", "transaction/test（示例）", "一次补丁会话可追踪", INK),
+        ("基线版本", "7（示例）", "必须对上当前场景版本（0005 把关）", FLOW),
+        ("目标版本", "8（示例）", "必须严格前进，不许原地或倒退（0002）", FLOW),
+        ("操作列表", "删 · 改 · 插 · 排序", "逐操作校验：坏操作各有专属码", TEAL),
+    ]
+    out.append(rect(X, 150, 470, 224, fill=PANEL, stroke=RULE, sw=1, rx=10))
+    out.append(text(X + 16, 176, "补丁信封六要素（示例取自补丁测试样例）",
+                    size=12.5, fill=FLOW, weight="700"))
+    yy = 200
+    for label, value, meaning, accent in env:
+        out.append(text(X + 16, yy, label, size=11, fill=accent, weight="700"))
+        out.append(code(X + 110, yy, value, size=10.5, fill=INK))
+        out.append(text(X + 16, yy + 15, meaning, size=9.5, fill=MUTED))
+        yy += 29
     # gates table
     gx = X + 494
     out.append(rect(gx, 150, 610, 344, fill=PANEL, stroke=RULE, sw=1, rx=10))
@@ -667,39 +683,39 @@ def p_patch_gate(d) -> str:
                     fill=INK, weight="700"))
     gates = [
         ("VIZ-PATCH-0002", "target ≤ base",
-         "补丁不许原地踏步或倒退", "patch.rs:77-82 / 136-141"),
-        ("VIZ-PATCH-0003", "protocol_version ≠ 0.1",
-         "协议版本对不上，拒绝解释", "patch.rs:118-123"),
-        ("VIZ-PATCH-0004", "document_id 不匹配",
-         "别家的补丁贴不进本文档", "patch.rs:124-129"),
-        ("VIZ-PATCH-0005", "base_revision ≠ 当前",
-         "场景已经前进，补丁过期即废", "patch.rs:130-135"),
+         "补丁不许原地踏步或倒退", "diff 与 apply 两侧都查"),
+        ("VIZ-PATCH-0003", "协议版本 ≠ 0.1",
+         "协议版本对不上，拒绝解释", "apply 侧"),
+        ("VIZ-PATCH-0004", "文档标识不匹配",
+         "别家的补丁贴不进本文档", "apply 侧"),
+        ("VIZ-PATCH-0005", "基线版本 ≠ 当前",
+         "场景已经前进，补丁过期即废", "apply 侧"),
     ]
     y = 200
-    for code_name, cond, meaning, loc in gates:
+    for code_name, cond, meaning, side in gates:
         out.append(rect(gx + 12, y - 14, 586, 60, fill=PAPER, stroke=RULE,
                         sw=1, rx=6))
         out.append(code(gx + 22, y + 4, code_name, size=11.5, fill=WARN,
                         weight="700"))
         out.append(code(gx + 170, y + 4, cond, size=10.5, fill=INK))
         out.append(text(gx + 170, y + 22, meaning, size=10.5, fill=MUTED))
-        out.append(code(gx + 22, y + 36, loc, size=9.5, fill=FLOW_LT))
+        out.append(text(gx + 440, y + 4, side, size=10, fill=FLOW_LT))
         y += 68
     out.append(rect(X, 380, 470, 78, fill=FLOW_TINT, stroke=FLOW_XLT, sw=1,
                     rx=8))
     out.append(text(X + 16, 402,
-                    f'patch.rs 内共 {len(p["diagnostic_codes"])} 个 VIZ-PATCH 诊断码：',
+                    f'补丁机制共 {len(p["diagnostic_codes"])} 个 VIZ-PATCH 诊断码：',
                     size=11.5, fill=FLOW_DK, weight="700"))
     out.append(text(X + 16, 421,
-                    "0001 仅 diff 侧发射；0002 两侧都查（diff@:79 / apply@:138）；",
+                    "0001 仅比对（diff）侧发射；0002 比对与执行两侧都查；",
                     size=11.5, fill=FLOW_DK))
     out.append(text(X + 16, 440,
-                    "其余 12 个全部在 apply 侧——拒绝理由全部命名。",
+                    "其余 12 个全部在执行（apply）侧——拒绝理由全部命名。",
                     size=11.5, fill=FLOW_DK))
     out.append(src_note(X, 574,
                         f'scene-patch.schema.json sha256 {p["scene_patch_schema_sha256"][:24]}…（schema 三卡见第 11 板）'))
     out.append(src_note(X, 596,
-                        "patch.json:diagnostic_codes · diff_scene @ patch.rs:64 · apply_scene_patch @ patch.rs:113"))
+                        "14 码清单与两侧发射位置冻结于补丁证据（声明 E3 · 源码锚点见 VERIFICATION）"))
     out.append(src_note(X, 618,
                         "校验通过不是终点——等价性才是，见下一板"))
     return svg(W, h, *out)
@@ -710,17 +726,17 @@ def p_patch_equiv(d) -> str:
     p = d["patch"]
     h = 700
     out = [panel_head(28, "10 · 等价性", "局部补丁 ≡ 全量重算，是被测试钉死的行为",
-                      "diff_and_apply_match_full_scene_semantics：diff 产出 op 序列，apply 之后必须与直接重算的 Scene2D 语义相同")]
+                      "主证测试：比对产出操作序列，执行之后的结果必须与直接重算的 Scene2D 语义相同")]
     # flow diagram
     y = 170
     out.append(rect(X, y, CW, 240, fill=PANEL, stroke=RULE, sw=1, rx=10))
     boxes = [
-        ("previous", "Scene2D @r7", "rect a, rect b", FLOW_LT),
-        ("diff_scene", "patch.rs:64", "比对两代场景", FLOW),
-        ("ScenePatch", f'protocol {p["protocol_version"]}',
-         "ops + revisions", FLOW_DK),
-        ("apply_scene_patch", "patch.rs:113", "逐门校验后执行", TEAL),
-        ("patched", "Scene2D @r8", "≈ 直接 lower 重算", CH_G),
+        ("上一代场景", "版本 7", "两个矩形 a、b", FLOW_LT),
+        ("两代比对", "diff", "逐节点比对两代场景", FLOW),
+        ("补丁信封", f'协议 {p["protocol_version"]}',
+         "操作序列 + 双版本", FLOW_DK),
+        ("逐门校验后执行", "apply", "四道门全过才执行", TEAL),
+        ("补丁后场景", "版本 8", "≈ 直接重算", CH_G),
     ]
     bw = 180
     for i, (name, sub, body, accent) in enumerate(boxes):
@@ -728,7 +744,7 @@ def p_patch_equiv(d) -> str:
         out.append(rect(bx, y + 40, bw, 96, fill=PAPER, stroke=accent, sw=1.4,
                         rx=8))
         out.append(text(bx + bw / 2, y + 66, name, size=12.5, fill=INK,
-                        family=FONT_MONO, anchor="middle", weight="700"))
+                        anchor="middle", weight="700"))
         out.append(code(bx + bw / 2, y + 84, sub, size=9.5, fill=MUTED,
                         anchor="middle"))
         out.append(code(bx + bw / 2, y + 104, body, size=9.5, fill=accent,
@@ -736,45 +752,47 @@ def p_patch_equiv(d) -> str:
         if i < 4:
             out.append(arrow(bx + bw + 3, y + 88, bx + bw + 19, y + 88,
                              color=FLOW_LT, sw=2))
-    # ops sequence
-    out.append(text(X + 24, y + 172, "op 序列（测试断言的精确顺序）：", size=11.5,
+    # ops sequence — 2026-09-03 retrofit: engine op-variant names replaced by
+    # domain verbs (order claim preserved; original names in VERIFICATION).
+    out.append(text(X + 24, y + 172, "操作序列（测试断言的精确顺序）：", size=11.5,
                     fill=INK, weight="700"))
     ops = [
-        ("RemoveNode", "a", "先删", WARN),
-        ("ReplaceNode", "b: w=3", "再改", FLOW),
-        ("InsertNode", "c @1", "后插", TEAL),
-        ("ReorderChildren", "a,b→b,c", "终排序", FLOW_DK),
+        ("删节点", "键=a", "先删", WARN),
+        ("改节点", "键=b, 宽=3", "再改", FLOW),
+        ("插节点", "键=c, 位置=1", "后插", TEAL),
+        ("子节点排序", "a,b→b,c", "终排序", FLOW_DK),
     ]
     ox = X + 210
     for name, arg, note, accent in ops:
-        c, w = chip(ox, y + 184, f"{name} {arg}", fill=PAPER, stroke=accent,
+        c, w = chip(ox, y + 184, f"{name}({arg})", fill=PAPER, stroke=accent,
                     color=accent, size=9.5, h=20)
         out.append(c)
         ox += w + 10
-    out.append(code(X + 24, y + 228,
-                    "// patch.rs:473 注释：Removals first, then next-order replace/insert, then reorder",
+    out.append(text(X + 24, y + 228,
+                    "顺序铁律：先删 → 再改/插 → 最后排序（引擎源注释原文见 VERIFICATION · 声明 E3）",
                     size=9.5, fill=MUTED))
-    # tests list
+    # tests list — engine test names + line numbers live in VERIFICATION now;
+    # the panel keeps the five guarantees as domain claims.
     out.append(rect(X, 442, CW, 178, fill=PAPER, stroke=RULE, sw=1, rx=10))
-    out.append(text(X + 16, 468, f'patch.rs 内 {p["test_count"]} 个补丁测试（名称与行号为实测）',
+    out.append(text(X + 16, 468,
+                    f'补丁机制 {p["test_count"]} 个专项测试（名称与行号收录于 VERIFICATION · 声明 E3）',
                     size=12.5, fill=INK, weight="700"))
-    meanings = {
-        "diff_and_apply_match_full_scene_semantics": "等价性主证：op 顺序 + 结果场景",
-        "diff_rejects_cross_document_and_non_advancing_revisions": "diff 侧拒绝：跨文档 / 停滞 revision",
-        "apply_rejects_foreign_patches_and_non_advancing_revisions": "apply 侧拒绝：外来补丁 / 停滞 revision",
-        "apply_rejects_each_malformed_operation_with_its_exact_diagnostic": "每个坏 op 命中它自己的诊断码",
-        "revision_mismatch_rejects_patch": "过期补丁必须被拒（VIZ-PATCH-0005）",
-    }
+    guarantees = [
+        ("主证", "等价性：操作顺序 + 结果场景 ≡ 全量重算（严格相等）"),
+        ("比对侧拒绝", "跨文档补丁 / 停滞版本必拒"),
+        ("执行侧拒绝", "外来补丁 / 停滞版本必拒"),
+        ("逐操作精确诊断", "每个坏操作命中它自己的诊断码"),
+        ("过期补丁必拒", "基线版本落后即拒（VIZ-PATCH-0005）"),
+    ]
     yy = 492
-    for t in p["tests"]:
-        out.append(code(X + 16, yy, f'patch.rs:{t["line"]}', size=10,
-                        fill=FLOW_LT))
-        out.append(code(X + 110, yy, t["name"], size=10.5, fill=INK))
-        out.append(text(X + 545, yy,
-                        meanings.get(t["name"], ""), size=10, fill=MUTED))
+    for i, (tag, claim) in enumerate(guarantees):
+        out.append(code(X + 16, yy, f'T{i + 1}', size=10.5, fill=FLOW_LT,
+                        weight="700"))
+        out.append(text(X + 64, yy, tag, size=10.5, fill=INK, weight="700"))
+        out.append(text(X + 210, yy, claim, size=10.5, fill=MUTED))
         yy += 24
     out.append(src_note(X, 640,
-                        "等价的主战场在库层（ScenePatch 是 Rust API 契约，非 CLI 子命令）；其 JSON Schema 由 vizir schema scene-patch 持久化防漂移"))
+                        "补丁等价的主战场在库层（库 API 契约，非 CLI 子命令）；其 JSON Schema 由 vizir schema scene-patch 持久化防漂移"))
     return svg(W, h, *out)
 
 
@@ -799,7 +817,7 @@ def p_gates(d) -> str:
                         vlabel_w=34, size=10.5))
         y += 24.5
     out.append(text(X + 16, y + 8,
-                    "码格式 VIZ-<族>-NNNN：grep 引擎源码逐一枚举，含测试内出现次数（diag_codes.json）",
+                    "码格式 VIZ-<族>-NNNN：逐码枚举自引擎源码，含测试内出现次数 · 声明 E6（锚点口径见 VERIFICATION）",
                     size=10.5, fill=MUTED))
 
     # schema anti-drift
@@ -822,43 +840,57 @@ def p_gates(d) -> str:
         out.append(code(X + 688, yy + 38, info["checked_in_path"], size=9.5,
                         fill=FLOW_LT))
         yy += 88
-    t = sch["anti_drift_test"]
+    # anti-drift test name/coords stay in the record (VERIFICATION); the page
+    # keeps the guarantee itself (2026-09-03 retrofit).
     out.append(code(X + 680, yy + 6,
-                    f'{t["file"]}:{t["line"]} {t["name"][:44]}…', size=9.5,
-                    fill=MUTED))
+                    "防漂移由引擎集成测试钉死：三份 schema 逐字节比对 · 声明 E6（测试名与源码锚点见 VERIFICATION）",
+                    size=9.5, fill=MUTED))
 
-    # tests distribution
+    # tests distribution — suite keys are engine file paths; render them as
+    # domain suite labels (numbers still read from the frozen per_suite map).
+    suite_labels = {
+        "vizir-core (lib)": "核心库",
+        "vizir-compiler (lib)": "编译器",
+        "vizir-backend-svg (lib)": "SVG 后端",
+        "vizir-cli (bin)": "CLI 单元",
+        "vizir-cli (tests/cli.rs)": "CLI 集成",
+        "vizir-cli (tests/pipeline.rs)": "管线集成",
+    }
     out.append(rect(X, 554, CW, 96, fill=FLOW_TINT, stroke=FLOW_XLT, sw=1,
                     rx=10))
     out.append(text(X + 16, 582,
                     f'cargo test --workspace：{tests["total_passed"]} 全过（exit {tests["exit"]}）',
                     size=13, fill=FLOW_DK, weight="700"))
-    parts = " + ".join(f'{k} {v}' for k, v in tests["per_suite"].items()
-                       if v)
+    parts = " + ".join(f'{suite_labels.get(k, k)} {v}'
+                       for k, v in tests["per_suite"].items() if v)
     out.append(code(X + 16, 604, parts, size=11, fill=INK))
     out.append(text(X + 16, 626,
-                    "测试在冻结时实跑（只写引擎 target/）；诊断码行号、patch 测试行号均为 grep/解析实测。",
+                    "测试在冻结时实跑（只写引擎产物目录）；诊断码与补丁测试的行号均为逐码实测。",
                     size=11, fill=MUTED))
 
-    # provenance table
+    # claim registry — 2026-09-03 retrofit: the old provenance table printed
+    # frozen-data filenames + engine file:line; the page now cites stable
+    # claim IDs (E1-E6), the chain itself lives in VERIFICATION.md.
     out.append(rect(X, 674, CW, 148, fill=PANEL, stroke=RULE, sw=1, rx=10))
-    out.append(text(X + 16, 700, "本图数字的出处（数据文件 → 机制行号）", size=12.5,
-                    fill=INK, weight="700"))
+    out.append(text(X + 16, 700, "声明登记簿（E1–E6 → 覆盖章节；冻结数据与源码锚点见 VERIFICATION.md 证据链）",
+                    size=12.5, fill=INK, weight="700"))
     rows = [
-        ("explain_samples.json", "explain 六查询 verbatim", "scene.rs:132-142"),
-        ("capability.json", "174/110/1 loss/rasterizer", "capability.rs:134,152"),
-        ("fail_loud.json", "CAP-0001 实验 exit/文件不存在", "cli main.rs:334"),
-        ("patch.json", "5 测试 + 14 码 + schema sha", "patch.rs:64,113,457"),
-        ("diag_codes.json", "81 码 ×14 族 + file:line", "crates/ 全量 grep"),
+        ("E1", "逐节点溯源：六字段责任档案 + explain 六查询 + 覆盖 100%", "章节 02·03·04"),
+        ("E2", "能力谈判：174 条逐节点判决 + fail-loud 原子失败", "章节 05·06·07"),
+        ("E3", "补丁等价：信封六要素 + 四道拒绝门 + 5 项测试保证", "章节 09·10"),
+        ("E4", "确定性地基：三对产物指纹全等（配角）", "章节 01"),
+        ("E5", "损耗诚实：1 条损耗记录逐字落 manifest", "章节 08"),
+        ("E6", "门禁与指纹：81 码 ×14 族 + schema 防漂移 + 62 测试", "章节 11"),
     ]
     yy = 722
-    for dataf, what, where in rows:
-        out.append(code(X + 16, yy, dataf, size=10.5, fill=FLOW_DK))
-        out.append(text(X + 200, yy, what, size=10.5, fill=INK))
-        out.append(code(X + 470, yy, where, size=10.5, fill=MUTED))
-        yy += 19
+    for eid, claim, panels_ in rows:
+        out.append(code(X + 16, yy, eid, size=10.5, fill=FLOW_DK,
+                        weight="700"))
+        out.append(text(X + 70, yy, claim, size=10.5, fill=INK))
+        out.append(code(X + 760, yy, panels_, size=10, fill=MUTED))
+        yy += 18
     out.append(src_note(X, 846,
-                        "全部数据冻结于 prep_data.py 一次运行（sandbox /tmp/vizir-explainer-freeze）；详见 VERIFICATION.md"))
+                        "全部声明冻结于一次真实引擎运行；逐条证据链（冻结数据、源码锚点、复现命令）见 VERIFICATION.md"))
     return svg(W, h, *out)
 
 
