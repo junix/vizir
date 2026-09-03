@@ -13,7 +13,8 @@ vizir-explainer/
 │                     #   行号索引、冻结方法；provenance 在 data/ 内，非顶层）
 ├── svgkit.py         # SVG 基元 + 字面 hex 配色（house style）
 ├── panels.py         # 12 个数据驱动面板
-├── build.py          # 拼装 index.html + 断言（面板数/关键计数/自污染检查）
+├── build.py          # 拼装 index.html + 断言（面板数/关键计数/自污染/
+│                     #   代码细节六式清扫拦零，见 VERIFICATION §11）
 ├── svg/*.svg         # 逐面板 SVG（门禁对象）
 ├── shoot.js          # chrome-headless-shell CDP 截图（y=0 起全宽 3600px 切片）
 ├── stitch.py         # 顺序拼接 + 位图高==页面CSS高×2 断言 + thumb/gray/裁片
@@ -32,7 +33,9 @@ vizir-explainer/
 cd ~/projects/plot/vizir/docs/infographics/vizir-explainer
 
 # 1) 构建页面（内建断言：12 面板 / 7 个关键计数以 6 个 stat-tile 锚定形态
-#    `>N</text>` 断言——裸子串会被 174/110 等遮蔽 / 4 项自污染全零）
+#    `>N</text>` 断言——裸子串会被 174/110 等遮蔽 / 4 项自污染全零 /
+#    代码细节六式清扫零命中 + 标识符黑名单 + 新形式 needle + 声明编号
+#    E1–E6 覆盖，2026-09-03 改版新增，详见 VERIFICATION.md §11）
 python3 build.py
 
 # 2) 重建确定性：连续两次输出必须 byte 级一致
