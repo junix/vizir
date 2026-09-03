@@ -1,0 +1,24 @@
+{
+ "schemas": {
+  "mir": {
+   "emitted_sha256": "34530de784aa1b527fbbbd3d679bfe00f938133945a1921b03f6f855f0925ae1",
+   "checked_in_path": "schemas/viz-mir.schema.json",
+   "matches_checked_in": true
+  },
+  "scene-patch": {
+   "emitted_sha256": "7ab3e171e09607530a569fa8ee13fe81782e5734fd3c3c5af2f44e08ca1aff12",
+   "checked_in_path": "schemas/scene-patch.schema.json",
+   "matches_checked_in": true
+  },
+  "capability": {
+   "emitted_sha256": "d4f417b8cf141268b54a01273acd8d5f1e52f096d109d6e1a51a10473791ac9a",
+   "checked_in_path": "schemas/capability.schema.json",
+   "matches_checked_in": true
+  }
+ },
+ "anti_drift_test": {
+  "file": "crates/vizir-cli/tests/cli.rs",
+  "line": 312,
+  "name": "schema_subcommand_emits_the_checked_in_canonical_schemas"
+ }
+}

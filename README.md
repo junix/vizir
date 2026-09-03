@@ -81,6 +81,10 @@ smokes.
 | Compiler invariant poster | `examples/geometry/compiler-pipeline.viz.yaml` | `gallery/compiler-pipeline.png` |
 | Visual grammar map | `examples/geometry/visual-grammar.viz.yaml` | `gallery/visual-grammar.png` |
 | Mixed reliability brief | `examples/mixed/reliability-brief.viz.yaml` | `gallery/reliability-brief.png` |
+| Mixed capacity planning brief | `examples/mixed/capacity-planning.viz.yaml` | `gallery/capacity-planning.png` |
+
+Run `just gallery` to regenerate every PNG and the searchable, self-contained
+[`gallery.html`](gallery.html); `just gallery-check` verifies it is current.
 
 ![Service health dashboard](gallery/service-health.png)
 

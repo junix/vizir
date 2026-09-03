@@ -1,0 +1,9 @@
+{
+ "commit": "52840b807ee6efcee8927ab60c7aec81ad0998df",
+ "dirty_status_baseline": " M README.md\n M justfile\n?? docs/infographics/\n?? examples/mixed/capacity-planning.viz.yaml\n?? gallery.config.json\n?? gallery.html\n?? gallery/capacity-planning.png\n?? tools/\n",
+ "dirty_note": "README.md/justfile 修改与 examples/mixed/capacity-planning.viz.yaml、gallery*、tools/ 未跟踪文件是构建长图之前就存在的用户工作树状态，非本次交付产生；本交付只新增 docs/infographics/vizir-explainer/。",
+ "vizir_version": "vizir 0.1.0",
+ "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18) (Homebrew)",
+ "example_input": "examples/chart/service-health.viz.yaml",
+ "example_sha256": "6e21b678fb85eec2e20f17b9f438998b865d15cd441e14b725c865ba3162a21d"
+}

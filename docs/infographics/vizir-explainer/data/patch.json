@@ -1,0 +1,46 @@
+{
+ "protocol_version": "0.1",
+ "diff_scene_line": 64,
+ "apply_scene_patch_line": 113,
+ "equivalence_test_line": 457,
+ "tests": [
+  {
+   "name": "diff_and_apply_match_full_scene_semantics",
+   "line": 457
+  },
+  {
+   "name": "diff_rejects_cross_document_and_non_advancing_revisions",
+   "line": 501
+  },
+  {
+   "name": "apply_rejects_foreign_patches_and_non_advancing_revisions",
+   "line": 530
+  },
+  {
+   "name": "apply_rejects_each_malformed_operation_with_its_exact_diagnostic",
+   "line": 573
+  },
+  {
+   "name": "revision_mismatch_rejects_patch",
+   "line": 667
+  }
+ ],
+ "test_count": 5,
+ "diagnostic_codes": [
+  "VIZ-PATCH-0001",
+  "VIZ-PATCH-0002",
+  "VIZ-PATCH-0003",
+  "VIZ-PATCH-0004",
+  "VIZ-PATCH-0005",
+  "VIZ-PATCH-0006",
+  "VIZ-PATCH-0007",
+  "VIZ-PATCH-0008",
+  "VIZ-PATCH-0009",
+  "VIZ-PATCH-0010",
+  "VIZ-PATCH-0011",
+  "VIZ-PATCH-0012",
+  "VIZ-PATCH-0013",
+  "VIZ-PATCH-0014"
+ ],
+ "scene_patch_schema_sha256": "7ab3e171e09607530a569fa8ee13fe81782e5734fd3c3c5af2f44e08ca1aff12"
+}

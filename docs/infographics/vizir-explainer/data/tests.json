@@ -1,0 +1,13 @@
+{
+ "per_suite": {
+  "vizir-core (lib)": 27,
+  "vizir-compiler (lib)": 5,
+  "vizir-backend-svg (lib)": 2,
+  "vizir-cli (bin)": 0,
+  "vizir-cli (tests/cli.rs)": 15,
+  "vizir-cli (tests/pipeline.rs)": 13
+ },
+ "total_passed": 62,
+ "exit": 0,
+ "note": "二轮勘误 R4（2026-09-02）：首轮 per_crate 键 \"unittests src/lib.rs\": 34 实为 vizir-core 27 + vizir-compiler 5 + vizir-backend-svg 2 三个 crate 的同名 cargo 套件被误并（键取自 Running 行的 target 路径，未含 crate 名）。本文件为同引擎同 commit 重跑 cargo test --workspace 后按 crate 归属拆分的逐套件计数（Running 行 → dep 二进制名 → crate），合计 62 不变。原始输出存 /tmp/vizir-fix-baseline/cargo-test-round2.txt（沙箱），详见 VERIFICATION.md §7/R4。"
+}
