@@ -1,5 +1,17 @@
 set shell := ["zsh", "-cu"]
 
+os_name := if os() == "macos" { "macos" } else { "linux" }
+arch_name := if arch() == "aarch64" { "arm64" } else { "x86" }
+default_install_bin := home_directory() / "sync" / (os_name + "-" + arch_name + "-bin")
+install_bin := env("SYNC_BIN_DIR", default_install_bin)
+target_dir := env("CARGO_TARGET_DIR", justfile_directory() / "target")
+
+build:
+    cargo build --release -p vizir-cli
+
+test:
+    cargo test --workspace
+
 check:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
@@ -21,5 +33,8 @@ gallery-check: gallery
 inspect:
     identify -format '%f %wx%h %[channels]\n' gallery/*.png
 
-install:
-    cargo install --path crates/vizir-cli --locked --force
+install: build
+    mkdir -p "{{ install_bin }}"
+    cp "{{ target_dir }}/release/vizir" "{{ install_bin }}/vizir"
+    chmod +x "{{ install_bin }}/vizir"
+    @echo "installed {{ install_bin }}/vizir"
