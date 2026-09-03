@@ -35,6 +35,7 @@ rasterizer）、`fail_loud.json`（CAP-0001 实验 exit/stderr/文件不存在�
 |---|---|---|
 | svg-linter | 13 个 SVG（12 面板 + 页脚）逐文件 `check --plain`；另以 `--require-complete` 复核规则完整性（空 `<text>` 死标记会让规则 partial 跳过，修复前 04/08 该口径 exit 1，见 §7/R7） | **13 × exit 0，`grep -c '^finding'` 全 0；`--require-complete` 13 × exit 0**（TSV 的 outcome 行不计入） |
 | build.py 断言 | 面板数 == 12；7 个关键计数（7/62/81×14/110/174/11）以 stat-tile 锚定形态 `>N</text>` 断言（裸子串会被 174/110 结构性遮蔽，§7/R11）；`<script`、`src="http`、`@import`、`fetch(` 全 0 | 全绿（篡改自测实测：改 7→8 重建 exit 1，§7/R11） |
+| 代码细节清扫 | 2026-09-03 改版新增（§11）：六式清扫（file:line / 引擎源码文件名 26 个快照 / N–M 行区间 / 第N行 / 源码关键字 / 标识符调用串）+ 25 个禁用标识符 + 10 个新形式 derived needle + 声明编号 E1–E6 覆盖，全部内建于 build.py，页内全零 | 全绿（独立脚本复扫一致为 0，§11.2） |
 | 渲染断言 | shoot.js：页面宽 == 1200 CSS px；stitch.py：位图高 == 页面 CSS 高 × 2 | 2400×17116 == 1200×(8558×2) ✓（二轮修复未改任何面板高度） |
 | 重建确定性 | 连续两次 `python3 build.py` 后 `cmp` | **byte 级一致** |
 | 引擎只读 | `git -C ~/projects/plot/vizir status --porcelain` 与基线 diff | 终态与基线**逐行相同**（基线快照时 `docs/infographics/` 已存在，§8） |
@@ -82,6 +83,8 @@ origin JSON 切分从 `sc|ales` 改词边界 `through |scales`；explain 卡 rea
 ## 4. 渲染与指纹 sha256
 
 二轮修复（对抗验证后，§7）重建并重拍后的现行指纹：
+【2026-09-03 改版勘误：下表为**改版前**（二轮后）指纹，已由 §11.4 的改版轮
+指纹取代；留档不删。】
 
 | 产物 | sha256 |
 |---|---|
@@ -247,3 +250,138 @@ macOS (Darwin 25.5.0, arm64) · chrome-headless-shell
 `~/projects/plot/svg-linter`（release 构建）· Python 3（Pillow）· Node（内置
 WebSocket）。页面字体依赖本机 'Source Han Serif/Sans SC'，回退 PingFang SC；
 异机重建若字体不同，位图指纹会变而 SVG 指纹不变。
+
+## 11. 代码细节下页改版（2026-09-03，撤回不删除）
+
+舰队政策（用户 2026-09-03 明令）：信息图**页面**（index.html + 全部 svg +
+位图）零代码细节——引擎源码文件名、file:line 坐标、行区间、逐字源码摘录卡、
+引擎标识符（含公开 API 函数/类型/变体/测试名）、引擎内部目录路径、生成器
+自身文件名与重建命令，全部只留在记录层（data/*.json、provenance、本文件）。
+页面引用层改为**稳定声明编号 E1–E6 + 「证据链见 VERIFICATION」**。本节为
+该改版的完整记录；§1–§10 中与旧版面（逐字卡上页、file:line 上页）相关的
+声明以本节为准，原文划线留档不删。
+
+### 11.1 版面元素映射表（旧形式 → 新形式）
+
+完整 39 条逐元素映射表（含每条承载的技术声明）冻结于改版工作档案
+`/tmp/retro-vizir/mapping.md`（沙箱）；树内摘要如下。**不降级铁律**：每条
+旧形式承载的声明均以新形式存活。
+
+| 旧（上页） | 新（上页） | 承载声明 |
+|---|---|---|
+| 逐字源码卡①：`VizError::Diagnostic(format!("VIZ-CAP-0002: backend {:?} cannot lower: {failures}", self.backend))`（08 面板，含 `capability.rs:127-131` 注释行） | 编号伪代码卡「谈判破裂的唯一出口（伪代码）」：① 汇总全部不支持判决 ② 打成一条稳定诊断 VIZ-CAP-0002、点名后端与缺口 ③ 立即中止（不写输出/manifest、exit 1） | 谈判破裂 = 全部 Error 决策汇总成一条点名诊断 + 原子失败 |
+| 逐字源码卡②：`ScenePatch { protocol_version… base_revision: Revision(7) … }`（10 面板，含 `patch.rs` 信封标题） | 「补丁信封六要素」卡片（协议版本 0.1 冻结值 / 文档标识 / 事务标识 / 基线版本 / 目标版本 / 操作列表；示例：基线 7 → 目标 8） | 信封六要素 + 双版本规则 |
+| 四道门 `patch.rs:77-82 / 118-123 / 124-129 / 130-135` 锚点列 | 「拒绝门归属」列（0002 两侧都查；0003/0004/0005 apply 侧） | 门位置知识升级上页（坐标下页） |
+| 11 面板 5 个英文测试名 + `patch.rs:457/501/530/573/667` | T1–T5 五条中文保证（主证/比对侧拒绝/执行侧拒绝/逐操作精确诊断/过期必拒） | 五项测试保证；主证补强为「严格相等」（§3 已核） |
+| op 变体名 `RemoveNode a / ReplaceNode b: w=3 / InsertNode c @1 / ReorderChildren a,b→b,c` | 「删节点(键=a) · 改节点(键=b, 宽=3) · 插节点(键=c, 位置=1) · 子节点排序(a,b→b,c)」+ 顺序铁律一行 | op 序列精确顺序声明 |
+| 03 面板 `struct Origin` + `crates/…scene.rs:132-142` 注释行 + 左表字段名 | 「六字段责任档案」中文领域名列（HIR 视图声明/MIR 标记组/数据键/数据谱系/生成 pass/人读解释）；原文键名仍在右卡 CLI 输出实录（产品 JSON 键，判可留） | 六字段全为真实值 |
+| 12 面板出处表（冻结数据文件名 + `scene.rs:132-142` 等 5 行坐标） | 「声明登记簿」E1–E6（编号 · 一句话声明 · 覆盖章节）+ 指针行 | 出处功能升级为声明编号登记簿 |
+| 其余 src_note 中的 file:line / 函数名（`capability.rs:134/152`、`diff_scene`、`apply_scene_patch`、`cli.rs`、`main.rs:334`、`crates/ 全量 grep`、`BTreeSet` 等，共 26 处坐标/32 处文件名） | 一律改为「声明 Enn · 证据链见 VERIFICATION」式指引；函数语义中文化（先逐节点收集能力要求，再逐节点谈判判决；按「节点 × 能力项」去重） | 全部机制声明原文存活 |
+| 页脚 `重建：python3 build.py…`、`数据冻结于 prep_data.py 一次运行` | 「重建命令与验收管线见 README / VERIFICATION」「证据冻结于一次真实引擎运行」 | 政策 §6（生成器名与重建命令下页） |
+
+判定留痕：产品输出值与用户 I/O **保留**上页——生成 pass 名、能力项名
+（paint.alpha…）、稳定诊断码（VIZ-*，stderr 原文）、JSON 线格式键（输出
+实录卡内）、`service-health.viz.yaml` / `scene-patch.schema.json` /
+`run-a.scene.json` / `run.png.manifest.json`；已发表算法/标准名同判可留。
+交付冻结数据文件名（explain_samples.json 等）作为**引用层**不再上页（数字
+与值本身仍程序读取自冻结数据）。
+
+### 11.2 清扫证据（六式，独立脚本复扫）
+
+改版前基线（独立 python 正则脚本，`/tmp/retro-vizir/sweep-baseline.txt`）：
+file:line 56（svg 源内 26）· 引擎源码文件名 64（svg 源内 32）· 行区间 20
+（svg 源内 10，均为真行区间，无时间/版本号误报）· 第N行 0 · 源码关键字 6 ·
+调用串 4（`Revision(7/8)`，真标识符）· base64 原始命中 0（误报剔除计 0）。
+元素级清单 79 行存 `/tmp/retro-vizir/elements-baseline.txt`。
+
+改版后（同脚本，`sweep-after.txt`）：**六式全部 0**；build.py 内建
+code_detail_gate 同口径拦零（26 个引擎源码文件名快照 = `git ls-files` 代码
+扩展名实测清单 + 交付树生成器文件名；25 个禁用标识符；10 个新形式
+needle；E1–E6 覆盖；VERIFICATION 指引 ≥12 处）。
+
+### 11.3 断言层变化（只增强不减弱）
+
+- 保留：面板数 12；6 个锚定形态覆盖 7 个关键计数（`>N</text>`）；4 项自污染
+  检查（`<script`/`src="http`/`@import`/`fetch(` 全 0）。
+- 新增：code_detail_gate 六式零命中 + 文件名/标识符黑名单零命中（见 11.2）；
+  新形式 derived needle 10 条（伪代码卡标题与诊断命名、信封六要素与双版本
+  规则、顺序铁律、严格相等、中文套件标签「核心库 27」、专项测试计数、声明
+  登记簿）；E1–E6 逐个存在断言；VERIFICATION 指引计数断言。
+- 语义迁移：原断言逐字 needle 的载体（逐字卡、file:line）改断言新形式
+  needle，旧 needle 对应内容已全部下页（本节留档）。
+
+### 11.4 指纹迁移表（改版轮：旧 → 新，一行一由）
+
+| 产物 | 旧 sha256 | 新 sha256 | 变更由 |
+|---|---|---|---|
+| index.html | `2c109272…` | `d7cd10cb…` | 全部面板与页脚改版（下列各行） |
+| svg/01-hero | `23b6bd0b…` | `a21a6241…` | 卡 3 换形 + src_note 三条下页 |
+| svg/02-pipeline | `bd2016f0…` | `fe729f61…` | src_note 两条下页 |
+| svg/03-origin | `4373d91d…` | `76022419…` | struct 头/坐标/字段名列 → 领域名 |
+| svg/04-explain-tree | `252d5851…` | `1b711157…` | src_note 数据文件名改声明编号 |
+| svg/05-coverage | `c1519756…` | `35ba3b58…` | 同上 |
+| svg/06-capability-surface | `8ac12061…` | `a67ae51c…` | 副题/元行/策略行领域化 + 函数名下页 |
+| svg/07-decisions | `60a5d7b8…` | `a16729d5…` | BTreeSet/坐标下页 |
+| svg/08-fail-loud | `60c852ee…` | `e547e2d5…` | 逐字源码卡①→伪代码卡 |
+| svg/09-loss | `c44dcf6c…` | `33b024a4…` | src_note 下页（cli.rs/verify_png_alpha 移记录层） |
+| svg/10-patch-gate | `3775e79f…` | `6dbeb2a1…` | 逐字源码卡②→信封卡 + 门表归属列 |
+| svg/11-patch-equivalence | `2e48718a…` | `42099ca1…` | 流程框/op chips/测试表领域化 |
+| svg/12-gates | `2857e29a…` | `e9dd9717…` | 防漂移行/套件标签/出处表→登记簿 |
+| svg/99-footer | `44738feb…` | `872c5689…` | 页脚重建命令与生成器名下页 |
+| render/full@2x.png | `f508ed3c…` | `368f87bf…` | 重拍（尺寸不变 2400×17116；页面 CSS 高 8558 未变） |
+| render/full@2x.gray.png | `5d128464…` | `2608c7bf…` | 同上（灰度版） |
+| render/thumb.png | `eda53bca…` | `bc8ee3f2…` | 同上（600×4279） |
+
+未变：14 份 `data/*.json` 逐字节不动（本轮零追加零修改）；shoot.js / stitch.py /
+svgkit.py / prep_data.py 未改。完整新指纹全值：index `d7cd10cb
+b2b21ef2a22f7911d4a59e690231fb08c5ea4e997df5b86572b5f292`，面板 svg 见
+`shasum -a 256 svg/*.svg` 可复算。
+
+### 11.5 记录层冻结（自页面撤下的原文，锚点仍按 §3 逐条有效）
+
+1. 08 卡①原文（引擎 `capability.rs:127-131`）：`VizError::Diagnostic(
+   format!("VIZ-CAP-0002: backend {:?} cannot lower: {failures}", self.backend))`。
+2. 10 卡②原文（`patch.rs`，测试样例值）：`ScenePatch { protocol_version:
+   "0.1", document_id: "doc", transaction_id: "transaction/test",
+   base_revision: Revision(7), target_revision: Revision(8), operations: [ … ] }`。
+3. 11 面板 5 测试名与行号（冻结于 `patch.json`）：
+   `diff_and_apply_match_full_scene_semantics`@457、
+   `diff_rejects_cross_document_and_non_advancing_revisions`@501、
+   `apply_rejects_foreign_patches_and_non_advancing_revisions`@530、
+   `apply_rejects_each_malformed_operation_with_its_exact_diagnostic`@573、
+   `revision_mismatch_rejects_patch`@667；顺序注释 `patch.rs:473`
+   "Removals first, then next-order replace/insert, then reorder"。
+4. 防漂移测试（`schemas.json` 冻结）：`crates/vizir-cli/tests/cli.rs:312
+   schema_subcommand_emits_the_checked_in_canonical_schemas`。
+5. fail-loud 同断言测试：`cli.rs
+   png_render_without_a_rasterizer_fails_without_partial_output`；
+   alpha 把关：`cli.rs verify_png_alpha`（VIZ-ARTIFACT-0001/0002/0003）。
+6. op 变体名：`RemoveNode / ReplaceNode / InsertNode / ReorderChildren`。
+
+### 11.6 声明编号证据链表（E1–E6；页面引用层的登记侧）
+
+| 编号 | 声明（一句话） | 覆盖章节 | 冻结数据 | 源码锚点（记录层） |
+|---|---|---|---|---|
+| E1 | 逐节点溯源：六字段责任档案 + explain 六查询 + 覆盖 100% | 02·03·04 | scene_nodes.json、explain_samples.json | `scene.rs:132-142`（struct Origin）、省略规则 `:136/138` |
+| E2 | 能力谈判：174 条逐节点判决 + fail-loud 原子失败 | 05·06·07 | capability.json、fail_loud.json | `capability.rs:134/152`（要求收集/谈判）、`:127-131`（VIZ-CAP-0002 汇总）、`main.rs:334`（VIZ-CAP-0001） |
+| E3 | 补丁等价：信封六要素 + 四道拒绝门 + 5 项测试保证 | 09·10 | patch.json、schemas.json | `patch.rs:64/113`（diff/apply）、门区 `:77-82/118-123/124-129/130-135/136-141`、测试 `:457-667`、顺序注释 `:473` |
+| E4 | 确定性地基：三对产物指纹全等（配角） | 01 | determinism.json、engine.json | 数据内冻结 sha（normalize/lower/render 双跑） |
+| E5 | 损耗诚实：1 条损耗记录逐字落 manifest | 08 | capability.json（png_losses/rasterizer）、determinism.json（manifest 噪声） | manifest 键 losses/rasterizer 实测 |
+| E6 | 门禁与指纹：81 码 ×14 族 + schema 防漂移 + 62 测试 | 11 | diag_codes.json、schemas.json、tests.json | `crates/` 全量逐码枚举（grep 遍历序，§7/R12）、`tests/cli.rs:312` |
+
+### 11.7 改版轮门禁与复核实录
+
+- build（/tmp 平面拷贝，`PYTHONDONTWRITEBYTECODE=1`）：rc=0，断言全绿
+  （6 锚定计数 + 10 新形式 needle + 4 自污染 + 六式清扫 + 黑名单 + E1–E6
+  覆盖全零/全命中）。
+- svg-linter：13 文件 `check --plain` 全 exit 0、findings 0；`--require-complete`
+  13 × exit 0（完整 TSV 留 `/tmp/retro-vizir/lint/`）。
+- 渲染三重断言：页面宽 1200 ✓；stitch 位图 2400×17116 == 8558 CSS 高 × 2 ✓；
+  14 裁片逐面板目检无重叠/裁边/越界/断词（01/03/06/07/08/09/10/11/12 及页脚
+  逐张目检；02/04/05 仅 src_note 文案替换，linter 兜底）。
+- 双跑确定性：连续两次 build `cmp` byte 级一致；真空跑（重建目录不带旧
+  index.html/svg 产物，带齐 build 全部输入：panels/svgkit/data）rc=0 且产物
+  `cmp` 一致（§5 同口径）。
+- 引擎仓只读复核：改版开工 HEAD `c7f0a896`（注意：冻结时 HEAD 为
+  `52840b8`，冻结后引擎自行前进，与交付无关）；改版仅触碰
+  `docs/infographics/vizir-explainer/` 内文件，零 commit、零树外改动。
