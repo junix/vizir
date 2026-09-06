@@ -27,7 +27,7 @@ gallery:
     for file in examples/*/*.viz.yaml; do name="$(basename "$file" .viz.yaml)"; cargo run -q -p vizir-cli -- render "$file" --format png --background transparent --output "gallery/${name}.png"; done
     python3 tools/build_gallery.py
 
-gallery-check: gallery
+gallery-check:
     python3 tools/build_gallery.py --check
 
 inspect:
