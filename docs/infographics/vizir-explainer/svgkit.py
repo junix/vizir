@@ -42,6 +42,17 @@ def esc(s: str) -> str:
             .replace(">", "&gt;").replace('"', "&quot;"))
 
 
+def floor_size(s: str, size: float) -> float:
+    """Fleet hard rule (2026-09-06 refine): CJK text is never emitted below
+    12 px and SVG text stays >= 11 px (the >=90% rule is enforced at 100% by
+    the build gate). Geometry helpers must run their width / line-height math
+    on the floored size so boxes grow with the glyphs — never shrink the
+    font to fit the box."""
+    if any(ord(c) > 0x2E7F for c in s):
+        return max(size, 12.0)
+    return max(size, 11.0)
+
+
 def el(tag: str, attrs: dict | None = None, *children: str) -> str:
     a = " ".join(f'{k}="{esc(str(v)) if not str(v).startswith("url") else v}"'
                  for k, v in (attrs or {}).items())
@@ -58,6 +69,9 @@ def text(x, y, s, size=13, fill=INK, family=FONT_BODY, weight="400",
     # that use "" as a blank spacer line still advance their own line cursor.
     if not s:
         return ""
+    size = floor_size(s, size)
+    if size == int(size):
+        size = int(size)
     attrs = {"x": round(x, 2), "y": round(y, 2), "font-size": size,
              "fill": fill, "font-family": family, "font-weight": weight,
              "text-anchor": anchor}
@@ -133,6 +147,11 @@ def code(x, y, s, size=12, fill=FLOW_DK, anchor="start", weight="400"):
 def code_box(x, y, w, h, lines, size=12, fill=INK, title=None,
              stroke=RULE, bg="#FFFFFF", lh=None, weight="400"):
     """Code block: white card + mono lines. lines = [(text, color?)]."""
+    joined = "".join(item[0] if isinstance(item, tuple) else item
+                     for item in lines) + (title or "")
+    size = floor_size(joined, size)
+    if size == int(size):
+        size = int(size)
     lh = lh or (size + 7)
     out = [rect(x, y, w, h, fill=bg, stroke=stroke, sw=1, rx=6)]
     ty = y + size + 10
@@ -149,6 +168,9 @@ def code_box(x, y, w, h, lines, size=12, fill=INK, title=None,
 
 def chip(x, y, label, fill=FLOW_TINT, stroke=FLOW_LT, color=FLOW_DK,
          size=11, pad_x=8, h=20):
+    size = floor_size(label, size)
+    if size == int(size):
+        size = int(size)
     w = pad_x * 2 + sum(2 for _ in label) + size * 0.62 * len(label)
     w = max(w, size * 0.62 * len(label) + 2 * pad_x)
     out = [rect(x, y, w, h, fill=fill, stroke=stroke, sw=1, rx=10)]
@@ -176,18 +198,6 @@ def elbow(x1, y1, x2, y2, r=8, color=FLOW_LT, sw=2):
     return path(d, stroke=color, sw=sw)
 
 
-def panel_head(y, kicker, title, sub=None, x=48, w=1104):
-    """Chapter header: kicker chip + display title + optional sub line."""
-    out = [text(x, y + 12, kicker, size=12, fill=FLOW, family=FONT_MONO,
-                weight="700", spacing="2")]
-    out.append(text(x, y + 46, title, size=25, fill=INK,
-                    family=FONT_DISPLAY, weight="700"))
-    if sub:
-        out.append(text(x, y + 70, sub, size=13, fill=MUTED))
-    out.append(line(x, y + 84, x + w, y + 84, stroke=RULE, sw=1))
-    return "".join(out)
-
-
 def stat_tile(x, y, w, h, value, label, note=None, fill=PANEL,
               accent=FLOW, vsize=26):
     out = [rect(x, y, w, h, fill=fill, stroke=RULE, sw=1, rx=8)]
@@ -204,6 +214,9 @@ def stat_tile(x, y, w, h, value, label, note=None, fill=PANEL,
 def hbar(x, y, w_full, h, value, vmax, label, value_label, color=FLOW,
          track="#EFEAE0", label_w=180, vlabel_w=64, size=12):
     """Horizontal bar row: label | track+bar | value."""
+    size = floor_size(label + str(value_label), size)
+    if size == int(size):
+        size = int(size)
     bar_x = x + label_w
     bar_w = max(2, w_full - label_w - vlabel_w) * (value / vmax)
     out = [text(x, y + h / 2 + size * 0.36, label, size=size, fill=INK,

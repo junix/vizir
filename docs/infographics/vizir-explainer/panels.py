@@ -10,14 +10,59 @@ from pathlib import Path
 from svgkit import (CH_B, CH_G, FLOW, FLOW_DK, FLOW_LT, FLOW_TINT,
                     FLOW_XLT, FONT_DISPLAY, FONT_MONO, INK, MUTED,
                     OUTCOME, OUTCOME_LT, PANEL, PAPER, RULE, TEAL, TINT, WARN,
-                    WARN_LT, arrow, chip, circle, code, code_box, hbar,
-                    line, panel_head, rect, src_note, stat_tile, svg,
-                    text)
+                    WARN_LT, arrow, chip, circle, code, code_box, g, hbar,
+                    line, rect, src_note, stat_tile, svg, text)
 
 HERE = Path(__file__).resolve().parent
 W = 1200
 X = 48
 CW = 1104  # content width
+
+# Chapter header layer, rendered as HTML by build.py (2026-09-06 refine:
+# headings/prose leave the SVG — figures keep only graphics; the strings are
+# lifted verbatim from the retired in-SVG panel_head calls).
+HEADS = {
+    "01-hero": (
+        "TECHNICAL INFOGRAPHIC · vizir 0.1.0 · 可审计编译器问责",
+        "可视化文档，是编译器的问责对象",
+        "vizir 把一份 YAML 可视化文档编译成 SVG：途中每一级 IR、每一个节点、"
+        "每一次后端降级都留下可质询的记录——节点能被 explain 溯源到数据行"
+        "与生成 pass，能力不支持就以稳定诊断码 fail-loud，局部补丁必须与"
+        "全量重算语义等价。"),
+    "02-pipeline": (
+        "01 · 问责管线", "四级流水，每一级都留下责任证据",
+        "VizHIR → VizMIR → Scene2D → 后端谈判：产物可复算，责任可点名"),
+    "03-origin": (
+        "02 · Origin 责任链", "每个 Scene2D 节点都自带六字段档案",
+        "例：explain --node latency-risk/point/gateway —— 下表全部为真实字段值，非示意"),
+    "04-explain-tree": (
+        "03 · explain 决策树", "一条命令，把任意节点送回被告席",
+        "六个真实查询：两个数据点、坐标轴、条形、刻度标签、以及一个不存在的节点"),
+    "05-coverage": (
+        "04 · 覆盖面", "110 个节点，无一例外",
+        "按 generated_by（生成 pass）分组的 Scene2D 节点直方图——责任链覆盖率 100%"),
+    "06-capability-surface": (
+        "05 · 能力面", "后端必须先递名片，编译才开始谈判",
+        "vizir capabilities <backend> 的逐字输出分四节：支持 / 不支持 / 显式降级 / 处置策略"),
+    "07-decisions": (
+        "06 · 174 次判决", "每个节点的每项能力要求，都要单独过堂",
+        "render --manifest 的逐节点 capability decision 统计：feature × status，来源节点路径逐条在档"),
+    "08-fail-loud": (
+        "07 · fail-loud", "不支持就报错，绝不静默降级",
+        "一次真实实验：把 rasterizer 从 PATH 里拿走，让 PNG 渲染走投无路"),
+    "09-loss": (
+        "08 · 诚实的损耗", "PNG 少掉的东西，manifest 逐字记下来",
+        "矢量→栅格这一步不是免费的；vizir 用 loss record 把代价写成数据，而不是藏进像素"),
+    "10-patch-gate": (
+        "09 · revision 校验", "局部补丁要过四道门才被接受",
+        "场景补丁携带基线/目标版本；执行侧逐门核对，任何一门不符即拒绝"),
+    "11-patch-equivalence": (
+        "10 · 等价性", "局部补丁 ≡ 全量重算，是被测试钉死的行为",
+        "主证测试：比对产出操作序列，执行之后的结果必须与直接重算的 Scene2D 语义相同"),
+    "12-gates": (
+        "11 · 门禁与来源", "问责文化需要门禁，门禁需要指纹",
+        "稳定诊断码全集、schema 防漂移、测试分布——以及本图每个数字的出处"),
+}
 
 
 def load(name: str):
@@ -29,20 +74,12 @@ def p_hero(d) -> str:
     cli = d["cli"]; tests = d["tests"]; diag = d["diag_codes"]
     nodes = d["scene_nodes"]; cap = d["capability"]; ex = d["examples"]
     eng = d["engine"]
-    h = 668
-    out = [rect(0, 0, W, h, fill=PANEL)]
-    out.append(rect(0, 0, W, 6, fill=FLOW))
-    out.append(text(X, 74, "TECHNICAL INFOGRAPHIC · vizir 0.1.0 · 可审计编译器问责",
-                    size=12, fill=FLOW, family=FONT_MONO, weight="700",
-                    spacing="2"))
-    out.append(text(X, 128, "可视化文档，是编译器的问责对象",
-                    size=40, fill=INK, family=FONT_DISPLAY, weight="700"))
-    out.append(text(X, 162,
-                    "vizir 把一份 YAML 可视化文档编译成 SVG：途中每一级 IR、每一个节点、每一次后端降级都留下可质询的记录——",
-                    size=14, fill=MUTED))
-    out.append(text(X, 184,
-                    "节点能被 explain 溯源到数据行与生成 pass，能力不支持就以稳定诊断码 fail-loud，局部补丁必须与全量重算语义等价。",
-                    size=14, fill=MUTED))
+    # Kicker/h1/lede moved to the HTML head layer (HEADS["01-hero"]); the SVG
+    # keeps the figure: mechanism cards, stat strip, reading-guide notes.
+    # Body coordinates are the retired in-SVG ones, shifted up by 174 via one
+    # group transform so every internal gap is preserved exactly.
+    h = 494
+    out = []
 
     # three mechanism cards
     cards = [
@@ -78,7 +115,7 @@ def p_hero(d) -> str:
         (nodes["total_nodes"], "Scene2D 节点", "全部携带 Origin"),
         (cap["svg_manifest_decisions"]["total"], "capability decisions",
          "逐节点写入 manifest"),
-        (ex["count"], "examples", "chart/diagram/geometry/mixed"),
+        (ex["count"], "examples", "四类目录"),
     ]
     tw = (CW - 5 * 16) / 6
     for i, (v, lab, note) in enumerate(tiles):
@@ -101,7 +138,9 @@ def p_hero(d) -> str:
                         "examples 口径：工作树 11 = 已跟踪 10 + 未跟踪 WIP 1"
                         "（mixed/capacity-planning，见 engine.json 基线）；"
                         "fresh clone 复现为 10"))
-    return svg(W, h, *out)
+    return svg(W, h,
+               rect(0, 0, W, h, fill=PANEL), rect(0, 0, W, 6, fill=FLOW),
+               g(*out, transform="translate(0 -174)"))
 
 
 _WORD_RUN = re.compile(r"[A-Za-z0-9._/-]+")
@@ -151,9 +190,8 @@ def wrap_cn(s: str, n: int) -> list[str]:
 def p_pipeline(d) -> str:
     det = d["determinism"]; nodes = d["scene_nodes"]
     eng = d["engine"]
-    h = 610
-    out = [panel_head(28, "01 · 问责管线", "四级流水，每一级都留下责任证据",
-                      "VizHIR → VizMIR → Scene2D → 后端谈判：产物可复算，责任可点名")]
+    h = 610 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     stages = [
         ("VizHIR", "version 0.1", "人类手写的语义文档",
          ["稳定 id：service-health-dashboard",
@@ -212,15 +250,14 @@ def p_pipeline(d) -> str:
     out.append(src_note(X, 560,
                         f'输入 {eng["example_input"]}（sha256 见 VERIFICATION.md）· '
                         "证据链见 VERIFICATION.md"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 # --------------------------------------------------------------- P3 origin
 def p_origin(d) -> str:
     nodes = d["scene_nodes"]; o = nodes["origin_example"]
-    h = 648
-    out = [panel_head(28, "02 · Origin 责任链", "每个 Scene2D 节点都自带六字段档案",
-                      f'例：explain --node latency-risk/point/gateway —— 下表全部为真实字段值，非示意')]
+    h = 648 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     fields = [
         ("HIR 视图声明", o["hir_node"], "它由哪条视图声明展开"),
         ("MIR 标记组", o["mir_node"], "它由哪个标记组实例化"),
@@ -270,23 +307,27 @@ def p_origin(d) -> str:
     out.append(src_note(X + 724, y + 260,
                         "省略规则：可选字段缺省时整键不写入输出 JSON"
                         "（细则见声明 E3）"))
-    out.append(rect(X + 724, y + 274, 380, 88, fill=TINT, stroke=TEAL, sw=1,
+    out.append(rect(X + 724, y + 274, 380, 106, fill=TINT, stroke=TEAL, sw=1,
                     rx=8))
-    out.append(text(X + 738, y + 298,
+    out.append(text(X + 738, y + 294,
                     "110/110 个节点都带 origin 对象；", size=12, fill=INK,
                     weight="700"))
-    out.append(text(X + 738, y + 318,
-                    "hir_node / mir_node / generated_by / explanation "
-                    "四字段必现；", size=10.5, fill=INK))
-    out.append(text(X + 738, y + 336,
-                    "data_key / data_lineage 可选：序列化省略 86 / 74。",
-                    size=10.5, fill=INK))
-    out.append(src_note(X, y + 384,
+    # 12px CJK floor (2026-09-06): the four-always-present line no longer
+    # fits one 380px row — split at the field-list boundary, same claim.
+    out.append(text(X + 738, y + 314,
+                    "hir_node / mir_node / generated_by /",
+                    size=12, fill=INK))
+    out.append(text(X + 738, y + 332,
+                    "explanation 四字段必现；", size=12, fill=INK))
+    out.append(text(X + 738, y + 356,
+                    "data_key / data_lineage 可选：省略 86 / 74。",
+                    size=12, fill=INK))
+    out.append(src_note(X, y + 396,
                         "六字段值逐字取自真实降级输出（右卡节选）；110 节点全覆盖 · "
                         "声明 E3 · 证据链见 VERIFICATION"))
-    out.append(src_note(X, y + 406,
+    out.append(src_note(X, y + 418,
                         "「谁是它的爹、吃了哪行数据、哪个 pass 造的、为什么长这样」——四问全部可机器读取"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 # --------------------------------------------------------- P4 explain tree
@@ -299,9 +340,8 @@ def p_explain(d) -> str:
         "shape-native-text": CH_B,
         "(error)": WARN,
     }
-    h = 896
-    out = [panel_head(28, "03 · explain 决策树", "一条命令，把任意节点送回被告席",
-                      "六个真实查询：两个数据点、坐标轴、条形、刻度标签、以及一个不存在的节点")]
+    h = 896 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     out.append(code_box(X, 138, CW, 40, [
         ("vizir explain examples/chart/service-health.viz.yaml --node <stable-node-id>",
          FLOW_DK)], size=11.5, bg="#FFFFFF"))
@@ -348,16 +388,15 @@ def p_explain(d) -> str:
                         "六查询输出逐字段实录 · VIZ-EXPLAIN-0001 = 唯一的 explain 失败码 · 声明 E1"))
     out.append(src_note(X, y + 28,
                         "generated_by 即着色：五个查询命中四条不同生成 pass —— 溯源粒度到 pass，不只到层级"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 # ------------------------------------------------------------- P5 coverage
 def p_coverage(d) -> str:
     nodes = d["scene_nodes"]
     hist = nodes["generated_by_histogram"]
-    h = 570
-    out = [panel_head(28, "04 · 覆盖面", "110 个节点，无一例外",
-                      "按 generated_by（生成 pass）分组的 Scene2D 节点直方图——责任链覆盖率 100%")]
+    h = 570 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     vmax = max(hist.values())
     meanings = {
         "shape-native-text": "原生文本形状（刻度/图例/标签）",
@@ -385,16 +424,15 @@ def p_coverage(d) -> str:
         y += 52
     out.append(src_note(X, y + 18,
                         "直方图由两个视图（latency-risk + availability-ranking）合并统计 · 声明 E1 · 证据链见 VERIFICATION"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 # ---------------------------------------------------- P6 capability surface
 def p_capsurface(d) -> str:
     cap = d["capability"]
     svgb = cap["svg_backend"]; pngb = cap["png_backend"]
-    h = 756
-    out = [panel_head(28, "05 · 能力面", "后端必须先递名片，编译才开始谈判",
-                      "vizir capabilities <backend> 的逐字输出分四节：支持 / 不支持 / 显式降级 / 处置策略")]
+    h = 756 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     colw = (CW - 24) / 2
 
     def backend_card(x, title, b, accent):
@@ -447,16 +485,15 @@ def p_capsurface(d) -> str:
                         "（声明 E2 · 源码锚点见 VERIFICATION）"))
     out.append(src_note(X, 668,
                         "谈判单位是「节点 × 能力项」：先去重再逐条判决，决策连同理由与来源节点路径落进 manifest"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 # -------------------------------------------------------------- P7 decisions
 def p_decisions_impl(d) -> str:
     cap = d["capability"]
     sm = cap["svg_manifest_decisions"]; pm = cap["png_manifest_decisions"]
-    h = 700
-    out = [panel_head(28, "06 · 174 次判决", "每个节点的每项能力要求，都要单独过堂",
-                      "render --manifest 的逐节点 capability decision 统计：feature × status，来源节点路径逐条在档")]
+    h = 700 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     # left: feature histogram
     out.append(rect(X, 150, 620, 300, fill=PANEL, stroke=RULE, sw=1, rx=10))
     out.append(text(X + 16, 176, "按 feature 分组（svg 后端，全部 exact）",
@@ -519,28 +556,29 @@ def p_decisions_impl(d) -> str:
 
     # sample decision verbatim
     sample = sm["sample"][0]
-    out.append(code_box(X, 476, CW, 96, [
-        ('manifest.capability_report.decisions[0] = ' +
-         json.dumps(sample, ensure_ascii=False), INK),
+    # 11px floor (2026-09-06): prefix + json on one line exceeded the canvas
+    # — split at the '=' the renderer used to concatenate.
+    out.append(code_box(X, 476, CW, 122, [
+        ('manifest.capability_report.decisions[0] =', INK),
+        ('  ' + json.dumps(sample, ensure_ascii=False), INK),
         ('… 共 174 条，每条含 feature / status / reason / source(节点路径)',
          MUTED),
         (f'png 首条 rasterized: '
          f'{json.dumps(pm["sample_rasterized"], ensure_ascii=False)[:110]}…',
          OUTCOME),
     ], size=10.5, title="render --manifest 逐节点判决（真实样本）"))
-    out.append(src_note(X, 606,
+    out.append(src_note(X, 612,
                         "逐节点判决统计逐字冻结自真实 manifest（报告/损耗/栅格化器/编译器各键在档）· 声明 E2"))
-    out.append(src_note(X, 628,
+    out.append(src_note(X, 634,
                         "判决在渲染之前：谈不拢就 VIZ-CAP-0002 中止（声明 E2 · 坐标见 VERIFICATION），不会产出半张图"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 # --------------------------------------------------------------- P8 fail loud
 def p_fail_loud(d) -> str:
     fl = d["fail_loud"]; cap = d["capability"]
-    h = 690
-    out = [panel_head(28, "07 · fail-loud", "不支持就报错，绝不静默降级",
-                      "一次真实实验：把 rasterizer 从 PATH 里拿走，让 PNG 渲染走投无路")]
+    h = 690 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     # left: experiment timeline
     out.append(rect(X, 150, 640, 400, fill=PANEL, stroke=RULE, sw=1, rx=10))
     out.append(text(X + 16, 178, "实验：空 PATH 下的 PNG 渲染", size=13,
@@ -604,15 +642,14 @@ def p_fail_loud(d) -> str:
                         "（声明 E2 · 测试名与源码锚点见 VERIFICATION）"))
     out.append(src_note(X, 602,
                         "explain 的失败同样稳定：VIZ-EXPLAIN-0001 no Scene2D node named …（exit 1）"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 # ------------------------------------------------------------------- P9 loss
 def p_loss(d) -> str:
     cap = d["capability"]
-    h = 560
-    out = [panel_head(28, "08 · 诚实的损耗", "PNG 少掉的东西，manifest 逐字记下来",
-                      "矢量→栅格这一步不是免费的；vizir 用 loss record 把代价写成数据，而不是藏进像素")]
+    h = 560 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     losses = cap["png_losses"]
     out.append(code_box(X, 150, CW, 118, [
         (f'run.png.manifest.json → losses: {json.dumps(losses, ensure_ascii=False)}',
@@ -646,16 +683,15 @@ def p_loss(d) -> str:
                         "同路径重跑 byte 级一致 · 声明 E5"))
     out.append(src_note(X, 516,
                         "alpha 校验另有 VIZ-ARTIFACT-0001/0002/0003 三码把关：透明背景必须真的透明 · 声明 E5（测试锚点见 VERIFICATION）"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 # ---------------------------------------------------------- P10 patch revisions
 def p_patch_gate(d) -> str:
     p = d["patch"]; diag = d["diag_codes"]
     codes = {c: diag["codes"][c] for c in p["diagnostic_codes"]}
-    h = 730
-    out = [panel_head(28, "09 · revision 校验", "局部补丁要过四道门才被接受",
-                      "场景补丁携带基线/目标版本；执行侧逐门核对，任何一门不符即拒绝")]
+    h = 730 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     # patch envelope — 2026-09-03 retrofit: verbatim struct-literal excerpt
     # replaced by a domain-named envelope card (six elements; example values
     # from the patch test sample; the source excerpt lives in VERIFICATION).
@@ -718,15 +754,14 @@ def p_patch_gate(d) -> str:
                         "14 码清单与两侧发射位置冻结于补丁证据（声明 E3 · 源码锚点见 VERIFICATION）"))
     out.append(src_note(X, 618,
                         "校验通过不是终点——等价性才是，见下一板"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 # ------------------------------------------------------- P11 patch equivalence
 def p_patch_equiv(d) -> str:
     p = d["patch"]
-    h = 700
-    out = [panel_head(28, "10 · 等价性", "局部补丁 ≡ 全量重算，是被测试钉死的行为",
-                      "主证测试：比对产出操作序列，执行之后的结果必须与直接重算的 Scene2D 语义相同")]
+    h = 700 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     # flow diagram
     y = 170
     out.append(rect(X, y, CW, 240, fill=PANEL, stroke=RULE, sw=1, rx=10))
@@ -793,15 +828,14 @@ def p_patch_equiv(d) -> str:
         yy += 24
     out.append(src_note(X, 640,
                         "补丁等价的主战场在库层（库 API 契约，非 CLI 子命令）；其 JSON Schema 由 vizir schema scene-patch 持久化防漂移"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 # ------------------------------------------------------------------ P12 gates
 def p_gates(d) -> str:
     diag = d["diag_codes"]; sch = d["schemas"]; tests = d["tests"]
-    h = 880
-    out = [panel_head(28, "11 · 门禁与来源", "问责文化需要门禁，门禁需要指纹",
-                      "稳定诊断码全集、schema 防漂移、测试分布——以及本图每个数字的出处")]
+    h = 880 - 122  # header layer moved to HTML; body shifted up 122
+    out = []
     # family histogram
     out.append(rect(X, 150, 640, 380, fill=PANEL, stroke=RULE, sw=1, rx=10))
     out.append(text(X + 16, 176,
@@ -841,10 +875,14 @@ def p_gates(d) -> str:
                         fill=FLOW_LT))
         yy += 88
     # anti-drift test name/coords stay in the record (VERIFICATION); the page
-    # keeps the guarantee itself (2026-09-03 retrofit).
+    # keeps the guarantee itself (2026-09-03 retrofit). 12px CJK floor
+    # (2026-09-06): the line no longer fits one 440px row — split in two.
     out.append(code(X + 680, yy + 6,
-                    "防漂移由引擎集成测试钉死：三份 schema 逐字节比对 · 声明 E6（测试名与源码锚点见 VERIFICATION）",
-                    size=9.5, fill=MUTED))
+                    "防漂移由引擎集成测试钉死：三份 schema 逐字节比对",
+                    size=12, fill=MUTED))
+    out.append(code(X + 680, yy + 24,
+                    "· 声明 E6（测试名与源码锚点见 VERIFICATION）",
+                    size=12, fill=MUTED))
 
     # tests distribution — suite keys are engine file paths; render them as
     # domain suite labels (numbers still read from the frozen per_suite map).
@@ -891,7 +929,7 @@ def p_gates(d) -> str:
         yy += 18
     out.append(src_note(X, 846,
                         "全部声明冻结于一次真实引擎运行；逐条证据链（冻结数据、源码锚点、复现命令）见 VERIFICATION.md"))
-    return svg(W, h, *out)
+    return svg(W, h, g(*out, transform="translate(0 -122)"))
 
 
 PANELS = [
