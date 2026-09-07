@@ -385,3 +385,128 @@ b2b21ef2a22f7911d4a59e690231fb08c5ea4e997df5b86572b5f292`，面板 svg 见
 - 引擎仓只读复核：改版开工 HEAD `c7f0a896`（注意：冻结时 HEAD 为
   `52840b8`，冻结后引擎自行前进，与交付无关）；改版仅触碰
   `docs/infographics/vizir-explainer/` 内文件，零 commit、零树外改动。
+
+## 12. 2026-09-06 refine（舰队 refine 轮）
+
+依据 2026-09-06 survey（4 项 high 缺陷）对本树做最小修复；改版原则同前：
+撤回不删除、每处修改可追溯、产物全量重建并复跑门禁。
+
+### 12.1 修复清单（4 项 high + 门禁自咬加固 + width-rule）
+
+1. **zero-inline-svg（high）**：13 个面板原为 `<img src="data:image/svg+xml;
+   base64,…">`，0 个内联 `<svg>`。**fixed**：build.py 改为把 svg/*.svg 的
+   原始字节逐块内联进 index.html（`<figure><svg …>`），页脚同理；新增
+   inline-medium 断言：`<img>` 计数 0、内联 `<svg>` 计数 13、每块与对应
+   svg/*.svg 文件逐字节相等且在页面中恰好出现一次。「自包含」声明自此
+   名副其实。README 门禁增加「内联一致性口径」（从 index.html 原字节抽取
+   13 块 → 逐字节比对 → 送检）。
+2. **headings-in-svg（high）**：h1/h2/p 原全为 0（标题散文全在 SVG 内）。
+   **fixed**：panels.py 新增 HEADS 注册表（12 组 kicker/标题/副题，逐字
+   取自原 SVG panel_head 文案），build.py 渲染为 HTML `p.kicker + h1/h2 +
+   p.lede`，每面板 `<figure>` 内 SVG 只留图形并附 HTML `figcaption`
+   （声明编号指针，映射取自 §11.6 覆盖章节）。SVG 头部区域（每面板顶部
+   122px）整体移除，图内坐标经单个 `translate` 群组上移、内部间距不变。
+   断言：1×h1 + 11×h2 + 12×kicker。
+3. **cjk-small（high）**：272 个 CJK `<text>` 中 192 个 <12px（71%），
+   最小 9.5px。**fixed**：svgkit 新增 `floor_size` 集中下限——含 CJK 的
+   文本一律 ≥12px；chip/code_box/hbar 的宽度与行距按抬升后字号重算
+   （盒子随字长大，不缩字适配）。
+4. **svg-text-small（high）**：469 个 font-size 仅 48% ≥11px。**fixed**：
+   同一 `floor_size` 把全部文本下限抬到 11px；build.py 新增
+   font_floor_gate 断言（CJK<12 与 <11 双零违例，把「≥90% ≥11px」按
+   100% 执行）。改后实测：434 个 `<text>`，≥11px **100%**；CJK 237 个
+   全部 ≥12px；最小字号 11（纯 ASCII 元素，如 sha 前缀与命令行）。
+   版面重排 4 处（抬字不缩字）：03 绿卡「四字段必现」行拆两行；07 样本
+   JSON 行按 `=` 拆两行（11px 下单行估宽 1248px 超出 1200px 画布，曾被
+   svg-linter out-of-bounds 拦下）；12 gates 防漂移注拆两行；hero 第 6
+   stat tile 注文 `chart/diagram/geometry/mixed` 改「四类目录」（11px 下
+   溢出 tile，vision 目检确认后修，语义不变：四类示例目录）。
+5. **gate-selfbite 加固（audit-batteries §7）**：本树无 live-HEAD 进任何
+   可重建文件（engine.json 内 commit 即 FROZEN_HEAD `52840b8`，静态），
+   无 live 语料（六式清扫用冻结快照清单）；README「证据如何再来一遍」
+   升级为冻结 worktree recipe（`git worktree add /tmp/vizir-frozen
+   52840b8…` + 该处构建），并写明判别口径：工作树 HEAD ≠ FROZEN_HEAD
+   只算 engine evolved（警告，走 recipe），冻结 worktree 内复核与
+   data/*.json 不符才算 evidence drifted（硬失败须重冻）。本轮 refine
+   未触发引擎构建；冻结 worktree 内复核留给交付 commit 后 post-commit
+   门禁轮执行记录。
+6. **width-rule**：body 由固定 `width:1200px` 改为舰队标准
+   `max-width:1200px; margin:0 auto`（同为居中渲染，shoot.js 页宽断言
+   1200 依旧通过）。
+7. **页高带内控制**：头部 HTML 化后页高一度 9085（超出 F1 9000 上限），
+   收紧章节层 CSS 间距后定格 **8881 CSS px**（原 8558）；位图 2400×17762。
+
+### 12.2 指纹迁移表（refine 轮：§11.4 旧 → 新，一行一由）
+
+| 产物 | 旧 sha256 | 新 sha256 | 变更由 |
+|---|---|---|---|
+| index.html | `d7cd10cb…` | `78ebb830…` | 内联 SVG 化 + HTML 章节层 + max-width |
+| svg/01-hero | `a21a6241…` | `b77931fc…` | 标题层出图 + 字号下限 + tile 注改四类目录 |
+| svg/02-pipeline | `fe729f61…` | `25975bb1…` | 头部出图 + 字号下限（translate 上移） |
+| svg/03-origin | `76022419…` | `7ed48999…` | 同上 + 绿卡四字段行拆两行 |
+| svg/04-explain-tree | `1b711157…` | `c2e2576b…` | 头部出图 + 字号下限 |
+| svg/05-coverage | `35ba3b58…` | `96caa505…` | 同上 |
+| svg/06-capability-surface | `a67ae51c…` | `1b6be9db…` | 同上（chips 11px 重排，行数不变） |
+| svg/07-decisions | `a16729d5…` | `cef8b1ce…` | 同上 + 样本 JSON 行拆两行 |
+| svg/08-fail-loud | `e547e2d5…` | `37009157…` | 头部出图 + 字号下限 |
+| svg/09-loss | `33b024a4…` | `c4bd388c…` | 同上 |
+| svg/10-patch-gate | `6dbeb2a1…` | `fed5368d…` | 同上 |
+| svg/11-patch-equivalence | `42099ca1…` | `d1916442…` | 同上 |
+| svg/12-gates | `e9dd9717…` | `04aeb55f…` | 同上 + 防漂移注拆两行 |
+| svg/99-footer | `872c5689…` | `c0b2fdb8…` | 字号下限（CJK 行 12px） |
+| render/full@2x.png | `368f87bf…` | `c0d47ede…` | 重拍（2400×17762 = 8881 CSS × 2） |
+| render/full@2x.gray.png | `2608c7bf…` | `4d695188…` | 同上（灰度版） |
+| render/thumb.png | `bc8ee3f2…` | `7dbff8bd…` | 同上（600×4440） |
+
+未变：14 份 `data/*.json` 逐字节不动（本轮零证据变更）；prep_data.py、
+shoot.js、stitch.py 未改。修改的生成器：svgkit.py（floor_size + 删
+panel_head）、panels.py（HEADS + 头部出图 + 4 处重排）、build.py（内联
++ 章节层 + 新断言）。完整新指纹全值：index `78ebb830
+462fb4a22a96d130692110da615ec20594c7f8555ab0c51c10b6b32e`，面板见
+`shasum -a 256 svg/*.svg` 可复算。
+
+### 12.3 门禁复跑实录（refine 轮，全部实际执行）
+
+- build.py 断言全绿：6 锚定计数 + 10 新形式 needle + 4 自污染 + 六式清扫
+  + 26 文件名 + 25 标识符 + E1–E6 + VERIFICATION ≥12（全保留），新增
+  inline-medium（零 `<img>`、13 块内联 SVG 逐字节一致且各恰一次、
+  1×h1 + 11×h2 + 12 kicker）与 font floors（CJK<12 与 <11 双零）。
+- 双跑确定性：连续两次 build 后 `cmp` byte 级一致。
+- svg-linter：13 文件 `check --plain` 全 exit 0 / findings 0；
+  `--require-complete` 13 × exit 0。首轮曾拦下 4 文件 17 条
+  out-of-bounds（06/10/12 漏套 translate + 07 样本行超宽），修复后归零
+  ——门禁真实咬合的留证。
+- 内联一致性：index.html 抽取 13 块与 svg/*.svg 逐字节相等，抽取块送检
+  13 × exit 0。
+- 渲染：页宽 1200 ✓；stitch 位图 2400×17762 == 8881 CSS × 2 ✓；thumb
+  600×4440；13 份逐面板裁片重出（top 锚 h=0 跳过）。
+- 目检 + 视觉复核：6 个重构面板（01/03/06/07/10/12）半尺寸预览逐张
+  过检，仅发现 hero 第 6 tile 注文溢出 1 处（已修并复拍）；其余无
+  重叠/裁边/越界。页脚未单独目检，由 svg-linter 与 build 断言覆盖。
+- 引擎只读：`git status` 改动全部位于 docs/infographics/vizir-explainer/
+  内；构建产物 `__pycache__` 已清除。
+
+### 12.4 暂缓项（survey 在案，本轮明确不做）
+
+- **hero-not-subject（med）**：hero 仍为三机制卡；嵌入 service-health
+   真实编译产物图需新增证据面（冻结产物字节），超出本轮最小修复范围。
+- **fingerprint-gaps（med）**：未做全树 manifest；本轮仅按规则刷新被重建
+   波及的全部指纹（§12.2）。
+- **no-poison（med）**：六式清扫未注入毒丸自测（计数断言已有 7→8 篡改
+   自测先例，§7/R11）。
+- **no-reverse-sweep（med）**：未做反向数字清扫（页面数字仍走 build 锚定
+   断言 + 冻结数据注入）。
+- **no-sidenote-track（med）**：未加 680/288 旁注轨（本轮章节层只到
+   kicker/h2/lede/figcaption，未做双栏布局）。
+- **form-mismatch（med）**：仍 12 面板 + 页脚（F1 带外）；页高已控制在
+   9000 带内。
+
+### 12.5 披露
+
+- 本树自引擎 commit `84006db` 起已被仓库跟踪；§1「未跟踪」为冻结时点
+  实况，留档不改。本轮 refine 改动限于树内文件、未 commit（主会话统一
+  提交并执行 post-commit 门禁轮）。
+- contract.md 媒介行已附勘误：data-URI `<img>` 方式作废，改为 SVG 原字节
+  内联 + HTML 章节层；页高 8558 → 8881。
+- 页面正文语言、声明编号层（E1–E6）、证据链与冻结数据零变更；本轮一切
+  数字口径与 §3/§11.6 一致。
