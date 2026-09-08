@@ -1,0 +1,125 @@
+{
+ "battery": "poison-pills",
+ "date": "2026-09-08",
+ "workdir": "/tmp/vizir-explainer-pills",
+ "summary": {
+  "pills_total": 11,
+  "pills_caught": 11,
+  "controls_total": 3,
+  "controls_clean": 3
+ },
+ "results": [
+  {
+   "pill": "file:line coordinate",
+   "injected": "capability.rs:152",
+   "expect_gate_to_flag": "code-detail file:line coordinate",
+   "exit_code": 1,
+   "caught": true,
+   "note": ""
+  },
+  {
+   "pill": "engine source filename",
+   "injected": "patch.rs",
+   "expect_gate_to_flag": "code-detail engine filename patch.rs",
+   "exit_code": 1,
+   "caught": true,
+   "note": ""
+  },
+  {
+   "pill": "N-M line range",
+   "injected": ":77-82",
+   "expect_gate_to_flag": "code-detail N–M line range",
+   "exit_code": 1,
+   "caught": true,
+   "note": ""
+  },
+  {
+   "pill": "第N行",
+   "injected": "第 312 行",
+   "expect_gate_to_flag": "code-detail 第N行",
+   "exit_code": 1,
+   "caught": true,
+   "note": ""
+  },
+  {
+   "pill": "source keyword",
+   "injected": "impl",
+   "expect_gate_to_flag": "code-detail source keyword",
+   "exit_code": 1,
+   "caught": true,
+   "note": ""
+  },
+  {
+   "pill": "identifier call string (visible)",
+   "injected": "frob(42)",
+   "expect_gate_to_flag": "code-detail identifier call string",
+   "exit_code": 1,
+   "caught": true,
+   "note": ""
+  },
+  {
+   "pill": "banned identifier",
+   "injected": "diff_scene",
+   "expect_gate_to_flag": "code-detail identifier 'diff_scene'",
+   "exit_code": 1,
+   "caught": true,
+   "note": ""
+  },
+  {
+   "pill": "claim id binding (E1 removed from page)",
+   "injected": "E1 -> E7",
+   "expect_gate_to_flag": "claim id E1: missing from page text",
+   "exit_code": 1,
+   "caught": true,
+   "note": ""
+  },
+  {
+   "pill": "digit sweep (unclaimed number)",
+   "injected": "987654",
+   "expect_gate_to_flag": "digit sweep: unclaimed token '987654'",
+   "exit_code": 1,
+   "caught": true,
+   "note": ""
+  },
+  {
+   "pill": "CONTROL clean build (all build gates zero)",
+   "injected": "(none)",
+   "expect_gate_to_flag": "exit 0",
+   "exit_code": 0,
+   "caught": true,
+   "note": "built index.html: 12 inline-svg panels + footer, total panel height 6892px, all assertions green (6 anchored headline-count forms, 10 new-form needles, 4 pollution checks, code-detail gate: 6 sweeps + 26 filenames + 25 identifiers all zero, inline-medium + font floors (min text 11.0px), digit sweep: 71 distinct tokens all claimed (1 reviewed exemption(s))"
+  },
+  {
+   "pill": "CONTROL resolved reference (defs id present)",
+   "injected": "defs id pill-grad + url(#pill-grad)",
+   "expect_gate_to_flag": "exit 0, 0 findings",
+   "exit_code": 0,
+   "caught": true,
+   "note": "findings=0"
+  },
+  {
+   "pill": "svg-linter dangling reference (defs id deleted)",
+   "injected": "id pill-grad -> pill-gone, url(#pill-grad) kept",
+   "expect_gate_to_flag": "svg/dangling-reference",
+   "exit_code": 1,
+   "caught": true,
+   "note": "findings=1"
+  },
+  {
+   "pill": "svg-linter duplicate id",
+   "injected": "second linearGradient id=pill-grad",
+   "expect_gate_to_flag": "svg/duplicate-id",
+   "exit_code": 1,
+   "caught": true,
+   "note": "findings=1"
+  },
+  {
+   "pill": "CONTROL clean corpus (13 svg files)",
+   "injected": "(none)",
+   "expect_gate_to_flag": "exit 0, 0 findings each",
+   "exit_code": 0,
+   "caught": true,
+   "note": "13 files, 0 findings"
+  }
+ ]
+}

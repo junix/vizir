@@ -11,11 +11,15 @@ vizir-explainer/
 ├── prep_data.py      # 证据冻结器（已运行一次，交付内永不重跑）
 ├── data/             # 14 份冻结 JSON（含 data/provenance.json：引擎 commit、
 │                     #   行号索引、冻结方法；provenance 在 data/ 内，非顶层）
+├── data/audit/       # 指纹豁免的运行记录区（pills.json 毒丸记录、
+│                     #   fingerprints.json 全树指纹清单；见 VERIFICATION §13）
 ├── svgkit.py         # SVG 基元 + 字面 hex 配色 + 字号下限（CJK≥12 / 全部≥11）
 ├── panels.py         # 12 个数据驱动面板（图内只留图形）+ HEADS 章节头注册表
 ├── build.py          # 拼装 index.html + 断言（面板数/关键计数/自污染/
-│                     #   代码细节六式清扫拦零/内联媒介与字号下限门禁，
-│                     #   见 VERIFICATION §11–§12）
+│                     #   代码细节六式清扫拦零/声明编号双向绑定/数字反向
+│                     #   清扫/内联媒介与字号下限门禁，见 VERIFICATION §11–§13）
+├── tools/            # 审计机器：poison_pills.py（毒丸电池 11 粒 + 对照）、
+│                     #   fingerprint_tree.py（全树 sha256 清单，幂等 + --check）
 ├── svg/*.svg         # 逐面板 SVG（门禁对象；与 index.html 内联块逐字节一致）
 ├── shoot.js          # chrome-headless-shell CDP 截图（y=0 起全宽 3600px 切片）
 ├── stitch.py         # 顺序拼接 + 位图高==页面CSS高×2 断言 + thumb/gray/裁片
@@ -84,9 +88,16 @@ done   # 期望无输出
 node shoot.js "file://$PWD/index.html" render
 python3 stitch.py    # 断言位图高 == 页面 CSS 高 × 2
 
-# 5) 指纹
-shasum -a 256 index.html render/full@2x.png render/full@2x.gray.png \
-  render/thumb.png
+# 5) 毒丸电池（2026-09-07 审计硬化）：11 粒毒丸逐粒注入 /tmp 抛弃式
+#    拷贝，门禁必须全拦；对照组（干净 build / 可解析引用 / 13 svg）全绿。
+#    记录落 data/audit/pills.json（指纹豁免区）。期望末行：
+#    "pills: 11/11 caught, controls: 3/3 clean"
+python3 tools/poison_pills.py
+
+# 6) 全树指纹（data/tools/render/docs 全覆盖；唯一豁免 data/audit/）。
+#    幂等：重跑清单逐字节不变；--check 对树内与 /tmp 平面拷贝都应通过。
+python3 tools/fingerprint_tree.py
+python3 tools/fingerprint_tree.py --check
 ```
 
 ## 证据如何再来一遍（策略说明）
