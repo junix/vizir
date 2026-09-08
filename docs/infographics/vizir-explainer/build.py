@@ -14,6 +14,10 @@
     byte-identical to svg/*.svg (zero <img>), headings live in HTML
     (1×h1 + 11×h2 + kicker/lede layers), and SVG text honors the fleet
     font floors — CJK never below 12px, everything >= 11px
+  * digit sweep gate (2026-09-07 audit hardening): every digit sequence
+    in the reader-visible projection must be backed by the frozen data
+    layer (substring of data/*.json bytes) or sit on the reviewed
+    DIGIT_EXEMPTIONS list below — hand-typed numbers cannot drift in
 
 Run:  python3 build.py   (twice in a row must produce byte-identical output)
 """
@@ -57,6 +61,23 @@ BANNED_IDENTIFIERS = [
     "apply_rejects_each", "revision_mismatch_rejects",
     "crates/", "src/", "python3 build",
 ]
+
+# Reviewed digit-sweep exemption list (2026-09-07, audit-batteries §2
+# "reverse number sweep"). A page digit token passes the sweep when it is
+# a substring of the frozen data layer (the value literally exists in
+# data/*.json — panel ordinals, VIZ-*-NNNN code numbers, sha prefixes and
+# example values all resolve through that channel) or listed here with a
+# justification. Extend this table only with reviewed entries; never by
+# deleting page numbers.
+DIGIT_EXEMPTIONS = {
+    # 「覆盖率 100%」(05-coverage lede) and registry row E1 「覆盖 100%」:
+    # 100% = 110/110 Scene2D nodes carrying an origin object. The 110 is
+    # frozen (scene_nodes.json total_nodes == sum of generated_by_histogram)
+    # but the nodes array itself is not in the frozen layer, so the 100 is
+    # a reviewed derived value — per-node origin presence was hand-verified
+    # at freeze time (VERIFICATION §3, §7/R3).
+    "100": "origin 覆盖率 100% = 110/110（110 冻结于 scene_nodes.json；逐节点 origin 全present 为冻结时人工核验，VERIFICATION §7/R3）",
+}
 RX_FILELINE = re.compile(
     r"\b[\w./-]+\.(?:rs|py|go|toml|swift|c|cpp|h|hpp|js|ts|java|cs):\d+")
 RX_RANGE = re.compile(r":\d+\s*[-–—~]\s*\d+")
@@ -67,16 +88,66 @@ RX_KEYWORD = re.compile(
 RX_CALL = re.compile(r"\b[A-Za-z_]\w*\s*\(\s*[\d_\"']")
 # <text …>content</text> pairs (svgkit emits leaf text elements only)
 RX_TEXT_EL = re.compile(r"<text ([^>]*)>([^<]*)</text>")
+RX_INLINE_SVG = re.compile(r"<svg[\s\S]*?</svg>")
+RX_STYLE = re.compile(r"<style[\s\S]*?</style>")
+RX_TAG = re.compile(r"<[^>]+>")
+
+
+def visible_text(svg_sources: str, html: str) -> str:
+    """Reader-visible text projection: SVG <text> contents + HTML text
+    nodes (kicker/h1/h2/lede/figcaption/title). Inline <svg> blocks are
+    removed from the html first — their <text> pairs are already swept via
+    svg_sources (byte-identical, inline-medium gate). Used by the
+    call-string ban (attributes like transform="translate(0 …" are SVG
+    syntax, not reader-visible source code) and by the digit sweep."""
+    from html import unescape
+    parts = [c for _, c in RX_TEXT_EL.findall(svg_sources)]
+    h = RX_STYLE.sub("", RX_INLINE_SVG.sub("", html))
+    parts.append(unescape(RX_TAG.sub("\n", h)))
+    return "\n".join(parts)
 
 
 def code_detail_gate(svg_sources: str, html: str, failures: list) -> None:
     """Assert the page carries zero code-level detail. Panels are inlined
     byte-identical into the html, so sweeping html covers the svg sources
-    as well; svg_sources is swept too for belt and braces."""
+    as well; svg_sources is swept too for belt and braces.
+
+    (2026-09-07 audit-hardening fix: the 2026-09-06 font-floor insertion
+    had accidentally moved this body to dead code after font_floor_gate's
+    return — the gate reported "all zero" while sweeping nothing. A
+    file:line poison pill sailed through; restored + now pill-proven, see
+    VERIFICATION §13 and data/audit/pills.jsonl.)"""
     page = svg_sources + html
+    # Call-string ban runs on the reader-visible projection: SVG transform
+    # attributes ("translate(0 -174)" — wave-1 geometry, 24 raw hits) are
+    # presentation syntax, not source code; a visible-text call pill still
+    # bites (data/audit/pills.jsonl, pill class "identifier-call-string").
+    visible = visible_text(svg_sources, html)
+
+    def zero(rx, label, hay=None):
+        hits = rx.findall(hay if hay is not None else page)
+        if hits:
+            failures.append(f"code-detail {label}: {len(hits)} hit(s), "
+                            f"e.g. {hits[:3]}")
+
+    zero(RX_FILELINE, "file:line coordinate")
+    zero(RX_NTHLINE, "第N行")
+    zero(RX_RANGE, "N–M line range")
+    zero(RX_CALL, "identifier call string", visible)
+    zero(RX_KEYWORD, "source keyword")
+    for name in ENGINE_CODE_FILES:
+        n = len(re.findall(r"(?<![\w./-])" + re.escape(name)
+                           + r"(?![\w.-])", page))
+        if n:
+            failures.append(f"code-detail engine filename {name}: "
+                            f"{n} hit(s)")
+    for ident in BANNED_IDENTIFIERS:
+        n = page.count(ident)
+        if n:
+            failures.append(f"code-detail identifier {ident!r}: {n} hit(s)")
 
 
-def font_floor_gate(svg_sources: str, failures: list) -> None:
+def font_floor_gate(svg_sources: str, failures: list) -> float:
     """Fleet hard rule (2026-09-06 refine): no SVG text below 11px, no CJK
     text below 12px (enforces the >=90%-at-11px rule at 100%)."""
     worst = 99.0
@@ -93,27 +164,27 @@ def font_floor_gate(svg_sources: str, failures: list) -> None:
             failures.append(f"font floor: {size}px < 11 ({plain[:18]!r})")
     return worst
 
-    def zero(rx, label):
-        hits = rx.findall(page)
-        if hits:
-            failures.append(f"code-detail {label}: {len(hits)} hit(s), "
-                            f"e.g. {hits[:3]}")
 
-    zero(RX_FILELINE, "file:line coordinate")
-    zero(RX_NTHLINE, "第N行")
-    zero(RX_RANGE, "N–M line range")
-    zero(RX_CALL, "identifier call string")
-    zero(RX_KEYWORD, "source keyword")
-    for name in ENGINE_CODE_FILES:
-        n = len(re.findall(r"(?<![\w./-])" + re.escape(name)
-                           + r"(?![\w.-])", page))
-        if n:
-            failures.append(f"code-detail engine filename {name}: "
-                            f"{n} hit(s)")
-    for ident in BANNED_IDENTIFIERS:
-        n = page.count(ident)
-        if n:
-            failures.append(f"code-detail identifier {ident!r}: {n} hit(s)")
+def digit_sweep_gate(svg_sources: str, html: str, failures: list) -> int:
+    """Reverse number sweep (audit-batteries §2): every digit sequence in
+    the reader-visible projection must be claimed — either it occurs as a
+    substring of the frozen data layer (the value literally exists in
+    data/*.json: stat values, VIZ-*-NNNN codes, sha/engine-commit
+    prefixes, example values, per-suite counts), or it sits on the
+    reviewed DIGIT_EXEMPTIONS list. Returns the count of distinct claimed
+    tokens so the build banner can report sweep coverage."""
+    blob = "".join(p.read_text() for p in sorted((HERE / "data").glob("*.json")))
+    vis = visible_text(svg_sources, html)
+    tokens = set(re.findall(r"[0-9][0-9.]*", vis))
+    unclaimed = sorted(t for t in tokens
+                       if t not in blob and t.rstrip(".") not in blob
+                       and t not in DIGIT_EXEMPTIONS)
+    for t in unclaimed:
+        why = ("not a substring of any data/*.json and not on the "
+               "DIGIT_EXEMPTIONS list — hand-typed numbers are banned; "
+               "interpolate from frozen data or add a reviewed exemption")
+        failures.append(f"digit sweep: unclaimed token {t!r} ({why})")
+    return len(tokens) - len(unclaimed)
 
 HTML_HEAD = """<!DOCTYPE html>
 <html lang="zh-CN">
@@ -276,9 +347,23 @@ def main() -> None:
         if needle not in svg_sources:
             failures.append(f"new-form {label}: needle {needle!r} "
                             f"missing from panel svg sources")
+    # Claim-id coverage, anchored on the reader-visible projection with a
+    # two-way binding (2026-09-07): a bare substring check over raw svg
+    # sources was structurally masked — "E1" survives inside the hex
+    # attribute #D9E1E3, so deleting every real E1 chip sailed through
+    # (pill record: data/audit/pills.json). Registry ids must appear as
+    # standalone tokens in page text, and no E-number may appear that is
+    # not in the E1-E6 registry.
+    vis_text = visible_text(svg_sources, html)
+    vis_svg_text = visible_text(svg_sources, "")
     for eid in ["E1", "E2", "E3", "E4", "E5", "E6"]:
-        if eid not in svg_sources:
-            failures.append(f"claim id {eid}: missing from panel svg sources")
+        if not re.search(rf"(?<![A-Za-z0-9]){eid}(?![0-9])", vis_svg_text):
+            failures.append(f"claim id {eid}: missing from page text")
+    for n in sorted(set(re.findall(r"(?<![A-Za-z0-9])E(\d+)(?![0-9])",
+                                   vis_text))
+                    - {"1", "2", "3", "4", "5", "6"}):
+        failures.append(f"claim id E{n}: on the page but not in the "
+                        "E1-E6 registry (two-way binding)")
     if (svg_sources + html).count("VERIFICATION") < 12:
         failures.append("claim pointers: fewer than 12 VERIFICATION "
                         "references on the page")
@@ -314,6 +399,7 @@ def main() -> None:
             failures.append(f"self-pollution {label}: {n} occurrence(s)")
 
     code_detail_gate(svg_sources, html, failures)
+    claimed = digit_sweep_gate(svg_sources, html, failures)
 
     if failures:
         for f in failures:
@@ -329,7 +415,9 @@ def main() -> None:
           f"4 pollution checks, code-detail gate: 6 sweeps + "
           f"{len(ENGINE_CODE_FILES)} filenames + "
           f"{len(BANNED_IDENTIFIERS)} identifiers all zero, "
-          f"inline-medium + font floors (min text {worst}px)")
+          f"inline-medium + font floors (min text {worst}px), "
+          f"digit sweep: {claimed} distinct tokens all claimed "
+          f"({len(DIGIT_EXEMPTIONS)} reviewed exemption(s))")
 
 
 if __name__ == "__main__":

@@ -510,3 +510,127 @@ panel_head）、panels.py（HEADS + 头部出图 + 4 处重排）、build.py（�
   内联 + HTML 章节层；页高 8558 → 8881。
 - 页面正文语言、声明编号层（E1–E6）、证据链与冻结数据零变更；本轮一切
   数字口径与 §3/§11.6 一致。
+
+## 13. 2026-09-07 refine（审计硬化）
+
+舰队 AUDIT-HARDENING 轮，survey 在案的三个 med 缺陷（no-poison /
+no-reverse-sweep / fingerprint-gaps）逐项落地；原则不变：撤回不删除、
+每处修改可追溯、冻结证据逐字节不动（本节所有毒丸与篡改探针均发生在
+/tmp 抛弃式拷贝，树内 data/*.json 零接触）。
+
+### 13.1 毒丸驱动的门禁缺陷修复（no-poison 前置发现）
+
+1. **code_detail_gate 死代码（P1，本轮最大发现）**：2026-09-06 refine
+   把 font_floor_gate 插进 build.py 时，六式清扫的函数体被截断成
+   `return worst` 之后的死代码——六式清扫自那一刻起**实际一次都没执
+   行过**，而 build 横幅仍打印「code-detail gate: 6 sweeps + … all
+   zero」（假绿，pitfall 25 门禁冒名的变体）。实锤：毒丸
+   `capability.rs:152` 注入 /tmp 拷贝后 build 照样 exit 0。§12.3 中
+   「六式清扫 + 26 文件名 + 25 标识符…全保留（全绿）」一句
+   【后证不实，已修正：所引断言当时为死代码，未参与判定】；§2 门禁
+   总表「代码细节清扫」行在 2026-09-06 至本修复前同受影响。**fixed**：
+   函数体复位，7 类毒丸（六式 + 黑名单标识符）全部拦下（§13.3）。
+2. **call-string 口径收窄到读者可见投影**：复位后干净页爆出 24 处
+   `translate(0` 命中——wave-1 的 `transform="translate(0 -122)"` 几何
+   群组是 SVG 呈现语法，不是源码（也正是这个未爆雷让死代码当时没被
+   发现）。该式改扫读者可见文本投影（`visible_text()`：SVG `<text>`
+   内容 + HTML 文本节点）；可见文本毒丸 `frob(42)` 仍拦。其余五式与
+   文件名/标识符黑名单仍扫 svg+html 原字节（更强口径不变）。
+3. **声明编号断言被十六进制色值遮蔽（R11 同族）**：原断言
+   `if "E1" not in svg_sources` 是裸子串——`"E1" ⊂ "#D9E1E3"`（RULE
+   色，60 处属性），把页面 E1 全删光断言照样通过（毒丸实锤）。**fixed**：
+   改为可见文本锚定（`(?<![A-Za-z0-9])E1(?![0-9])`）+ **双向绑定**——
+   E1–E6 每个必须以独立 token 出现，且页面上任何 E 编号必须属于登记
+   表（多出的 E7 一侧同样拦截）。
+
+### 13.2 反向数字清扫（no-reverse-sweep）
+
+build.py 新增 digit_sweep_gate（每次构建即门禁）：抽取读者可见投影
+的全部数字串（HTML 文本 + SVG `<text>`，共 **71 个不同 token / 309
+次出现**），每个必须二选一——(a) 是 `data/*.json` 冻结字节的子串
+（stat 值、VIZ-*-NNNN 码号、sha/engine commit 前缀、示例值、逐套件
+计数、面板序号均经此通道认领）；(b) 在经复核的豁免表上。豁免表仅
+1 条（build.py `DIGIT_EXEMPTIONS`，带理由）：
+
+- `100`：「覆盖率 100%」= 110/110 节点带 origin——110 冻结于
+  scene_nodes.json（total_nodes == 直方图求和），但节点数组不在冻
+  结层，逐节点 origin 全 present 是冻结时人工核验（§7/R3），故 100
+  为复核过的派生值。
+
+清扫结果：**未认领数字 0**（71/71 全部认领）；毒丸 987654（数据层
+不存在的数字）注入即被拦。手打数字自此无法混上页面。
+
+### 13.3 毒丸电池（no-poison）
+
+`tools/poison_pills.py`：11 粒毒丸逐粒注入 /tmp 抛弃式拷贝
+（/tmp/vizir-explainer-pills，只拷 build/panels/svgkit/data，冻结层
+零接触），门禁逐粒拦截 + 对照组全绿：
+
+| 毒丸 | 注入物 | 结果 |
+|---|---|---|
+| file:line | `capability.rs:152` | 拦（exit 1） |
+| 引擎源码文件名 | `patch.rs` | 拦 |
+| N–M 行区间 | `:77-82` | 拦 |
+| 第N行 | `第 312 行` | 拦 |
+| 源码关键字 | `impl` | 拦 |
+| 标识符调用串（可见文本） | `frob(42)` | 拦 |
+| 黑名单标识符 | `diff_scene` | 拦 |
+| 声明编号绑定 | E1 全量下页（panels.py + build.py 页脚） | 拦（缺失 + E7 越册双报） |
+| 数字清扫 | `987654` | 拦 |
+| svg-linter 悬挂引用 | 删除被引用的 `<defs>` id | 拦（svg/dangling-reference） |
+| svg-linter 重复 id | 复制 linearGradient id | 拦（svg/duplicate-id） |
+
+对照组 3/3 绿：干净拷贝 build exit 0；引用可解析的 defs 控制组
+exit 0 / 0 findings；真实 13 个 svg 文件逐一 exit 0 / 0 findings。
+合计 **11/11 拦截、对照 3/3 干净**；逐粒记录（注入点、命令、退出码、
+命中消息）冻结于 `data/audit/pills.json`。
+
+### 13.4 全树指纹（fingerprint-gaps）
+
+`tools/fingerprint_tree.py` → `data/audit/fingerprints.json`：sha256
+覆盖**全树 60 个文件**（14 份 data/*.json 冻结证据 + svg 13 + render
+位图与切片 + index.html + 全部生成器与工具 + README/VERIFICATION/
+contract）。此前 data/*.json 的「未变」只是声明（§12.4 在案缺口），
+本轮起入册可验。清单只含稳定字段（相对路径排序、无时间戳、无 live
+HEAD、无机器路径），**幂等**（重跑清单逐字节不变，实测）。
+
+- **唯一命名豁免：`data/audit/`**（运行记录区：pills.json、
+  fingerprints.json、后续 post-commit 记录）。理由：运行记录若入指
+  纹，每次门禁重跑都会使清单失效并逼出新提交（fixpoint 规则，
+  audit-batteries §7）；冻结证据 data/*.json 本身全部在册，不受影响。
+  新增任何豁免须另立带日期的 VERIFICATION 条目。
+- `--check`：树内 60 文件全符；**detached 复核**：/tmp 平面拷贝内
+  `--check` 通过（路径无关）；**篡改探针**：对拷贝的 data/tests.json
+  追加 1 字节 → FAIL（hash mismatch 实报），即数据层入册实证。
+- 文档引用一致性：§12.2 全部现行产物指纹（index + 13 svg + 3 png）
+  与清单逐项相符；data/tests.json 仍等于 §4（2026-09-02）记录值
+  `c9efee9b…`——两处历史表列经清单闭环。README/VERIFICATION 此后引用的
+  现行哈希一律以该清单为唯一来源。
+
+### 13.5 门禁复跑实录（本轮全部实际执行）
+
+- build 断言全绿：6 锚定计数 + 10 新形式 needle + 4 自污染 + 六式
+  清扫（**真实执行**）+ 26 文件名 + 25 标识符 + E1–E6 双向绑定 +
+  inline-medium + 字号下限 + digit sweep（71 token 全认领）。
+- 双跑确定性：连续两次 build 后 `cmp` byte 级一致；index.html 与
+  svg/*.svg 与 wave-1 产物**逐字节相同**（cmp 实证——本轮只改门禁
+  与工具，页面产物零变更，故 render/ 三图未重拍：位图对应的就是这
+  份逐字节未变的页面，且 §5 既已披露 PNG 重拍不保证 byte 级一致，
+  无端重拍只会翻新指纹不增保证）。
+- svg-linter：13 文件 `check --plain --require-complete` 全 exit 0 /
+  0 findings；内联一致性：index.html 抽 13 块与 svg/*.svg 逐字节
+  相等且送检 13 × exit 0。
+- 毒丸电池 11/11 + 对照 3/3（§13.3）；指纹写入-幂等-check-detached-
+  篡改探针五连（§13.4）。
+- 引擎只读：`git status` 改动全部位于 docs/infographics/vizir-explainer/
+  内（tools/ 与 data/audit/ 为新增子目录），树外零改动、零 commit。
+
+### 13.6 本轮文件清单与暂缓项
+
+新增：`tools/poison_pills.py`、`tools/fingerprint_tree.py`、
+`data/audit/pills.json`、`data/audit/fingerprints.json`（后两者豁免
+于指纹）；修改：`build.py`（门禁修复 + digit sweep + 双向绑定 +
+visible_text）、`README.md`、本节。**暂缓**（survey 在案、本轮未指
+派）：no-vacuum（真空重建记录已有 §11.7/§12.3，本轮页面产物零变更
+无重建对象增量）；no-claims-binding 的页尾声明表形式（本树为 E1–E6
+chip+登记表面板形态，双向绑定已内建于 build 门禁，未另加页尾表）。
