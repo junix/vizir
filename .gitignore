@@ -6,3 +6,21 @@
 Cargo.lock
 **/*.rs.bk
 *.pdb
+
+# Generated caches, render slices, and numbered lint images (keep final PNG/PDF).
+/docs/infographics/vizir-explainer/render/panel-01-hero@2x.png
+/docs/infographics/vizir-explainer/render/panel-02-pipeline@2x.png
+/docs/infographics/vizir-explainer/render/panel-03-origin@2x.png
+/docs/infographics/vizir-explainer/render/panel-04-explain-tree@2x.png
+/docs/infographics/vizir-explainer/render/panel-05-coverage@2x.png
+/docs/infographics/vizir-explainer/render/panel-06-capability-surface@2x.png
+/docs/infographics/vizir-explainer/render/panel-07-decisions@2x.png
+/docs/infographics/vizir-explainer/render/panel-08-fail-loud@2x.png
+/docs/infographics/vizir-explainer/render/panel-09-loss@2x.png
+/docs/infographics/vizir-explainer/render/panel-10-patch-gate@2x.png
+/docs/infographics/vizir-explainer/render/panel-11-patch-equivalence@2x.png
+/docs/infographics/vizir-explainer/render/panel-12-gates@2x.png
+/docs/infographics/vizir-explainer/render/panel-colophon@2x.png
+/docs/infographics/vizir-explainer/render/slice-00000.png
+/docs/infographics/vizir-explainer/render/slice-03600.png
+/docs/infographics/vizir-explainer/render/slice-07200.png
