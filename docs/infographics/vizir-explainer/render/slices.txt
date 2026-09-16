@@ -1,3 +1,0 @@
-/Users/junix/projects/plot/vizir/docs/infographics/vizir-explainer/render/slice-00000.png
-/Users/junix/projects/plot/vizir/docs/infographics/vizir-explainer/render/slice-03600.png
-/Users/junix/projects/plot/vizir/docs/infographics/vizir-explainer/render/slice-07200.png
