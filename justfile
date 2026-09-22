@@ -35,6 +35,5 @@ inspect:
 
 install: build
     mkdir -p "{{ install_bin }}"
-    cp "{{ target_dir }}/release/vizir" "{{ install_bin }}/vizir"
-    chmod +x "{{ install_bin }}/vizir"
+    @set -eu; dest="{{ install_bin }}/vizir"; mkdir -p "$(dirname "$dest")"; tmp="$(mktemp "{{ install_bin }}/.vizir.XXXXXX")"; trap 'rm -f "$tmp"' EXIT; cp "{{ target_dir }}/release/vizir" "$tmp"; chmod 755 "$tmp"; if [ "$(uname -s)" = "Darwin" ]; then xattr -c "$tmp" 2>/dev/null || true; codesign --force --sign - "$tmp"; fi; mv -f "$tmp" "$dest"
     @echo "installed {{ install_bin }}/vizir"
