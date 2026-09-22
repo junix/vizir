@@ -413,4 +413,3 @@ fn validate_scene_ids(nodes: &[SceneNode]) -> VizResult<()> {
 #[cfg(test)]
 #[path = "patch_tests.rs"]
 mod tests;
-

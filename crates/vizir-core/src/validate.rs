@@ -814,4 +814,3 @@ fn validate_finite(value: f64, source: &str, diagnostics: &mut Vec<Diagnostic>) 
 #[cfg(test)]
 #[path = "validate_tests.rs"]
 mod tests;
-

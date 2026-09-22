@@ -279,4 +279,3 @@ fn color_has_alpha(value: &str) -> bool {
 #[cfg(test)]
 #[path = "capability_tests.rs"]
 mod tests;
-

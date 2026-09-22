@@ -77,8 +77,8 @@ fn diff_and_apply_match_full_scene_semantics() {
             },
         ]
     );
-    let (actual, revision) = apply_scene_patch(&previous, Revision(7), &patch)
-        .expect("patch should apply atomically");
+    let (actual, revision) =
+        apply_scene_patch(&previous, Revision(7), &patch).expect("patch should apply atomically");
     assert_eq!(revision, Revision(8));
     assert_eq!(actual, next);
 }

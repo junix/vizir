@@ -948,4 +948,3 @@ fn lowering_error(message: String) -> VizError {
 #[cfg(test)]
 #[path = "lower_tests.rs"]
 mod tests;
-

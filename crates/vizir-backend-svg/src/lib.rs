@@ -348,4 +348,3 @@ fn escape_attr(value: &str) -> String {
 #[cfg(test)]
 #[path = "lib_tests.rs"]
 mod tests;
-

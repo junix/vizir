@@ -515,4 +515,3 @@ fn portable_color(value: &str) -> bool {
 #[cfg(test)]
 #[path = "expression_tests.rs"]
 mod tests;
-
