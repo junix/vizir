@@ -5,9 +5,10 @@ arch_name := if arch() == "aarch64" { "arm64" } else { "x86" }
 default_install_bin := home_directory() / "sync" / (os_name + "-" + arch_name + "-bin")
 install_bin := env("SYNC_BIN_DIR", default_install_bin)
 target_dir := env("CARGO_TARGET_DIR", justfile_directory() / "target")
+stamp := `git rev-parse --short HEAD` + `(git diff --quiet && git diff --cached --quiet) >/dev/null 2>&1 || printf .dirty`
 
 build:
-    cargo build --release -p vizir-cli
+    PM_BUILD_SHA="g{{stamp}}" cargo build --release -p vizir-cli
 
 test:
     cargo test --workspace

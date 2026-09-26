@@ -13,7 +13,7 @@ use vizir_core::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "vizir", version, about = "Compile semantic visualization IR")]
+#[command(name = "vizir", version = version(), about = "Compile semantic visualization IR")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -82,6 +82,13 @@ enum IrKind {
     Mir,
     ScenePatch,
     Capability,
+}
+
+fn version() -> &'static str {
+    match option_env!("PM_BUILD_SHA") {
+        Some(stamp) => format!("{}+{}", env!("CARGO_PKG_VERSION"), stamp).leak(),
+        None => env!("CARGO_PKG_VERSION"),
+    }
 }
 
 fn main() {
