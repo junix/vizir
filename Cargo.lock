@@ -527,6 +527,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "png",
+ "rustix",
  "same-file",
  "serde",
  "serde_json",
@@ -535,6 +536,7 @@ dependencies = [
  "vizir-backend-svg",
  "vizir-compiler",
  "vizir-core",
+ "windows-sys",
 ]
 
 [[package]]

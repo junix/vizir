@@ -19,6 +19,12 @@ vizir-backend-svg = { path = "../vizir-backend-svg" }
 vizir-compiler = { path = "../vizir-compiler" }
 vizir-core = { path = "../vizir-core" }
 
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1", features = ["fs"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Pipes"] }
+
 [target.'cfg(not(unix))'.dependencies]
 same-file = "1.0.6"
 

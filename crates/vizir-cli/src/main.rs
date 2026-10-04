@@ -13,6 +13,7 @@ use vizir_core::{
 };
 
 mod paths;
+mod process;
 
 #[derive(Debug, Parser)]
 #[command(name = "vizir", version = version(), about = "Compile semantic visualization IR")]
@@ -148,14 +149,15 @@ fn run(cli: Cli) -> VizResult<()> {
             let svg = vizir_backend_svg::render(&compilation.scene)?;
             ensure_parent(&output)?;
             let mut target_losses = Vec::new();
+            let mut rasterizer = None;
             match format {
                 OutputFormat::Svg => write(&output, svg.as_bytes())?,
                 OutputFormat::Png => {
-                    render_png(
+                    rasterizer = Some(render_png(
                         &svg,
                         &output,
                         compilation.scene.background.0 == "transparent",
-                    )?;
+                    )?);
                     target_losses.push(LossRecord {
                         source: "scene2d".to_owned(),
                         target: "png".to_owned(),
@@ -172,9 +174,7 @@ fn run(cli: Cli) -> VizResult<()> {
                     "format": format_name(format),
                     "background": compilation.scene.background,
                     "output": output,
-                    "rasterizer": matches!(format, OutputFormat::Png)
-                        .then(available_rasterizer)
-                        .flatten(),
+                    "rasterizer": rasterizer,
                     "capability_report": capability_report,
                     "losses": target_losses,
                 });
@@ -293,7 +293,7 @@ fn emit_json<T: serde::Serialize>(value: &T, output: Option<&Path>) -> VizResult
     Ok(())
 }
 
-fn render_png(svg: &str, output: &Path, expect_transparency: bool) -> VizResult<()> {
+fn render_png(svg: &str, output: &Path, expect_transparency: bool) -> VizResult<&'static str> {
     let mut temporary = Builder::new()
         .prefix("vizir-")
         .suffix(".svg")
@@ -309,43 +309,36 @@ fn render_png(svg: &str, output: &Path, expect_transparency: bool) -> VizResult<
         }
     })?;
 
-    if command_exists("rsvg-convert") {
-        let result = Command::new("rsvg-convert")
-            .args(["--format", "png", "--output"])
-            .arg(output)
-            .arg(temporary.path())
-            .output()
-            .map_err(|source| VizError::Diagnostic(format!("VIZ-BACKEND-0001: {source}")))?;
-        if result.status.success() {
-            verify_png_alpha(output, expect_transparency)?;
-            return Ok(());
+    let rasterizer = available_rasterizer()?;
+    let mut command = Command::new(rasterizer.command());
+    let (start_code, failure_code) = match rasterizer {
+        Rasterizer::Rsvg => {
+            command
+                .args(["--format", "png", "--output"])
+                .arg(output)
+                .arg(temporary.path());
+            ("VIZ-BACKEND-0001", "VIZ-BACKEND-0002")
         }
+        Rasterizer::ImageMagick => {
+            command
+                .arg(temporary.path())
+                .arg(format!("png:{}", output.display()));
+            ("VIZ-BACKEND-0003", "VIZ-BACKEND-0004")
+        }
+    };
+    let result = process::run(&mut command, process::RENDER_TIMEOUT).map_err(|error| {
+        VizError::Diagnostic(format!("{start_code}: {}: {error}", rasterizer.command()))
+    })?;
+    if !result.status.success() {
         return Err(VizError::Diagnostic(format!(
-            "VIZ-BACKEND-0002: rsvg-convert failed: {}",
-            String::from_utf8_lossy(&result.stderr).trim()
+            "{failure_code}: {} failed ({}): {}",
+            rasterizer.command(),
+            result.status,
+            result.diagnostics()
         )));
     }
-
-    if command_exists("magick") {
-        let result = Command::new("magick")
-            .arg(temporary.path())
-            .arg(format!("png:{}", output.display()))
-            .output()
-            .map_err(|source| VizError::Diagnostic(format!("VIZ-BACKEND-0003: {source}")))?;
-        if result.status.success() {
-            verify_png_alpha(output, expect_transparency)?;
-            return Ok(());
-        }
-        return Err(VizError::Diagnostic(format!(
-            "VIZ-BACKEND-0004: ImageMagick failed: {}",
-            String::from_utf8_lossy(&result.stderr).trim()
-        )));
-    }
-
-    Err(VizError::Diagnostic(
-        "VIZ-CAP-0001: PNG output needs rsvg-convert or ImageMagick; SVG output remains available"
-            .to_owned(),
-    ))
+    verify_png_alpha(output, expect_transparency)?;
+    Ok(rasterizer.name())
 }
 
 fn verify_png_alpha(path: &Path, expect_transparency: bool) -> VizResult<()> {
@@ -414,22 +407,55 @@ fn format_name(format: OutputFormat) -> &'static str {
     }
 }
 
-fn available_rasterizer() -> Option<&'static str> {
-    if command_exists("rsvg-convert") {
-        Some("rsvg-convert")
-    } else if command_exists("magick") {
-        Some("imagemagick")
-    } else {
-        None
+#[derive(Clone, Copy)]
+enum Rasterizer {
+    Rsvg,
+    ImageMagick,
+}
+
+impl Rasterizer {
+    fn command(self) -> &'static str {
+        match self {
+            Self::Rsvg => "rsvg-convert",
+            Self::ImageMagick => "magick",
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Rsvg => "rsvg-convert",
+            Self::ImageMagick => "imagemagick",
+        }
     }
 }
 
-fn command_exists(command: &str) -> bool {
-    Command::new(command)
-        .arg("--version")
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+fn available_rasterizer() -> VizResult<Rasterizer> {
+    let mut failures = Vec::new();
+    for rasterizer in [Rasterizer::Rsvg, Rasterizer::ImageMagick] {
+        let result = process::run(
+            Command::new(rasterizer.command()).arg("--version"),
+            process::PROBE_TIMEOUT,
+        );
+        match result {
+            Ok(output) if output.status.success() => return Ok(rasterizer),
+            Ok(output) => failures.push(format!(
+                "{} probe failed ({}): {}",
+                rasterizer.command(),
+                output.status,
+                output.diagnostics()
+            )),
+            Err(error) if error.missing => {}
+            Err(error) => failures.push(format!("{} probe failed: {error}", rasterizer.command())),
+        }
+    }
+    let details = if failures.is_empty() {
+        String::new()
+    } else {
+        format!("\n{}", failures.join("\n"))
+    };
+    Err(VizError::Diagnostic(format!(
+        "VIZ-CAP-0001: PNG output needs rsvg-convert or ImageMagick; SVG output remains available{details}"
+    )))
 }
 
 fn validate_cli_color(value: &str) -> VizResult<()> {

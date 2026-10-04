@@ -63,6 +63,36 @@ together. Checks rely on the filesystem's path resolution and file identities;
 they do not predict filesystem-specific aliases between differently spelled
 files that do not exist yet (for example, case folding on some volumes).
 
+### External renderer limits
+
+PNG selection still prefers `rsvg-convert`, falling back to ImageMagick (`magick`)
+when its probe is unavailable or unsuccessful. Each `--version` probe has a
+2-second deadline, and the selected rasterizer has a 30-second deadline. The
+manifest records that successful selection without launching another probe. A
+failed selected renderer is an error, not a request to retry with another backend.
+
+Each deadline covers both direct-child exit and completion of stdout/stderr
+capture. Stdin is closed. At most 64 KiB of raw diagnostic bytes are retained
+per stream; excess bytes are drained and discarded, with a truncation marker in
+reported diagnostics. Both streams are drained in bounded chunks so a flood
+cannot prevent deadline checks. Captures use nonblocking reads on Unix and
+available-byte reads on Windows, without detached reader threads.
+
+After direct-child exit, inherited diagnostic pipes get at most 250 ms to close,
+within the original deadline. A timeout, capture failure, or held-open pipe is an
+error even if a PNG was written. On cancellation, only the owned direct child is
+killed, followed by up to 250 ms of nonblocking reap attempts; a cleanup failure
+is reported. Descendants are not killed and may survive after their capture
+handles close. No process groups, global signal handlers, or global environment
+changes are used. Deadlines are polling bounds (5 ms interval), with cancellation
+grace and normal OS scheduling/spawn overhead, not hard real-time guarantees.
+
+Success also requires a zero exit status and a decodable, complete PNG passing
+the alpha contract. Failed or timed-out direct writes can still leave partial
+output, and an old artifact or manifest is not rolled back or removed. These
+process limits do not provide atomic publication or prove that an existing PNG
+was freshly written by a renderer that exits successfully without producing output.
+
 The executable contracts can be emitted directly from the Rust model:
 
 ```bash
