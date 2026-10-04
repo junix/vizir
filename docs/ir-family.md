@@ -82,7 +82,7 @@ geometry, transparent paint, zero opacity/stroke width, and zero/reflected
 transform scales remain valid. Bounds are approximate; validation does not
 prove exact geometry bounds, parent/viewport containment, font measurements,
 or safe rendering at every finite magnitude. It does not impose backend limits
-or verify provenance truth. No wire fields or decoding rules are changed.
+or verify provenance truth. The semantic API introduces no wire fields.
 
 The compiler validates the completed scene, `diff_scene` validates both inputs,
 and the SVG backend validates before negotiation or emission (including PNG's
@@ -180,3 +180,24 @@ fields:
 
 Each promotion requires executable examples, normalized failure tests, explicit
 capability behavior, and incremental/full semantic equivalence where applicable.
+
+## Strict Scene2D wire decoding
+
+Scene2D, bounds (`Rect`), resolved styles, and provenance (`Origin`) reject
+unknown fields when decoded, including inside ScenePatch insert/replace node
+payloads. This change is limited to these four struct types. Direct JSON
+decoding retains its existing rejection of repeated recognized fields; this is
+regression coverage, not newly added duplicate-key handling. Parse JSON directly
+into the typed scene or patch when duplicate detection matters. Parsing into
+`serde_json::Value` first loses duplicate keys before typed decoding can inspect
+them.
+
+This narrows acceptance of malformed input that earlier readers could silently
+discard. It does not add an extension map, version negotiation, new fields or
+node variants. Existing enum decoding behavior is unchanged; this work does not
+harden unit variants such as `PathCommand::Close` or `SceneParent::Root`.
+Valid serialized scenes/patches, optional Origin defaults, and
+opaque IDs/data strings retain their existing representation. ScenePatch's
+schema now marks Origin, Rect and ResolvedStyle with
+`additionalProperties: false`; decoding remains separate from semantic
+`validate_scene` checks. No standalone Scene2D schema command is introduced.

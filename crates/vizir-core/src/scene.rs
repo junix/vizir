@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Color, FontWeight, LossRecord, PathCommand, Point, TextAnchor, Transform2D};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Scene2D {
     pub document_id: String,
     pub width: f64,
@@ -101,6 +102,7 @@ impl SceneNode {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
 pub struct Rect {
     pub x: f64,
     pub y: f64,
@@ -122,6 +124,7 @@ impl Rect {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ResolvedStyle {
     pub fill: Color,
     pub stroke: Color,
@@ -130,6 +133,7 @@ pub struct ResolvedStyle {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct Origin {
     pub hir_node: String,
     pub mir_node: String,

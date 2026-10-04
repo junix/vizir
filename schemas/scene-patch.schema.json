@@ -43,6 +43,7 @@
       "type": "string"
     },
     "Origin": {
+      "additionalProperties": false,
       "properties": {
         "data_key": {
           "type": [
@@ -172,6 +173,7 @@
       "type": "object"
     },
     "Rect": {
+      "additionalProperties": false,
       "properties": {
         "height": {
           "format": "double",
@@ -199,6 +201,7 @@
       "type": "object"
     },
     "ResolvedStyle": {
+      "additionalProperties": false,
       "properties": {
         "fill": {
           "type": "string"
