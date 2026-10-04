@@ -139,3 +139,48 @@ views:
             .any(|value| value.code == "VIZ-VALIDATE-0204")
     );
 }
+
+#[test]
+fn numeric_chart_span_validation_checks_each_axis_without_changing_finite_controls() {
+    for kind in ["chart.line", "chart.scatter", "chart.bar"] {
+        for field in ["x", "y"] {
+            let chart_fields = if kind == "chart.bar" {
+                format!("    category: {{field: category}}\n    value: {{field: {field}}}\n")
+            } else {
+                "    x: {field: x}\n    y: {field: y}\n".to_owned()
+            };
+            for (minimum, maximum, rejected) in [
+                (-1e308, 1e308, true),
+                (-3.0, 5.0, false),
+                (0.0, 0.0, false),
+                (1e150, 3e150, false),
+            ] {
+                let rows = [minimum, maximum]
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| {
+                        let x = if field == "x" { *value } else { index as f64 };
+                        let y = if field == "y" { *value } else { index as f64 };
+                        format!("      - {{id: row-{index}, category: row-{index}, x: {x:e}, y: {y:e}}}\n")
+                    })
+                    .collect::<String>();
+                let source = format!(
+                    "version: \"0.1\"\nid: numeric-span\nwidth: 640\nheight: 400\ndatasets:\n  values:\n    key: id\n    rows:\n{rows}views:\n  - kind: {kind}\n    id: chart\n    frame: {{x: 0, y: 0, width: 640, height: 400}}\n    dataset: values\n{chart_fields}"
+                );
+                let document: Document = serde_yaml::from_str(&source).unwrap();
+                let result = validate_document(&document);
+                if rejected {
+                    let diagnostics = result.unwrap_err();
+                    assert_eq!(diagnostics.len(), 1, "{kind} {field}");
+                    assert_eq!(diagnostics[0].code, "VIZ-TYPE-0106");
+                    assert_eq!(
+                        diagnostics[0].source.as_deref(),
+                        Some(format!("datasets.values.rows.{field}").as_str())
+                    );
+                } else {
+                    assert!(result.is_ok(), "{kind} {field}: {result:?}");
+                }
+            }
+        }
+    }
+}

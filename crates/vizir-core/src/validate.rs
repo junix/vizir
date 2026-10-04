@@ -573,6 +573,35 @@ fn validate_chart_fields(
             }
         }
     }
+
+    // Finite endpoints can still overflow the subtraction used to resolve a
+    // linear scale. Reject this before normalization can turn an invalid
+    // derived domain into null JSON or NaN scene/SVG coordinates.
+    for field in numeric_fields {
+        let mut minimum = f64::INFINITY;
+        let mut maximum = f64::NEG_INFINITY;
+        for value in dataset
+            .rows
+            .iter()
+            .filter_map(|row| row.get(*field).and_then(Value::as_f64))
+            .filter(|value| value.is_finite())
+        {
+            minimum = minimum.min(value);
+            maximum = maximum.max(value);
+        }
+        if minimum <= maximum && !(maximum - minimum).is_finite() {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-TYPE-0106",
+                    format!(
+                        "field {field:?} has a numeric span too large for a finite linear scale"
+                    ),
+                )
+                .at(format!("datasets.{dataset_name}.rows.{field}"))
+                .with_help("rescale the input values to a smaller magnitude"),
+            );
+        }
+    }
 }
 
 pub fn value_as_key(value: &Value) -> Option<String> {

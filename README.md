@@ -182,6 +182,15 @@ vizir schema scene-patch --output schemas/scene-patch.schema.json
 vizir schema capability --output schemas/capability.schema.json
 ```
 
+### Numeric chart fields
+
+Line, scatter, and bar numeric fields must contain finite numbers. A field
+whose finite maximum minus minimum overflows is rejected before normalization
+with `VIZ-TYPE-0106`; rescale the input values to a smaller magnitude. This
+prevents that overflowing span from producing invalid domains or coordinates.
+This check does not promise arbitrary-magnitude arithmetic or constrain every
+possible derived-domain operation.
+
 ### Chart header layout
 
 Chart titles, legends, and axis titles reserve space before scales are resolved.
