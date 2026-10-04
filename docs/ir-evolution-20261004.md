@@ -1,8 +1,15 @@
 # VizIR 演进计划：让已有契约真正可配置、可执行
 
-评估日期：2026-10-04。源码基线：[4830efe](https://github.com/junix/vizir/tree/4830efe7c2b9530f9d2a960c5c03be11c4f213ee)。
+原始评估日期：2026-10-04。原始源码基线：[4830efe](https://github.com/junix/vizir/commit/4830efe7c2b9530f9d2a960c5c03be11c4f213ee)。下方第 1–6 节保留原始评估与阶段设计，包含当时尚未发布的描述；当前交付状态以本节及第 7 节为准。
 
-本文区分**已核实的现状**与**计划中的能力**。guide 引用修复和数值轴格式正在实现，本文不代表它们已经发布或通过全部验收。其余阶段是建议顺序，不是已交付清单。
+## 当前交付状态（2026-10-04）
+
+- 已发布：guide 显式 scale 引用 [19208ff](https://github.com/junix/vizir/commit/19208ff7770f8c86bd9ba6851fc0ebfb1aa9e1c6)、独立的微小数值域修复 [def3e52](https://github.com/junix/vizir/commit/def3e520a22b4cad48bcb4c7ea1139bb76cf225c)、可选 0.2 数值轴格式 [351323e](https://github.com/junix/vizir/commit/351323e18ae046dc656744b3e6fa0498615c589c)
+- graph-ir 的可选 OriginMapV1 已独立发布：[2e2fc8b](https://github.com/junix/graph-ir-rs/commit/2e2fc8b2f2eefee9c26ebc70e709f6da4d1c55b1)；它不是 VizIR 格式功能的依赖，也不合并领域 IR
+- 已发布：后端既有 Scene2D 身份别名 / limits 执行检查 [19c9b6e](https://github.com/junix/vizir/commit/19c9b6e50e719dfa66d39df7c157ac894b6ec65e)；没有新增 Scene 版本协议或 clip 模型
+- 类型化组合布局、样式 token/patch、数据物化，以及完整 Scene/ScenePatch 验证仍是后续计划
+
+0.1 保持新读取器的 wire 可读性；显式数值格式使用 0.2。当前有界验证不代表所有仓库、所有数值范围、字体或视觉场景均已验收。历史源码探针不再用于断言已修复路径仍有原缺陷。
 
 ## 1. 保留分层，先修可执行性
 
@@ -131,3 +138,48 @@ graph-ir 可另行提供可选 `OriginMapV1` sidecar，将 primitive ID 映射�
 VizIR 与 graph-ir 共享来源引用、诊断和 capability 的少量约定即可。VizHIR/MIR/Scene2D、图的 Semantic/Diagram/Layout/Render，以及语言 AST 继续各自承担职责。OriginMap 是后续协作计划，不是本次 VizIR 格式功能的依赖或已完成成果。
 
 每个阶段独立提交、独立验收。验收包括针对性失败测试、现有仓库检查、受影响复杂示例和最终图像检查；不得仅因类型或字段已存在，就把能力标为可用。
+
+
+## 7. 已发布交付记录与验收边界
+
+### 7.1 guide 引用与独立数值修复
+
+[19208ff](https://github.com/junix/vizir/commit/19208ff7770f8c86bd9ba6851fc0ebfb1aa9e1c6) 已按 `MirGuide.scale` 解析刻度、标题与显式图例，并诊断缺失引用、类型错误和歧义。10 个回归测试通过，旧实现有 9 个失败；该阶段 148 个测试通过，11 个示例的 MIR、Scene2D、SVG、PNG 共 44 份字节比较保持一致。0.1 没有显式 legend guide 时仍保留 mark-color 回退；没有无提示增加 0.1 guide 项。
+
+[def3e52](https://github.com/junix/vizir/commit/def3e520a22b4cad48bcb4c7ea1139bb76cf225c) 独立修复真实常量判断、次正规数 nice-step 下溢和向外覆盖原始极值的边界。24 个 tiny-domain 案例覆盖 scatter/line/bar 的有限域、刻度及有意义的几何区分；44 份旧示例比较保持一致。数值域推断不由是否选择格式来切换。旧格式仍可能把很小的数显示为 0；通用极大常量 nice bounds 不在这项修复内。
+
+### 7.2 0.2 数值轴格式已发布
+
+[351323e](https://github.com/junix/vizir/commit/351323e18ae046dc656744b3e6fa0498615c589c) 的最终接口见 [wire contract](https://github.com/junix/vizir/blob/351323e18ae046dc656744b3e6fa0498615c589c/docs/wire-format.md) 与 [MIR schema](https://github.com/junix/vizir/blob/351323e18ae046dc656744b3e6fa0498615c589c/schemas/viz-mir.schema.json)：
+
+- `fixed` 和 `scientific` 的 precision 表示小数位数，接受 0..12 的整数数值；schema 与运行时对整数数值写法保持一致，拒绝非整数及越界值
+- scatter/line 的数值轴及 bar value 轴可显式选择格式；分类轴、ordinal 图例等不适用位置不能接受后再忽略
+- HIR/MIR 0.1 继续可读；新格式语义必须显式选择 0.2，保留独立 `source_hir_version`。旧严格读取器不会因此自动理解 0.2
+- 同一实际刻度文本用于 MIR 与 Scene 布局；舍入后的负零归零，重复或不可表示的标签、过长标签和放不下的 frame 给出诊断，不静默裁剪、缩小或换格式
+- 新公开 Rust 字段可能要求外部 struct literal 增加字段；wire 兼容不等于 Rust 源码兼容。没有迁移命令
+
+最终 `just check` 为 **191 通过、1 个有意忽略的子进程 fixture**；28 个编译器集成测试、300 个小数 frame 往返案例、76 个 CLI 拒绝组合、19 个 schema 案例通过。14 个示例生成 56 个产物，旧 11 个示例共 **44 份 MIR/Scene2D/SVG/PNG 字节保持一致**；14 个 PNG 透明度检查通过。三个新示例（科学量级、测量精度、混合轴格式）已按交付尺寸检查，原有 11 张 gallery 卡片保留。Windows/macOS 为编译检查，并非原生运行验收。
+
+文本包络是确定性的 scene-unit 估计，不是通用字体整形保证。显式格式不承诺任意数值范围都可绘制，也不改变资源限制。此前跨库 65 案例报告保留 5 个大数标签可读性失败；本次只为 VizIR 指定的 opt-in 示例提供后续格式验收，没有重写历史报告或修复所有 Go/Rust/default 标签。
+
+### 7.3 Graph OriginMapV1 已独立发布
+
+[graph-ir 2e2fc8b](https://github.com/junix/graph-ir-rs/commit/2e2fc8b2f2eefee9c26ebc70e709f6da4d1c55b1) 在 primitive 生成处记录可选、类型化的 graph/node/edge/group/callout 引用。默认 IR struct、wire 与 SVG 输出不变；拆分的边段保持同一语义边来源。未知字段、重复字段和非法 ID/reference 被拒绝。
+
+`validate.sh` 通过 **120 个测试及 1 个 doctest**，包含严格 Clippy、格式、管线和序列化验证；严格 rustdoc 也通过。23 个管线输出目录的 **200 个默认产物**与基线字节相同，默认 lowering 的分配次数和分配字节数也相同。两份带 namespace 的 SVG 示例使用既有 primitive 属性连接到 sidecar，覆盖 26 个 primitive。
+
+这只验证 **ID/reference 一致性，不证明来源真实性、源码修订身份或内容指纹**。sidecar 不复制源文本、源码位置、扩展/property 内容；backend 根、canvas 和共享 marker 定义不在范围内，arrow use 继承路径来源。完整边界见 [Origin sidecar verification](https://github.com/junix/graph-ir-rs/blob/2e2fc8b2f2eefee9c26ebc70e709f6da4d1c55b1/docs/verification/origin-sidecar.md)。没有新增或恢复远程 CI workflow；浏览器/栅格验收不包含在该 sidecar 记录中。
+
+### 7.4 后端既有 IR 身份与 limits 已强制检查
+
+[19c9b6e](https://github.com/junix/vizir/commit/19c9b6e50e719dfa66d39df7c157ac894b6ec65e) 按精确且大小写敏感的 `scene2d` / `scene2d-through-svg` 别名接受当前静态 Scene2D；其他 IR、带空格/前缀或 `scene2d@0.2` 等拼写不能靠 feature 名相同获得接受。Scene2D 没有序列化版本字段，profile 的 version 是后端实现版本；因此这不是版本协商协议，HIR/MIR 0.2 仍生成既有 Scene 结构。
+
+`max-nodes` 是包含空 group 和所有递归子节点的 SceneNode 出现次数；重复 ID 不减少计数。上限包含边界，缺失没有该 profile 限制，零是真正的零。已声明的 `max-clip-depth` 当前测量为零，因为 Scene2D 没有 clip 构造；33 层普通 group 也不是 33 层 clip。本次没有新增 clip 模型、group 深度上限或完整 Scene 验证。
+
+未知 limit key 返回明确错误；直接把 JSON 解码为 BackendCapabilities 时拒绝重复 limit key。如果调用者先解析成 serde_json::Value，重复 key 已被上游折叠，之后无法恢复。limit 仍用既有 u64 解码器，因此 2.0 这种浮点拼写仍不接受，尽管 JSON Schema 接受整数值 number；这与新轴格式 precision 的数值接受规则不同。完整边界见 [backend capabilities](https://github.com/junix/vizir/blob/19c9b6e50e719dfa66d39df7c157ac894b6ec65e/docs/backend-capabilities.md)。
+
+原生 workspace 为 **207 通过、1 个既有忽略 fixture**，另有 **9 个独立边界检查通过**；严格格式/Clippy 和 Windows/macOS 编译检查通过。14 个示例的 **56 份 MIR/Scene2D/SVG/PNG 产物及 28 份 manifest**保持字节相同。失败决策让 is_accepted 为 false，require_accepted 返回 VIZ-CAP-0002；report 策略不能授权越过限制。CLI 使用内置 profile；自定义 profile 的 API 调用者也必须在输出前要求 accepted。这是在已经生成的 Scene 上执行检查，不是总内存上限。
+
+### 7.5 尚未交付的阶段
+
+第 5 节的组合布局、样式 patch、物化算子、完整 Scene/ScenePatch 验证，以及显式版本化 Scene envelope、更广的来源/交换约定仍需分别实现与测试。已交付数值格式和 sidecar 不能替代这些阶段；也不代表所有 49 个相关仓库已经完成验收。
