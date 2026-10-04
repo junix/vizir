@@ -18,7 +18,7 @@ fn all_examples_validate_after_scene_and_mir_json_round_trips_and_patch_applicat
         }
     }
     paths.sort();
-    assert_eq!(paths.len(), 15);
+    assert_eq!(paths.len(), 17);
     for path in paths {
         let compilation = compile(&parse_document(&path).unwrap()).unwrap();
         validate_scene(&compilation.scene).unwrap();

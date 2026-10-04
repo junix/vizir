@@ -104,7 +104,7 @@ impl ThemedMir {
                 format!("unsupported themed MIR format {:?}", self.format),
             ));
         }
-        if !matches!(self.mir.version.as_str(), "0.1" | "0.2")
+        if !matches!(self.mir.version.as_str(), "0.1" | "0.2" | "0.3")
             || self.mir.source_hir_version != self.mir.version
         {
             return Err(theme_error(
@@ -112,6 +112,8 @@ impl ThemedMir {
                 "themed context requires matching supported inner MIR and source HIR versions",
             ));
         }
+        vizir_core::validate_mir_capabilities(&self.mir)
+            .map_err(|diagnostics| VizError::validation(&diagnostics))?;
         self.theme.validate()
     }
 }
@@ -185,9 +187,11 @@ pub fn themed_mir_schema() -> serde_json::Value {
     schema["$defs"]["ThemeContext"]["oneOf"] = serde_json::json!(THEME_NAMES.map(
         |name| serde_json::json!({"const": ThemeContext::resolve(name).expect("canonical name")})
     ));
-    schema["$defs"]["VizMir"]["allOf"]
+    // Keep the complete legacy wrapper branch, including its two matching
+    // version pairs, exact. The isolated VizMirV03 branch pins its own pair.
+    schema["$defs"]["VizMir"]["oneOf"][0]["allOf"]
         .as_array_mut()
-        .expect("versioned MIR constraints")
+        .expect("legacy MIR constraints")
         .push(serde_json::json!({"oneOf": [
             {"properties": {"version": {"const": "0.1"}, "source_hir_version": {"const": "0.1"}}},
             {"properties": {"version": {"const": "0.2"}, "source_hir_version": {"const": "0.2"}}}

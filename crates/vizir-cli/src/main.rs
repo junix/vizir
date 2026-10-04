@@ -8,8 +8,8 @@ use tempfile::Builder;
 use vizir_compiler::{compiled_mir_schema, themed_mir_schema};
 use vizir_core::{
     BackendCapabilities, Color, LossRecord, LoweringFidelity, UnsupportedPolicy, VizError,
-    VizResult, capability_schema, compose, composition_schema, find_scene_node, mir_schema,
-    negotiate_scene, parse_composition, scene_patch_schema,
+    VizResult, capability_schema, compose_versioned, composition_schema, find_scene_node,
+    mir_schema, negotiate_scene, parse_versioned_composition, scene_patch_schema,
 };
 
 mod input;
@@ -26,7 +26,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Resolve a frame-free grid composition into ordinary VizHIR 0.2 JSON.
+    /// Resolve a frame-free grid composition into ordinary versioned VizHIR JSON.
     Compose {
         input: PathBuf,
         #[arg(short, long)]
@@ -144,9 +144,9 @@ fn main() {
 fn run(cli: Cli) -> VizResult<()> {
     match cli.command {
         Commands::Compose { input, output } => {
-            let composition = parse_composition(&input)?;
+            let composition = parse_versioned_composition(&input)?;
             paths::check_destinations(&input, output.as_deref(), None)?;
-            let document = compose(&composition)?;
+            let document = compose_versioned(&composition)?;
             emit_json(&document, output.as_deref())?;
         }
         Commands::Validate { input, theme, text } => {

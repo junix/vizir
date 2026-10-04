@@ -261,7 +261,7 @@ fn typed_hir_format_options_lower_losslessly_to_mir_02_guides() {
 
 #[test]
 fn unsupported_versions_are_rejected_at_public_entry_points() {
-    for version in ["0.0", "0.3", "1.0", "latest"] {
+    for version in ["0.0", "0.4", "1.0", "latest"] {
         let source = document(fixture(version));
         assert!(
             compile(&source)
@@ -518,7 +518,7 @@ fn old_mir_rejects_explicit_number_format_even_with_new_source_hir_version() {
 fn generated_mir_schema_exposes_the_versioned_closed_format_contract() {
     let schema = mir_schema();
     assert_eq!(
-        schema["properties"]["version"]["enum"],
+        schema["oneOf"][0]["properties"]["version"]["enum"],
         json!(["0.1", "0.2"])
     );
     assert_eq!(
@@ -531,12 +531,12 @@ fn generated_mir_schema_exposes_the_versioned_closed_format_contract() {
     assert_eq!(format_schema["properties"]["precision"]["minimum"], 0);
     assert_eq!(format_schema["properties"]["precision"]["maximum"], 12);
     assert_eq!(
-        schema["allOf"][0]["if"]["properties"]["version"]["const"],
+        schema["oneOf"][0]["allOf"][0]["if"]["properties"]["version"]["const"],
         "0.1"
     );
     assert_eq!(
-        schema["allOf"][0]["then"]["properties"]["views"]["items"]["properties"]["guides"]["items"]
-            ["not"]["required"],
+        schema["oneOf"][0]["allOf"][0]["then"]["properties"]["views"]["items"]["properties"]["guides"]
+            ["items"]["not"]["required"],
         json!(["number_format"])
     );
     assert_eq!(

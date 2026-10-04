@@ -11,7 +11,7 @@ VizHIR -> validated document -> VizMIR -> Scene2D -> capability report -> target
 The MVP deliberately supports three dialect families instead of pretending one
 renderer can understand every visual system:
 
-- `chart.scatter`, `chart.line`, and `chart.bar`;
+- `chart.scatter`, `chart.line`, `chart.bar`, and explicit `chart.area` in VizHIR 0.3;
 - `diagram.graph` with deterministic layered or manual layout;
 - `geometry.scene` with typed groups, shapes, text, paths, and transforms.
 
@@ -72,6 +72,22 @@ executable examples:
 - [Scientific magnitudes](examples/chart/scientific-magnitudes.viz.yaml)
 - [Measurement precision](examples/chart/measurement-precision.viz.yaml)
 - [Mixed axis formats](examples/chart/mixed-axis-formats.viz.yaml)
+
+### Linear area charts in VizHIR 0.3
+
+`chart.area` adds an explicit finite baseline and required `order: x-ascending`.
+Each series fills one closed path at opacity 0.35, with preserved source rows
+and keys, numeric axes and an explicit grouped legend. This first contract is
+unstacked and linear; duplicate x values, missing data and unsupported options
+produce diagnostics. [Area semantics and replay](docs/area-charts.md) describe
+its limits and the existing theme/measured-text workflow.
+
+- [Nonzero baseline](examples/chart/baseline-area.viz.yaml)
+- [Overlapping series](examples/chart/grouped-area.viz.yaml)
+- [Mixed area dashboard](examples/composition/area-dashboard.compose.yaml), using
+  `vizir-composition/0.2` to emit HIR 0.3
+
+Existing composition 0.1 continues to emit HIR 0.2.
 
 ### Output path safety
 
@@ -337,7 +353,7 @@ Add a source-targeted `--text-layout` policy to measured text for bounded Latin/
 ### Measured chart-title blocks (explicit role)
 
 `vizir-text-wrap/2` adds `chart.title` semantic targets for bar, line and scatter
-charts. Titles reserve their full measured height before plot ranges and legend
+charts, and for area charts in HIR/MIR 0.3. Titles reserve their full measured height before plot ranges and legend
 positions are fixed. See [the narrow three-chart composition](examples/composition/wrapped-chart-titles.compose.yaml)
 and [versioned policy/CLI instructions](docs/wrapping.md#semantic-chart-titles-vizir-text-wrap2).
 

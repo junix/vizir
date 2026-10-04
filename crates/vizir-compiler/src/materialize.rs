@@ -307,6 +307,11 @@ fn preflight_mir(mir: &VizMir, budget: &mut Budget) -> VizResult<()> {
                 group_expression,
                 order_expression,
                 ..
+            }
+            | ChartMark::Area {
+                group_expression,
+                order_expression,
+                ..
             } = &chart.mark
             {
                 ids.extend(group_expression.as_deref());
@@ -734,6 +739,7 @@ fn check_scale_membership(
     let color = match mark {
         ChartMark::Symbol { color, .. }
         | ChartMark::Line { color, .. }
+        | ChartMark::Area { color, .. }
         | ChartMark::Bar { color, .. } => color,
     };
     if let Some(color) = color
@@ -775,7 +781,7 @@ fn check_scale_membership(
                 }
             }
         }
-        ChartMark::Line { series, .. } => {
+        ChartMark::Line { series, .. } | ChartMark::Area { series, .. } => {
             if let Some(color) = color {
                 for item in series {
                     check(
@@ -812,6 +818,82 @@ fn check_scale_membership(
             }
         }
     }
+    check_area_projection(chart, mark, budget)
+}
+
+/// Area's strict-x contract also applies after the explicit scale projection.
+/// Use fresh materialized values, both during HIR lowering and MIR refresh/build.
+pub(crate) fn check_area_projection(
+    chart: &MirChart,
+    mark: &ChartMark,
+    budget: &mut Budget,
+) -> VizResult<()> {
+    let ChartMark::Area {
+        x,
+        y,
+        baseline,
+        series,
+        ..
+    } = mark
+    else {
+        return Ok(());
+    };
+    let linear = |binding: &vizir_core::ScaleBinding| -> VizResult<([f64; 2], [f64; 2])> {
+        chart
+            .scales
+            .iter()
+            .find_map(|scale| match scale {
+                MirScale::Linear {
+                    id, domain, range, ..
+                } if id == &binding.scale => Some((*domain, *range)),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                error(
+                    "VIZ-MATERIALIZE-0010",
+                    &chart.id,
+                    "area x/y bindings require linear scales",
+                )
+            })
+    };
+    let xs = linear(x)?;
+    let ys = linear(y)?;
+    for (domain, range) in [xs, ys] {
+        if !domain.into_iter().chain(range).all(f64::is_finite)
+            || !(domain[1] - domain[0]).is_finite()
+            || !(range[1] - range[0]).is_finite()
+        {
+            return Err(error(
+                "VIZ-MATERIALIZE-0010",
+                &chart.id,
+                "area linear scale domains and ranges require finite endpoints and spans; rescale the inputs",
+            ));
+        }
+    }
+    let baseline_y = vizir_core::map_linear(*baseline, ys.0, ys.1);
+    for series in series {
+        let mut previous = None;
+        for point in &series.points {
+            budget.step(&chart.id)?;
+            let px = vizir_core::map_linear(point.x, xs.0, xs.1);
+            let py = vizir_core::map_linear(point.y, ys.0, ys.1);
+            if !baseline_y.is_finite()
+                || !px.is_finite()
+                || !py.is_finite()
+                || previous.is_some_and(|last| last >= px)
+            {
+                return Err(error(
+                    "VIZ-MATERIALIZE-0010",
+                    &chart.id,
+                    format!(
+                        "area series {:?} key {:?} requires finite geometry and strictly increasing projected x positions; rescale inputs or enlarge the frame",
+                        series.key, point.key
+                    ),
+                ));
+            }
+            previous = Some(px);
+        }
+    }
     Ok(())
 }
 
@@ -844,7 +926,9 @@ pub(crate) fn materialize_mark(
     }
     check_role(expressions, key_expression, false, chart_id, budget)?;
     match mark {
-        ChartMark::Symbol { x, y, color, .. } | ChartMark::Line { x, y, color, .. } => {
+        ChartMark::Symbol { x, y, color, .. }
+        | ChartMark::Line { x, y, color, .. }
+        | ChartMark::Area { x, y, color, .. } => {
             check_role(expressions, &x.expression, true, chart_id, budget)?;
             check_role(expressions, &y.expression, true, chart_id, budget)?;
             if let Some(color) = color {
@@ -868,12 +952,31 @@ pub(crate) fn materialize_mark(
         group_expression,
         order_expression,
         ..
+    }
+    | ChartMark::Area {
+        group_expression,
+        order_expression,
+        ..
     } = mark
     {
         check_role(expressions, order_expression, true, chart_id, budget)?;
         if let Some(group) = group_expression {
             check_role(expressions, group, false, chart_id, budget)?;
         }
+    }
+    if let ChartMark::Area {
+        x,
+        order_expression,
+        baseline,
+        ..
+    } = mark
+        && (order_expression != &x.expression || !baseline.is_finite())
+    {
+        return Err(error(
+            "VIZ-MATERIALIZE-0010",
+            chart_id,
+            "area requires a finite explicit baseline and ascending order by its x expression",
+        ));
     }
     let MirDataOperator::Inline { rows } = &source.operator;
     let mut keys = BTreeSet::new();
@@ -948,6 +1051,14 @@ pub(crate) fn materialize_mark(
                 group_expression,
                 order_expression,
                 ..
+            }
+            | ChartMark::Area {
+                x,
+                y,
+                color,
+                group_expression,
+                order_expression,
+                ..
             } => {
                 let group = group_expression
                     .as_ref()
@@ -974,7 +1085,11 @@ pub(crate) fn materialize_mark(
                     return Err(error(
                         "VIZ-MATERIALIZE-0008",
                         &context,
-                        "one line group must have a uniform color category",
+                        if matches!(mark, ChartMark::Area { .. }) {
+                            "one area group must have a uniform color category"
+                        } else {
+                            "one line group must have a uniform color category"
+                        },
                     ));
                 }
                 entry.points.push((order.value, point));
@@ -1035,6 +1150,89 @@ pub(crate) fn materialize_mark(
             color: color.clone(),
             instances: bars,
         },
+        ChartMark::Area {
+            id,
+            x,
+            y,
+            color,
+            group_expression,
+            order_expression,
+            baseline,
+            ..
+        } => {
+            if groups.is_empty() {
+                return Err(error(
+                    "VIZ-MATERIALIZE-0010",
+                    chart_id,
+                    "area requires at least one series with two distinct x values",
+                ));
+            }
+            let mut low = *baseline;
+            let mut high = *baseline;
+            let mut series = Vec::with_capacity(groups.len());
+            for (
+                key,
+                LineGroup {
+                    color: color_category,
+                    mut points,
+                },
+            ) in groups
+            {
+                let count = points.len() as u64;
+                // Reserve sorting and adjacency-check work before doing either.
+                budget.charge(
+                    count.saturating_mul(u64::from(count.max(1).ilog2()) + 2),
+                    chart_id,
+                )?;
+                if points.len() < 2 {
+                    return Err(error(
+                        "VIZ-MATERIALIZE-0010",
+                        chart_id,
+                        format!("area series {key:?} requires at least two points"),
+                    ));
+                }
+                points
+                    .sort_by(|a, b| compare_order(&a.0, &b.0).then_with(|| a.1.key.cmp(&b.1.key)));
+                for pair in points.windows(2) {
+                    if pair[0].1.x >= pair[1].1.x {
+                        return Err(error(
+                            "VIZ-MATERIALIZE-0010",
+                            chart_id,
+                            format!(
+                                "area series {key:?} keys {:?} and {:?} require strictly increasing representable x values; duplicates and coordinate precision collisions are unsupported",
+                                pair[0].1.key, pair[1].1.key
+                            ),
+                        ));
+                    }
+                }
+                for (_, point) in &points {
+                    low = low.min(point.y);
+                    high = high.max(point.y);
+                }
+                series.push(MirSeries {
+                    key,
+                    color_category,
+                    points: points.into_iter().map(|(_, point)| point).collect(),
+                });
+            }
+            if !(high - low).is_finite() {
+                return Err(error(
+                    "VIZ-MATERIALIZE-0010",
+                    chart_id,
+                    "area y values and baseline have a nonfinite combined span; rescale the inputs",
+                ));
+            }
+            ChartMark::Area {
+                id: id.clone(),
+                x: x.clone(),
+                y: y.clone(),
+                color: color.clone(),
+                group_expression: group_expression.clone(),
+                order_expression: order_expression.clone(),
+                baseline: *baseline,
+                series,
+            }
+        }
         ChartMark::Line {
             id,
             x,
@@ -1106,7 +1304,8 @@ fn same_cache(a: &ChartMark, b: &ChartMark) -> bool {
                         && a.value.to_bits() == b.value.to_bits()
                 })
         }
-        (ChartMark::Line { series: a, .. }, ChartMark::Line { series: b, .. }) => {
+        (ChartMark::Line { series: a, .. }, ChartMark::Line { series: b, .. })
+        | (ChartMark::Area { series: a, .. }, ChartMark::Area { series: b, .. }) => {
             a.len() == b.len()
                 && a.iter().zip(b).all(|(a, b)| {
                     a.key == b.key

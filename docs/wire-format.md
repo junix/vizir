@@ -1,4 +1,4 @@
-# VizHIR wire formats 0.1 and 0.2
+# VizHIR wire formats 0.1, 0.2 and 0.3
 
 A document declares `version`, stable `id`, output dimensions, named inline
 datasets, and one or more views. Each view has an explicit frame so dashboard
@@ -10,6 +10,7 @@ Supported view tags:
 chart.scatter
 chart.line
 chart.bar
+chart.area (0.3 only)
 diagram.graph
 geometry.scene
 ```
@@ -101,3 +102,20 @@ Executable examples:
 - `examples/chart/scientific-magnitudes.viz.yaml`
 - `examples/chart/measurement-precision.viz.yaml`
 - `examples/chart/mixed-axis-formats.viz.yaml`
+
+## Area charts in 0.3
+
+VizHIR 0.3 adds `chart.area` with numeric `x`/`y` field encodings, optional
+`series`, required finite `baseline`, and required `order: x-ascending`.
+The first contract is linear and unstacked, with fixed 0.35 fill opacity.
+Each group needs at least two strictly increasing representable x values;
+source rows and stable keys remain intact. Missing/null values, duplicate x
+coordinates and unsupported options fail. See [area charts](area-charts.md)
+for materialization, baseline, replay and rendering details.
+
+Existing view kinds and numeric-axis options are valid in 0.3. A 0.3 document
+normalizes to a matching VizMIR 0.3 / `source_hir_version: "0.3"` pair.
+Versions 0.1 and 0.2 retain their existing contracts and reject area marks.
+The published old schema branches retain their closed dependency definitions;
+0.3 uses its own branch. The themed and compiled envelope names stay at version
+1, with a matching 0.3 MIR/source pair admitted by their new branches.

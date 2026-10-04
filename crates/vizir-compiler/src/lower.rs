@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::Value;
 use vizir_core::{
-    BarChart, ChartMark, Color, ColorEncoding, CoordinateSpace2D, CoordinateSpaceKind, Document,
-    Expression, GeometryNode, GuideKind, GuideOrient, LineChart, MirChart, MirDataNode,
+    AreaChart, BarChart, ChartMark, Color, ColorEncoding, CoordinateSpace2D, CoordinateSpaceKind,
+    Document, Expression, GeometryNode, GuideKind, GuideOrient, LineChart, MirChart, MirDataNode,
     MirDataOperator, MirDataSchema, MirDiagram, MirGeometry, MirGeometryNode, MirGuide, MirScale,
     MirShapeStyle, MirView, ScaleBinding, ScatterChart, SpatialUnit, Transform2D, TypeEnvironment,
     TypedExpression, UpdateMode, ValueType, View, VizError, VizMir, VizResult, type_expression,
@@ -77,6 +77,18 @@ pub(crate) fn lower_to_mir_with_context(
             )),
             View::Line(chart) => MirView::Chart(Box::new(
                 lower_line(
+                    document,
+                    chart,
+                    &data,
+                    &mut expressions,
+                    &mut budget,
+                    defaults,
+                    text,
+                )
+                .map_err(lowering_error)?,
+            )),
+            View::Area(chart) => MirView::Chart(Box::new(
+                lower_area(
                     document,
                     chart,
                     &data,
@@ -500,6 +512,206 @@ fn lower_line(
             "line topology remains in MIR; coordinates are unresolved".to_owned(),
         ],
     })
+}
+
+fn lower_area(
+    document: &Document,
+    chart: &AreaChart,
+    data: &BTreeMap<String, MirDataNode>,
+    expressions: &mut BTreeMap<String, TypedExpression>,
+    budget: &mut Budget,
+    defaults: Option<&ResolvedThemeDefaults>,
+    text: Option<&TextSession>,
+) -> Result<MirChart, String> {
+    let dataset = dataset(document, &chart.dataset)?;
+    let source = data_id(&chart.dataset);
+    preflight_hir_bindings(&data[&source], budget).map_err(|e| e.to_string())?;
+    let row_variable = row_variable(&chart.id);
+    let key_expression = register_field_expression(
+        expressions,
+        data,
+        &source,
+        &row_variable,
+        &chart.id,
+        "key",
+        &dataset.key,
+    )?;
+    let x_expression = register_field_expression(
+        expressions,
+        data,
+        &source,
+        &row_variable,
+        &chart.id,
+        "x",
+        &chart.x.field,
+    )?;
+    let y_expression = register_field_expression(
+        expressions,
+        data,
+        &source,
+        &row_variable,
+        &chart.id,
+        "y",
+        &chart.y.field,
+    )?;
+    let series_expression = chart
+        .series
+        .as_ref()
+        .map(|encoding| {
+            register_field_expression(
+                expressions,
+                data,
+                &source,
+                &row_variable,
+                &chart.id,
+                "series",
+                &encoding.field,
+            )
+        })
+        .transpose()?;
+    let plan = ChartMark::Area {
+        id: format!("{}/marks/areas", chart.id),
+        x: scale_binding(format!("{}/x", chart.id), x_expression.clone()),
+        y: scale_binding(format!("{}/y", chart.id), y_expression),
+        color: series_expression
+            .clone()
+            .map(|expression| scale_binding(format!("{}/color", chart.id), expression)),
+        group_expression: series_expression,
+        order_expression: x_expression,
+        baseline: chart.baseline,
+        series: Vec::new(),
+    };
+    let mark = materialize_mark(
+        &data[&source],
+        &row_variable,
+        &key_expression,
+        &plan,
+        expressions,
+        &chart.id,
+        budget,
+    )
+    .map_err(|e| e.to_string())?;
+    let ChartMark::Area { series, .. } = &mark else {
+        unreachable!()
+    };
+    let x_values = series
+        .iter()
+        .flat_map(|s| s.points.iter().map(|p| p.x))
+        .collect::<Vec<_>>();
+    let y_values = series
+        .iter()
+        .flat_map(|s| s.points.iter().map(|p| p.y))
+        .collect::<Vec<_>>();
+    let x_domain = nice_domain(extent(&x_values), false);
+    let raw_y = extent(&y_values);
+    let y_domain = nice_domain(
+        [raw_y[0].min(chart.baseline), raw_y[1].max(chart.baseline)],
+        false,
+    );
+    let color_scale = materialized_color_scale(
+        &chart.id,
+        chart.series.as_ref(),
+        series.iter().filter_map(|s| s.color_category.as_ref()),
+        defaults,
+    );
+    let ticks = NumericTickLabels::new_with_measurement(
+        Some((x_domain, chart.x.number_format())),
+        Some((y_domain, chart.y.number_format())),
+        text.is_some(),
+    )?;
+    let plot = ChartLayout::new_with_text(
+        &chart.id,
+        chart.frame,
+        chart.title.as_deref(),
+        Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
+        Some(chart.y.label.as_deref().unwrap_or(&chart.y.field)),
+        legend_domain(color_scale.as_ref()),
+        text,
+    )?
+    .with_numeric_ticks_and_text(
+        &chart.id,
+        chart.frame,
+        Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
+        ticks.as_ref(),
+        text,
+    )?
+    .plot;
+    let mut scales = vec![
+        MirScale::Linear {
+            id: format!("{}/x", chart.id),
+            domain: x_domain,
+            range: [plot[0], plot[2]],
+            range_space: DOCUMENT_SPACE.to_owned(),
+            zero: false,
+        },
+        MirScale::Linear {
+            id: format!("{}/y", chart.id),
+            domain: y_domain,
+            range: [plot[3], plot[1]],
+            range_space: DOCUMENT_SPACE.to_owned(),
+            zero: false,
+        },
+    ];
+    if let Some(scale) = color_scale {
+        scales.push(scale);
+    }
+
+    let mut guides = vec![
+        MirGuide {
+            id: format!("{}/guides/x-axis", chart.id),
+            kind: GuideKind::Axis,
+            scale: format!("{}/x", chart.id),
+            label: chart
+                .x
+                .label
+                .clone()
+                .unwrap_or_else(|| chart.x.field.clone()),
+            orient: GuideOrient::Bottom,
+            number_format: chart.x.number_format().copied(),
+        },
+        MirGuide {
+            id: format!("{}/guides/y-axis", chart.id),
+            kind: GuideKind::Axis,
+            scale: format!("{}/y", chart.id),
+            label: chart
+                .y
+                .label
+                .clone()
+                .unwrap_or_else(|| chart.y.field.clone()),
+            orient: GuideOrient::Left,
+            number_format: chart.y.number_format().copied(),
+        },
+    ];
+    if let Some(series) = &chart.series {
+        guides.push(MirGuide {
+            id: format!("{}/guides/color-legend", chart.id),
+            kind: GuideKind::Legend,
+            scale: format!("{}/color", chart.id),
+            label: series.field.clone(),
+            orient: GuideOrient::Right,
+            number_format: None,
+        });
+    }
+    let lowered = MirChart {
+        id: chart.id.clone(),
+        title: chart.title.clone(),
+        frame: chart.frame,
+        space: DOCUMENT_SPACE.to_owned(),
+        source,
+        row_variable,
+        key_expression,
+        scales,
+        guides,
+        mark,
+        provenance: vec![
+            "source rows and stable keys retained; area groups painted in sorted series-key order".to_owned(),
+            "linear x domain inferred; y domain includes the explicit baseline and all observed values".to_owned(),
+            "unstacked linear areas require at least two strictly increasing representable x values per series".to_owned(),
+        ],
+    };
+    crate::materialize::check_area_projection(&lowered, &lowered.mark, budget)
+        .map_err(|e| e.to_string())?;
+    Ok(lowered)
 }
 
 fn lower_bar(

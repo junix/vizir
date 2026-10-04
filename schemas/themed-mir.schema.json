@@ -154,6 +154,217 @@
         }
       ]
     },
+    "ChartMarkV03": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "instances": {
+              "items": {
+                "$ref": "#/$defs/MirPointItem"
+              },
+              "type": "array"
+            },
+            "size": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": {
+              "const": "symbol",
+              "type": "string"
+            },
+            "x": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "y": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "size",
+            "instances"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "group_expression": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "line_width": {
+              "format": "double",
+              "type": "number"
+            },
+            "order_expression": {
+              "type": "string"
+            },
+            "series": {
+              "items": {
+                "$ref": "#/$defs/MirSeries"
+              },
+              "type": "array"
+            },
+            "show_points": {
+              "type": "boolean"
+            },
+            "type": {
+              "const": "line",
+              "type": "string"
+            },
+            "x": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "y": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "order_expression",
+            "line_width",
+            "show_points",
+            "series"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "baseline": {
+              "format": "double",
+              "type": "number"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "group_expression": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "order_expression": {
+              "type": "string"
+            },
+            "series": {
+              "items": {
+                "$ref": "#/$defs/MirSeries"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "area",
+              "type": "string"
+            },
+            "x": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "y": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "order_expression",
+            "baseline",
+            "series"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "instances": {
+              "items": {
+                "$ref": "#/$defs/MirBarItem"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "bar",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "category",
+            "value",
+            "instances"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "CoordinateSpace2D": {
       "additionalProperties": false,
       "properties": {
@@ -1623,6 +1834,179 @@
         }
       ]
     },
+    "MirViewV03": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dialect": {
+              "const": "chart",
+              "type": "string"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "guides": {
+              "items": {
+                "$ref": "#/$defs/MirGuide"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "key_expression": {
+              "type": "string"
+            },
+            "mark": {
+              "$ref": "#/$defs/ChartMarkV03"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "row_variable": {
+              "type": "string"
+            },
+            "scales": {
+              "items": {
+                "$ref": "#/$defs/MirScale"
+              },
+              "type": "array"
+            },
+            "source": {
+              "type": "string"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "source",
+            "row_variable",
+            "key_expression",
+            "scales",
+            "guides",
+            "mark",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dialect": {
+              "const": "diagram",
+              "type": "string"
+            },
+            "edges": {
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "id": {
+              "type": "string"
+            },
+            "layout_request": {
+              "$ref": "#/$defs/LayoutRequest"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "nodes",
+            "edges",
+            "layout_request",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/MirGeometryNode"
+              },
+              "type": "array"
+            },
+            "dialect": {
+              "const": "geometry",
+              "type": "string"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "id": {
+              "type": "string"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "children",
+            "provenance"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "NumberFormat": {
       "additionalProperties": false,
       "description": "Locale-independent numeric tick formatting; precision is decimal places.",
@@ -2687,64 +3071,144 @@
       ]
     },
     "VizMir": {
-      "additionalProperties": false,
-      "allOf": [
+      "oneOf": [
         {
-          "if": {
-            "properties": {
-              "version": {
-                "const": "0.1"
-              }
-            },
-            "required": [
-              "version"
-            ]
-          },
-          "then": {
-            "properties": {
-              "views": {
-                "items": {
-                  "properties": {
-                    "guides": {
-                      "items": {
-                        "not": {
-                          "required": [
-                            "number_format"
-                          ]
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "version": {
+                    "const": "0.1"
+                  }
+                },
+                "required": [
+                  "version"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "views": {
+                    "items": {
+                      "properties": {
+                        "guides": {
+                          "items": {
+                            "not": {
+                              "required": [
+                                "number_format"
+                              ]
+                            }
+                          }
                         }
                       }
                     }
                   }
                 }
               }
-            }
-          }
-        },
-        {
-          "oneOf": [
-            {
-              "properties": {
-                "source_hir_version": {
-                  "const": "0.1"
-                },
-                "version": {
-                  "const": "0.1"
-                }
-              }
             },
             {
-              "properties": {
-                "source_hir_version": {
-                  "const": "0.2"
+              "oneOf": [
+                {
+                  "properties": {
+                    "source_hir_version": {
+                      "const": "0.1"
+                    },
+                    "version": {
+                      "const": "0.1"
+                    }
+                  }
                 },
-                "version": {
-                  "const": "0.2"
+                {
+                  "properties": {
+                    "source_hir_version": {
+                      "const": "0.2"
+                    },
+                    "version": {
+                      "const": "0.2"
+                    }
+                  }
                 }
-              }
+              ]
             }
-          ]
+          ],
+          "properties": {
+            "background": {
+              "type": "string"
+            },
+            "data": {
+              "additionalProperties": {
+                "$ref": "#/$defs/MirDataNode"
+              },
+              "type": "object"
+            },
+            "document_id": {
+              "type": "string"
+            },
+            "expressions": {
+              "additionalProperties": {
+                "$ref": "#/$defs/TypedExpression"
+              },
+              "type": "object"
+            },
+            "height": {
+              "format": "double",
+              "type": "number"
+            },
+            "losses": {
+              "items": {
+                "$ref": "#/$defs/LossRecord"
+              },
+              "type": "array"
+            },
+            "source_hir_version": {
+              "type": "string"
+            },
+            "spaces": {
+              "additionalProperties": {
+                "$ref": "#/$defs/CoordinateSpace2D"
+              },
+              "type": "object"
+            },
+            "version": {
+              "enum": [
+                "0.1",
+                "0.2"
+              ],
+              "type": "string"
+            },
+            "views": {
+              "items": {
+                "$ref": "#/$defs/MirView"
+              },
+              "type": "array"
+            },
+            "width": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "version",
+            "source_hir_version",
+            "document_id",
+            "width",
+            "height",
+            "background",
+            "spaces",
+            "data",
+            "expressions",
+            "views",
+            "losses"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/VizMirV03"
         }
-      ],
+      ]
+    },
+    "VizMirV03": {
+      "additionalProperties": false,
       "properties": {
         "background": {
           "type": "string"
@@ -2775,6 +3239,7 @@
           "type": "array"
         },
         "source_hir_version": {
+          "const": "0.3",
           "type": "string"
         },
         "spaces": {
@@ -2784,15 +3249,12 @@
           "type": "object"
         },
         "version": {
-          "enum": [
-            "0.1",
-            "0.2"
-          ],
+          "const": "0.3",
           "type": "string"
         },
         "views": {
           "items": {
-            "$ref": "#/$defs/MirView"
+            "$ref": "#/$defs/MirViewV03"
           },
           "type": "array"
         },

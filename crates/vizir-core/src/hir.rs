@@ -29,7 +29,7 @@ pub(crate) fn default_diagram_layout() -> DiagramLayout {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, try_from = "DocumentWire")]
 pub struct Document {
     #[serde(default = "default_version")]
     pub version: String,
@@ -43,6 +43,45 @@ pub struct Document {
     #[serde(default)]
     pub datasets: BTreeMap<String, Dataset>,
     pub views: Vec<View>,
+}
+
+// Decode only the new capability boundary here. General semantic validation
+// remains explicit, so legacy generic serde behavior is unchanged.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DocumentWire {
+    #[serde(default = "default_version")]
+    pub version: String,
+    pub id: String,
+    pub width: f64,
+    pub height: f64,
+    #[serde(default = "default_background")]
+    pub background: Color,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub datasets: BTreeMap<String, Dataset>,
+    pub views: Vec<View>,
+}
+
+impl TryFrom<DocumentWire> for Document {
+    type Error = crate::VizError;
+
+    fn try_from(wire: DocumentWire) -> Result<Self, Self::Error> {
+        let document = Self {
+            version: wire.version,
+            id: wire.id,
+            width: wire.width,
+            height: wire.height,
+            background: wire.background,
+            title: wire.title,
+            datasets: wire.datasets,
+            views: wire.views,
+        };
+        crate::validate::validate_document_capabilities(&document)
+            .map_err(|diagnostics| crate::VizError::validation(&diagnostics))?;
+        Ok(document)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -59,6 +98,8 @@ pub enum View {
     Scatter(ScatterChart),
     #[serde(rename = "chart.line")]
     Line(LineChart),
+    #[serde(rename = "chart.area")]
+    Area(AreaChart),
     #[serde(rename = "chart.bar")]
     Bar(BarChart),
     #[serde(rename = "diagram.graph")]
@@ -72,6 +113,7 @@ impl View {
         match self {
             Self::Scatter(view) => &view.id,
             Self::Line(view) => &view.id,
+            Self::Area(view) => &view.id,
             Self::Bar(view) => &view.id,
             Self::Diagram(view) => &view.id,
             Self::Geometry(view) => &view.id,
@@ -82,6 +124,7 @@ impl View {
         match self {
             Self::Scatter(view) => &view.frame,
             Self::Line(view) => &view.frame,
+            Self::Area(view) => &view.frame,
             Self::Bar(view) => &view.frame,
             Self::Diagram(view) => &view.frame,
             Self::Geometry(view) => &view.frame,
@@ -235,6 +278,30 @@ pub struct LineChart {
     pub line_width: f64,
     #[serde(default = "default_true")]
     pub show_points: bool,
+}
+
+/// A linear, unstacked area chart, available only in VizHIR 0.3.
+/// Baseline and order are required authored semantics; styling is fixed.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AreaChart {
+    pub id: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    pub frame: Frame,
+    pub dataset: String,
+    pub x: FieldEncoding,
+    pub y: FieldEncoding,
+    #[serde(default)]
+    pub series: Option<ColorEncoding>,
+    pub baseline: f64,
+    pub order: AreaOrder,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum AreaOrder {
+    XAscending,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

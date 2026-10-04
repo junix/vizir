@@ -1,5 +1,11 @@
 {
   "$defs": {
+    "AreaOrder": {
+      "enum": [
+        "x-ascending"
+      ],
+      "type": "string"
+    },
     "AxisOptions": {
       "additionalProperties": false,
       "description": "Opt-in axis semantics, available starting with VizHIR 0.2.",
@@ -33,6 +39,130 @@
       "description": "Independent source contract; this is not a new HIR or MIR version.",
       "enum": [
         "vizir-composition/0.1"
+      ],
+      "type": "string"
+    },
+    "CompositionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "default": "transparent",
+          "type": "string"
+        },
+        "datasets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Dataset"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/PanelLayout"
+        },
+        "panels": {
+          "items": {
+            "$ref": "#/$defs/Panel"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "schema": {
+          "$ref": "#/$defs/CompositionSchema"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema",
+        "id",
+        "width",
+        "height",
+        "layout",
+        "panels"
+      ],
+      "type": "object"
+    },
+    "CompositionV2": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "default": "transparent",
+          "type": "string"
+        },
+        "datasets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Dataset"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/PanelLayout"
+        },
+        "panels": {
+          "items": {
+            "$ref": "#/$defs/PanelV02"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "schema": {
+          "const": "vizir-composition/0.2",
+          "type": "string"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema",
+        "id",
+        "width",
+        "height",
+        "layout",
+        "panels"
+      ],
+      "type": "object"
+    },
+    "CompositionVersion": {
+      "enum": [
+        "vizir-composition/0.1",
+        "vizir-composition/0.2"
       ],
       "type": "string"
     },
@@ -724,6 +854,294 @@
         }
       ]
     },
+    "PanelV02": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.scatter",
+              "type": "string"
+            },
+            "point_size": {
+              "default": 7.0,
+              "format": "double",
+              "type": "number"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.line",
+              "type": "string"
+            },
+            "line_width": {
+              "default": 2.5,
+              "format": "double",
+              "type": "number"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "show_points": {
+              "default": true,
+              "type": "boolean"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "baseline": {
+              "format": "double",
+              "type": "number"
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.area",
+              "type": "string"
+            },
+            "order": {
+              "$ref": "#/$defs/AreaOrder"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y",
+            "baseline",
+            "order"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.bar",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "category",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edges": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "diagram.graph",
+              "type": "string"
+            },
+            "layout": {
+              "$ref": "#/$defs/DiagramLayout",
+              "default": "layered"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "nodes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/GeometryNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "geometry.scene",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "children"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "PathCommand": {
       "oneOf": [
         {
@@ -883,61 +1301,13 @@
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "background": {
-      "default": "transparent",
-      "type": "string"
+  "oneOf": [
+    {
+      "$ref": "#/$defs/CompositionV1"
     },
-    "datasets": {
-      "additionalProperties": {
-        "$ref": "#/$defs/Dataset"
-      },
-      "default": {},
-      "type": "object"
-    },
-    "height": {
-      "exclusiveMinimum": 0,
-      "format": "double",
-      "type": "number"
-    },
-    "id": {
-      "type": "string"
-    },
-    "layout": {
-      "$ref": "#/$defs/PanelLayout"
-    },
-    "panels": {
-      "items": {
-        "$ref": "#/$defs/Panel"
-      },
-      "minItems": 1,
-      "type": "array"
-    },
-    "schema": {
-      "$ref": "#/$defs/CompositionSchema"
-    },
-    "title": {
-      "default": null,
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "width": {
-      "exclusiveMinimum": 0,
-      "format": "double",
-      "type": "number"
+    {
+      "$ref": "#/$defs/CompositionV2"
     }
-  },
-  "required": [
-    "schema",
-    "id",
-    "width",
-    "height",
-    "layout",
-    "panels"
   ],
-  "title": "CompositionV1",
-  "type": "object"
+  "title": "Composition"
 }

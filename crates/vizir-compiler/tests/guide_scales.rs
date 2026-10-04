@@ -70,9 +70,9 @@ fn rename_scales(chart: &mut MirChart) {
         guide.scale = renamed[&guide.scale].clone();
     }
     let bindings = match &mut chart.mark {
-        ChartMark::Symbol { x, y, color, .. } | ChartMark::Line { x, y, color, .. } => {
-            (x, y, color)
-        }
+        ChartMark::Symbol { x, y, color, .. }
+        | ChartMark::Line { x, y, color, .. }
+        | ChartMark::Area { x, y, color, .. } => (x, y, color),
         ChartMark::Bar {
             category,
             value,

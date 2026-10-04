@@ -100,6 +100,7 @@ fn build_chart(
             ChartMark::Symbol { color, .. }
             | ChartMark::Line { color, .. }
             | ChartMark::Bar { color, .. } => color.as_ref(),
+            ChartMark::Area { .. } => None,
         }?;
         chart
             .scales
@@ -145,7 +146,9 @@ fn build_chart(
         .map_err(VizError::Diagnostic)?;
     let plot = layout.plot;
     let (x_range, y_range) = match &chart.mark {
-        ChartMark::Symbol { x, y, .. } | ChartMark::Line { x, y, .. } => (
+        ChartMark::Symbol { x, y, .. }
+        | ChartMark::Line { x, y, .. }
+        | ChartMark::Area { x, y, .. } => (
             linear_scale(chart, &x.scale)?.1,
             linear_scale(chart, &y.scale)?.1,
         ),
@@ -237,6 +240,75 @@ fn build_chart(
                         stroke_width: 1.5,
                         opacity: 0.9,
                     },
+                });
+            }
+        }
+        ChartMark::Area {
+            id: mark_id,
+            x,
+            y,
+            color,
+            baseline,
+            series,
+            ..
+        } => {
+            let x_scale = linear_scale(chart, &x.scale)?;
+            let y_scale = linear_scale(chart, &y.scale)?;
+            let baseline_y = map_linear(*baseline, y_scale.0, y_scale.1);
+            for series in series {
+                let points = series
+                    .points
+                    .iter()
+                    .map(|item| Point {
+                        x: map_linear(item.x, x_scale.0, x_scale.1),
+                        y: map_linear(item.y, y_scale.0, y_scale.1),
+                    })
+                    .collect::<Vec<_>>();
+                if !baseline_y.is_finite()
+                    || points.iter().any(|p| !p.x.is_finite() || !p.y.is_finite())
+                    || points.windows(2).any(|p| p[0].x >= p[1].x)
+                {
+                    return Err(VizError::Diagnostic(format!(
+                        "VIZ-SCENE-0010: area {:?} series {:?} requires finite geometry and strictly increasing projected x positions; rescale inputs or enlarge the frame",
+                        chart.id, series.key
+                    )));
+                }
+                let first = points
+                    .first()
+                    .expect("area materialization requires two points");
+                let last = points
+                    .last()
+                    .expect("area materialization requires two points");
+                let mut commands = Vec::with_capacity(points.len() + 3);
+                commands.push(PathCommand::Move {
+                    to: Point {
+                        x: first.x,
+                        y: baseline_y,
+                    },
+                });
+                commands.extend(points.iter().map(|p| PathCommand::Line { to: *p }));
+                commands.push(PathCommand::Line {
+                    to: Point {
+                        x: last.x,
+                        y: baseline_y,
+                    },
+                });
+                commands.push(PathCommand::Close);
+                children.push(SceneNode::Path {
+                    id: format!("{}/area/{}", chart.id, series.key),
+                    bounds: bounds_for_path(&commands),
+                    origin: Origin {
+                        hir_node: chart.id.clone(), mir_node: mark_id.clone(),
+                        data_key: Some(series.key.clone()), data_lineage: vec![chart.source.clone()],
+                        generated_by: "build-area-scene".to_owned(),
+                        explanation: format!("unstacked linear series {} retains {} keyed points in ascending x order and closes to explicit baseline {} through {} and {}", series.key, series.points.len(), baseline, x.scale, y.scale),
+                    },
+                    commands,
+                    style: ResolvedStyle {
+                        fill: resolve_color(chart, color.as_ref().map(|b| b.scale.as_str()), series.color_category.as_deref(), defaults),
+                        stroke: Color::transparent(), stroke_width: 0.0, opacity: 0.35,
+                    },
+                    marker_end: false,
                 });
             }
         }

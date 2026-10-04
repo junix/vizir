@@ -1,0 +1,30 @@
+version: "0.3"
+id: readings-against-baseline
+width: 900
+height: 520
+background: transparent
+
+datasets:
+  readings:
+    key: sample_id
+    # Authored order stays intact; the area cache resolves ascending x.
+    rows:
+      - {sample_id: p3, minute: 3, reading: 14}
+      - {sample_id: p0, minute: 0, reading: 8}
+      - {sample_id: p4, minute: 4, reading: 9}
+      - {sample_id: p1, minute: 1, reading: 13}
+      - {sample_id: p2, minute: 2, reading: 6}
+
+views:
+  - kind: chart.area
+    id: readings
+    title: Readings against a fixed baseline
+    frame: {x: 0, y: 0, width: 900, height: 520}
+    dataset: readings
+    x: {field: minute, label: minute}
+    y:
+      field: reading
+      label: reading
+      axis: {number_format: {notation: fixed, precision: 1}}
+    baseline: 10
+    order: x-ascending

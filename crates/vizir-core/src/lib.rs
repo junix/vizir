@@ -16,4 +16,7 @@ pub use hir::*;
 pub use mir::*;
 pub use patch::*;
 pub use scene::*;
-pub use validate::{parse_document, validate_document, validate_mir, validate_scene, value_as_key};
+pub use validate::{
+    parse_document, validate_document, validate_document_capabilities, validate_mir,
+    validate_mir_capabilities, validate_scene, value_as_key,
+};

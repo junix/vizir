@@ -17,7 +17,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .ok_or("the input needs at least one chart")?;
     let expression_id = match &chart.mark {
-        ChartMark::Symbol { y, .. } | ChartMark::Line { y, .. } => &y.expression,
+        ChartMark::Symbol { y, .. } | ChartMark::Line { y, .. } | ChartMark::Area { y, .. } => {
+            &y.expression
+        }
         ChartMark::Bar { value, .. } => &value.expression,
     }
     .clone();

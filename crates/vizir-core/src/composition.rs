@@ -1,4 +1,4 @@
-//! Versioned frame-free panel composition, resolved to ordinary VizHIR 0.2.
+//! Versioned frame-free panel composition, resolved to ordinary VizHIR 0.2 or 0.3.
 //!
 //! A grid allocates equal cells in panel order. It does not scale or clip panel
 //! contents, introduce scene groups, or change existing HIR/MIR/Scene contracts.
@@ -15,9 +15,9 @@ use crate::hir::{
     default_true,
 };
 use crate::{
-    BarChart, Color, ColorEncoding, Dataset, Diagnostic, DiagramEdge, DiagramGraph, DiagramLayout,
-    DiagramNode, Document, FieldEncoding, Frame, GeometryNode, GeometryScene, LineChart,
-    ScatterChart, View, VizError, VizResult, validate_document,
+    AreaChart, AreaOrder, BarChart, Color, ColorEncoding, Dataset, Diagnostic, DiagramEdge,
+    DiagramGraph, DiagramLayout, DiagramNode, Document, FieldEncoding, Frame, GeometryNode,
+    GeometryScene, LineChart, ScatterChart, View, VizError, VizResult, validate_document,
 };
 
 /// Independent source contract; this is not a new HIR or MIR version.
@@ -28,7 +28,8 @@ pub enum CompositionSchema {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, try_from = "CompositionV1Wire")]
+#[schemars(!try_from)]
 pub struct CompositionV1 {
     pub schema: CompositionSchema,
     pub id: String,
@@ -45,6 +46,143 @@ pub struct CompositionV1 {
     pub layout: PanelLayout,
     #[schemars(length(min = 1))]
     pub panels: Vec<Panel>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompositionV1Wire {
+    pub schema: CompositionSchema,
+    pub id: String,
+    pub width: f64,
+    pub height: f64,
+    #[serde(default = "default_background")]
+    pub background: Color,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub datasets: BTreeMap<String, Dataset>,
+    pub layout: PanelLayout,
+    pub panels: Vec<Panel>,
+}
+
+impl TryFrom<CompositionV1Wire> for CompositionV1 {
+    type Error = VizError;
+
+    fn try_from(wire: CompositionV1Wire) -> Result<Self, Self::Error> {
+        let composition = Self {
+            schema: wire.schema,
+            id: wire.id,
+            width: wire.width,
+            height: wire.height,
+            background: wire.background,
+            title: wire.title,
+            datasets: wire.datasets,
+            layout: wire.layout,
+            panels: wire.panels,
+        };
+        check_area_panels(&composition.panels, false)?;
+        Ok(composition)
+    }
+}
+
+/// Versioned composition entry point. The original V1 API remains a 0.1 adapter.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, try_from = "CompositionWire")]
+pub struct Composition {
+    pub schema: CompositionVersion,
+    pub id: String,
+    pub width: f64,
+    pub height: f64,
+    #[serde(default = "default_background")]
+    pub background: Color,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub datasets: BTreeMap<String, Dataset>,
+    pub layout: PanelLayout,
+    pub panels: Vec<Panel>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub enum CompositionVersion {
+    #[serde(rename = "vizir-composition/0.1")]
+    V1,
+    #[serde(rename = "vizir-composition/0.2")]
+    V2,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompositionWire {
+    pub schema: CompositionVersion,
+    pub id: String,
+    pub width: f64,
+    pub height: f64,
+    #[serde(default = "default_background")]
+    pub background: Color,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub datasets: BTreeMap<String, Dataset>,
+    pub layout: PanelLayout,
+    pub panels: Vec<Panel>,
+}
+
+impl TryFrom<CompositionWire> for Composition {
+    type Error = VizError;
+
+    fn try_from(wire: CompositionWire) -> Result<Self, Self::Error> {
+        let composition = Self {
+            schema: wire.schema,
+            id: wire.id,
+            width: wire.width,
+            height: wire.height,
+            background: wire.background,
+            title: wire.title,
+            datasets: wire.datasets,
+            layout: wire.layout,
+            panels: wire.panels,
+        };
+        check_area_panels(
+            &composition.panels,
+            composition.schema == CompositionVersion::V2,
+        )?;
+        Ok(composition)
+    }
+}
+
+// Borrow shared payloads so the legacy adapter does not add a second clone of
+// potentially large datasets before grid validation and HIR construction.
+struct CompositionInput<'a> {
+    hir_version: &'static str,
+    id: &'a str,
+    width: f64,
+    height: f64,
+    background: &'a Color,
+    title: &'a Option<String>,
+    datasets: &'a BTreeMap<String, Dataset>,
+    layout: PanelLayout,
+    panels: &'a [Panel],
+}
+
+fn check_area_panels(panels: &[Panel], allow_area: bool) -> VizResult<()> {
+    let diagnostics: Vec<_> = panels
+        .iter()
+        .enumerate()
+        .filter(|(_, panel)| matches!(panel, Panel::Area(_)) && !allow_area)
+        .map(|(index, _)| {
+            Diagnostic::new(
+                "VIZ-COMPOSE-0005",
+                "chart.area requires composition schema vizir-composition/0.2",
+            )
+            .at(format!("panels[{index}]"))
+        })
+        .collect();
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(VizError::validation(&diagnostics))
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -72,6 +210,9 @@ pub enum Panel {
     Scatter(ScatterPanel),
     #[serde(rename = "chart.line")]
     Line(LinePanel),
+    #[serde(rename = "chart.area")]
+    #[schemars(skip)]
+    Area(AreaPanel),
     #[serde(rename = "chart.bar")]
     Bar(BarPanel),
     #[serde(rename = "diagram.graph")]
@@ -110,6 +251,21 @@ pub struct LinePanel {
     pub line_width: f64,
     #[serde(default = "default_true")]
     pub show_points: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AreaPanel {
+    pub id: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    pub dataset: String,
+    pub x: FieldEncoding,
+    pub y: FieldEncoding,
+    #[serde(default)]
+    pub series: Option<ColorEncoding>,
+    pub baseline: f64,
+    pub order: AreaOrder,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -171,6 +327,17 @@ impl Panel {
                 line_width: panel.line_width,
                 show_points: panel.show_points,
             }),
+            Self::Area(panel) => View::Area(AreaChart {
+                id: panel.id.clone(),
+                title: panel.title.clone(),
+                frame,
+                dataset: panel.dataset.clone(),
+                x: panel.x.clone(),
+                y: panel.y.clone(),
+                series: panel.series.clone(),
+                baseline: panel.baseline,
+                order: panel.order,
+            }),
             Self::Bar(panel) => View::Bar(BarChart {
                 id: panel.id.clone(),
                 title: panel.title.clone(),
@@ -201,6 +368,15 @@ impl Panel {
 /// Read a composition as JSON (`.json`) or YAML. Use `compose` to validate it and
 /// resolve its panel frames; existing `parse_document` remains HIR-only.
 pub fn parse_composition(path: impl AsRef<Path>) -> VizResult<CompositionV1> {
+    read_composition(path)
+}
+
+/// Read either supported source version; `compose_versioned` resolves it.
+pub fn parse_versioned_composition(path: impl AsRef<Path>) -> VizResult<Composition> {
+    read_composition(path)
+}
+
+fn read_composition<T: serde::de::DeserializeOwned>(path: impl AsRef<Path>) -> VizResult<T> {
     let path = path.as_ref();
     let source = fs::read_to_string(path).map_err(|source| VizError::Read {
         path: path.display().to_string(),
@@ -223,6 +399,39 @@ pub fn parse_composition(path: impl AsRef<Path>) -> VizResult<CompositionV1> {
 /// remain local; normal lowering applies their view translation exactly once.
 /// Downstream MIR correctly records `source_hir_version: "0.2"`.
 pub fn compose(composition: &CompositionV1) -> VizResult<Document> {
+    compose_grid(CompositionInput {
+        hir_version: "0.2",
+        id: &composition.id,
+        width: composition.width,
+        height: composition.height,
+        background: &composition.background,
+        title: &composition.title,
+        datasets: &composition.datasets,
+        layout: composition.layout,
+        panels: &composition.panels,
+    })
+}
+
+/// Resolve 0.1 sources to HIR 0.2 and 0.2 sources to HIR 0.3, using the same grid.
+pub fn compose_versioned(composition: &Composition) -> VizResult<Document> {
+    compose_grid(CompositionInput {
+        hir_version: match composition.schema {
+            CompositionVersion::V1 => "0.2",
+            CompositionVersion::V2 => "0.3",
+        },
+        id: &composition.id,
+        width: composition.width,
+        height: composition.height,
+        background: &composition.background,
+        title: &composition.title,
+        datasets: &composition.datasets,
+        layout: composition.layout,
+        panels: &composition.panels,
+    })
+}
+
+fn compose_grid(composition: CompositionInput<'_>) -> VizResult<Document> {
+    check_area_panels(composition.panels, composition.hir_version == "0.3")?;
     let PanelLayout::Grid {
         columns,
         gap,
@@ -287,8 +496,8 @@ pub fn compose(composition: &CompositionV1) -> VizResult<Document> {
         })
         .collect();
     let document = Document {
-        version: "0.2".to_owned(),
-        id: composition.id.clone(),
+        version: composition.hir_version.to_owned(),
+        id: composition.id.to_owned(),
         width: composition.width,
         height: composition.height,
         background: composition.background.clone(),
@@ -399,9 +608,71 @@ where
     deserializer.deserialize_any(ColumnsVisitor)
 }
 
+// Schema-only version paths prevent the new mark from broadening old sources.
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "kind", deny_unknown_fields)]
+enum PanelV02 {
+    #[serde(rename = "chart.scatter")]
+    Scatter(ScatterPanel),
+    #[serde(rename = "chart.line")]
+    Line(LinePanel),
+    #[serde(rename = "chart.area")]
+    Area(AreaPanel),
+    #[serde(rename = "chart.bar")]
+    Bar(BarPanel),
+    #[serde(rename = "diagram.graph")]
+    Diagram(DiagramPanel),
+    #[serde(rename = "geometry.scene")]
+    Geometry(GeometryPanel),
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(rename = "CompositionV2", transform = composition_v2_schema)]
+struct CompositionV2Schema {
+    pub schema: CompositionVersion,
+    pub id: String,
+    #[schemars(extend("exclusiveMinimum" = 0))]
+    pub width: f64,
+    #[schemars(extend("exclusiveMinimum" = 0))]
+    pub height: f64,
+    #[serde(default = "default_background")]
+    pub background: Color,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub datasets: BTreeMap<String, Dataset>,
+    pub layout: PanelLayout,
+    #[schemars(length(min = 1))]
+    pub panels: Vec<PanelV02>,
+}
+
+fn composition_v2_schema(schema: &mut schemars::Schema) {
+    schema
+        .as_object_mut()
+        .expect("composition schema object")
+        .get_mut("properties")
+        .expect("composition properties")["schema"] =
+        serde_json::json!({"type": "string", "const": "vizir-composition/0.2"});
+}
+
+impl JsonSchema for Composition {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Composition".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        let legacy = generator.subschema_for::<CompositionV1>();
+        let current = generator.subschema_for::<CompositionV2Schema>();
+        schemars::json_schema!({"oneOf": [legacy, current]})
+    }
+}
+
 /// Generated structural schema. Cross-field layout feasibility and existing
 /// HIR semantics are checked by `compose`, rather than promised by JSON Schema.
 pub fn composition_schema() -> serde_json::Value {
-    serde_json::to_value(schemars::schema_for!(CompositionV1))
+    serde_json::to_value(schemars::schema_for!(Composition))
         .expect("composition schema must serialize")
 }

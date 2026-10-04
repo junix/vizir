@@ -9,9 +9,8 @@ use crate::{
     Point, SpatialUnit, TextAnchor, Transform2D, TypedExpression, ValueType,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-#[schemars(transform = versioned_mir_schema)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, try_from = "VizMirWire")]
 pub struct VizMir {
     pub version: String,
     pub source_hir_version: String,
@@ -24,6 +23,45 @@ pub struct VizMir {
     pub expressions: BTreeMap<String, TypedExpression>,
     pub views: Vec<MirView>,
     pub losses: Vec<LossRecord>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VizMirWire {
+    pub version: String,
+    pub source_hir_version: String,
+    pub document_id: String,
+    pub width: f64,
+    pub height: f64,
+    pub background: Color,
+    pub spaces: BTreeMap<String, CoordinateSpace2D>,
+    pub data: BTreeMap<String, MirDataNode>,
+    pub expressions: BTreeMap<String, TypedExpression>,
+    pub views: Vec<MirView>,
+    pub losses: Vec<LossRecord>,
+}
+
+impl TryFrom<VizMirWire> for VizMir {
+    type Error = crate::VizError;
+
+    fn try_from(wire: VizMirWire) -> Result<Self, Self::Error> {
+        let mir = Self {
+            version: wire.version,
+            source_hir_version: wire.source_hir_version,
+            document_id: wire.document_id,
+            width: wire.width,
+            height: wire.height,
+            background: wire.background,
+            spaces: wire.spaces,
+            data: wire.data,
+            expressions: wire.expressions,
+            views: wire.views,
+            losses: wire.losses,
+        };
+        crate::validate::validate_mir_capabilities(&mir)
+            .map_err(|diagnostics| crate::VizError::validation(&diagnostics))?;
+        Ok(mir)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -218,6 +256,18 @@ pub enum ChartMark {
         show_points: bool,
         series: Vec<MirSeries>,
     },
+    // Kept out of the legacy ChartMark schema's entire dependency closure.
+    #[schemars(skip)]
+    Area {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: Option<ScaleBinding>,
+        group_expression: Option<String>,
+        order_expression: String,
+        baseline: f64,
+        series: Vec<MirSeries>,
+    },
     Bar {
         id: String,
         category: ScaleBinding,
@@ -230,13 +280,18 @@ pub enum ChartMark {
 impl ChartMark {
     pub fn id(&self) -> &str {
         match self {
-            Self::Symbol { id, .. } | Self::Line { id, .. } | Self::Bar { id, .. } => id,
+            Self::Symbol { id, .. }
+            | Self::Line { id, .. }
+            | Self::Area { id, .. }
+            | Self::Bar { id, .. } => id,
         }
     }
 
     pub fn bindings(&self) -> Vec<&ScaleBinding> {
         match self {
-            Self::Symbol { x, y, color, .. } | Self::Line { x, y, color, .. } => {
+            Self::Symbol { x, y, color, .. }
+            | Self::Line { x, y, color, .. }
+            | Self::Area { x, y, color, .. } => {
                 let mut bindings = vec![x, y];
                 bindings.extend(color.iter());
                 bindings
@@ -401,6 +456,134 @@ pub struct LossRecord {
     pub target: String,
     pub fidelity: LoweringFidelity,
     pub reason: String,
+}
+
+// These private schema-only types are not alternate runtime IRs. Preserve every
+// legacy referenced definition, and add new versioned paths only for VizMIR 0.3.
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(transform = versioned_mir_schema)]
+struct VizMirLegacy {
+    pub version: String,
+    pub source_hir_version: String,
+    pub document_id: String,
+    pub width: f64,
+    pub height: f64,
+    pub background: Color,
+    pub spaces: BTreeMap<String, CoordinateSpace2D>,
+    pub data: BTreeMap<String, MirDataNode>,
+    pub expressions: BTreeMap<String, TypedExpression>,
+    pub views: Vec<MirView>,
+    pub losses: Vec<LossRecord>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(transform = mir_v03_schema)]
+struct VizMirV03 {
+    pub version: String,
+    pub source_hir_version: String,
+    pub document_id: String,
+    pub width: f64,
+    pub height: f64,
+    pub background: Color,
+    pub spaces: BTreeMap<String, CoordinateSpace2D>,
+    pub data: BTreeMap<String, MirDataNode>,
+    pub expressions: BTreeMap<String, TypedExpression>,
+    pub views: Vec<MirViewV03>,
+    pub losses: Vec<LossRecord>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "dialect", rename_all = "kebab-case", deny_unknown_fields)]
+enum MirViewV03 {
+    Chart(Box<MirChartV03>),
+    Diagram(MirDiagram),
+    Geometry(MirGeometry),
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct MirChartV03 {
+    pub id: String,
+    pub title: Option<String>,
+    pub frame: Frame,
+    pub space: String,
+    pub source: String,
+    pub row_variable: String,
+    pub key_expression: String,
+    pub scales: Vec<MirScale>,
+    pub guides: Vec<MirGuide>,
+    pub mark: ChartMarkV03,
+    pub provenance: Vec<String>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
+enum ChartMarkV03 {
+    Symbol {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: Option<ScaleBinding>,
+        size: f64,
+        instances: Vec<MirPointItem>,
+    },
+    Line {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: Option<ScaleBinding>,
+        group_expression: Option<String>,
+        order_expression: String,
+        line_width: f64,
+        show_points: bool,
+        series: Vec<MirSeries>,
+    },
+    Area {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: Option<ScaleBinding>,
+        group_expression: Option<String>,
+        order_expression: String,
+        baseline: f64,
+        series: Vec<MirSeries>,
+    },
+    Bar {
+        id: String,
+        category: ScaleBinding,
+        value: ScaleBinding,
+        color: Option<ScaleBinding>,
+        instances: Vec<MirBarItem>,
+    },
+}
+
+impl JsonSchema for VizMir {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "VizMir".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        let legacy = VizMirLegacy::json_schema(generator);
+        let current = generator.subschema_for::<VizMirV03>();
+        schemars::json_schema!({ "oneOf": [legacy, current] })
+    }
+}
+
+fn mir_v03_schema(schema: &mut schemars::Schema) {
+    let properties = schema
+        .as_object_mut()
+        .expect("MIR schema object")
+        .get_mut("properties")
+        .expect("MIR schema properties");
+    properties["version"]["const"] = "0.3".into();
+    properties["source_hir_version"]["const"] = "0.3".into();
 }
 
 fn numeric_guide_schema(schema: &mut schemars::Schema) {

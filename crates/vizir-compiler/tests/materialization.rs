@@ -74,7 +74,9 @@ fn cache_only_numeric_edits_are_rejected_at_scene_boundary() {
         let mut input = mir(kind);
         match &mut chart_mut(&mut input).mark {
             ChartMark::Symbol { instances, .. } => instances[0].y += 0.25,
-            ChartMark::Line { series, .. } => series[0].points[0].y += 0.25,
+            ChartMark::Line { series, .. } | ChartMark::Area { series, .. } => {
+                series[0].points[0].y += 0.25
+            }
             ChartMark::Bar { instances, .. } => instances[0].value += 0.25,
         }
         assert!(
@@ -92,7 +94,9 @@ fn rows_mut(mir: &mut VizMir) -> &mut Vec<std::collections::BTreeMap<String, ser
 
 fn numeric_expression_id(mir: &VizMir) -> String {
     match &chart(mir).mark {
-        ChartMark::Symbol { y, .. } | ChartMark::Line { y, .. } => y.expression.clone(),
+        ChartMark::Symbol { y, .. } | ChartMark::Line { y, .. } | ChartMark::Area { y, .. } => {
+            y.expression.clone()
+        }
         ChartMark::Bar { value, .. } => value.expression.clone(),
     }
 }
@@ -133,7 +137,7 @@ fn cached_values(mir: &VizMir) -> Vec<(String, f64)> {
             .iter()
             .map(|item| (item.key.clone(), item.y))
             .collect(),
-        ChartMark::Line { series, .. } => series
+        ChartMark::Line { series, .. } | ChartMark::Area { series, .. } => series
             .iter()
             .flat_map(|series| series.points.iter().map(|item| (item.key.clone(), item.y)))
             .collect(),
@@ -147,7 +151,9 @@ fn cached_values(mir: &VizMir) -> Vec<(String, f64)> {
 fn mutate_first_cached_value(mir: &mut VizMir, change: impl FnOnce(f64) -> f64) {
     match &mut chart_mut(mir).mark {
         ChartMark::Symbol { instances, .. } => instances[0].y = change(instances[0].y),
-        ChartMark::Line { series, .. } => series[0].points[0].y = change(series[0].points[0].y),
+        ChartMark::Line { series, .. } | ChartMark::Area { series, .. } => {
+            series[0].points[0].y = change(series[0].points[0].y)
+        }
         ChartMark::Bar { instances, .. } => instances[0].value = change(instances[0].value),
     }
 }
@@ -770,7 +776,7 @@ fn stale_cache_identity_color_cardinality_and_order_are_rejected_then_repaired()
                     4 => instances.push(instances[0].clone()),
                     _ => unreachable!(),
                 },
-                ChartMark::Line { series, .. } => match mutation {
+                ChartMark::Line { series, .. } | ChartMark::Area { series, .. } => match mutation {
                     0 => series[0].key = "invented-group".into(),
                     1 => series[0].color_category = Some("invented-color".into()),
                     2 => {

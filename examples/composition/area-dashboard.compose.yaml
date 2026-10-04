@@ -1,0 +1,64 @@
+schema: vizir-composition/0.2
+id: area-dashboard
+width: 1280
+height: 900
+background: transparent
+layout: {kind: grid, columns: 2, gap: 24, padding: 24}
+datasets:
+  readings:
+    key: sample_id
+    rows:
+      - {sample_id: p3, minute: 3, reading: 14}
+      - {sample_id: p0, minute: 0, reading: 8}
+      - {sample_id: p4, minute: 4, reading: 9}
+      - {sample_id: p1, minute: 1, reading: 13}
+      - {sample_id: p2, minute: 2, reading: 6}
+  signals:
+    key: sample_id
+    rows:
+      - {sample_id: beta-3, minute: 3, value: 7, service: Beta}
+      - {sample_id: alpha-2, minute: 2, value: -2, service: Alpha}
+      - {sample_id: beta-0, minute: 0, value: 2, service: Beta}
+      - {sample_id: alpha-0, minute: 0, value: 4, service: Alpha}
+      - {sample_id: alpha-4, minute: 4, value: 3, service: Alpha}
+      - {sample_id: beta-4, minute: 4, value: 4, service: Beta}
+      - {sample_id: alpha-1, minute: 1, value: 8, service: Alpha}
+      - {sample_id: beta-1, minute: 1, value: 3, service: Beta}
+      - {sample_id: alpha-3, minute: 3, value: 5, service: Alpha}
+      - {sample_id: beta-2, minute: 2, value: 6, service: Beta}
+panels:
+  - kind: chart.area
+    id: readings
+    title: Fixed baseline at 10
+    dataset: readings
+    x: {field: minute, label: minute}
+    y: {field: reading, label: reading}
+    baseline: 10
+    order: x-ascending
+  - kind: chart.area
+    id: signals
+    title: Overlapping series
+    dataset: signals
+    x: {field: minute, label: minute}
+    y: {field: value, label: signal}
+    series: {field: service, palette: ["#3366CC", "#009E73"]}
+    baseline: 0
+    order: x-ascending
+  - kind: chart.line
+    id: comparison
+    title: Same samples as lines
+    dataset: signals
+    x: {field: minute, label: minute}
+    y: {field: value, label: signal}
+    series: {field: service, palette: ["#3366CC", "#009E73"]}
+    show_points: true
+  - kind: geometry.scene
+    id: notes
+    title: Explicit area semantics
+    children:
+      - {type: rect, id: panel, x: 0, y: 48, width: 604, height: 340, radius: 8, style: {fill: "#F4F7FC", stroke: "#D5DEEC", stroke_width: 1}}
+      - {type: text, id: baseline, x: 24, y: 94, text: "Numeric baseline, linear interpolation", font_size: 21, anchor: start, weight: medium}
+      - {type: text, id: groups, x: 24, y: 144, text: "One closed path per series", font_size: 21, anchor: start}
+      - {type: text, id: opacity, x: 24, y: 194, text: "0.35 fill opacity; no stacking", font_size: 21, anchor: start}
+      - {type: text, id: order, x: 24, y: 244, text: "Points resolve in ascending x order", font_size: 21, anchor: start}
+      - {type: text, id: source, x: 24, y: 294, text: "Original rows and stable keys stay intact", font_size: 21, anchor: start}

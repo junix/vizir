@@ -32,17 +32,75 @@ pub fn parse_document(path: impl AsRef<Path>) -> VizResult<Document> {
     Ok(document)
 }
 
-pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
+/// Enforce only capabilities newly introduced in VizHIR 0.3.
+/// This deliberately does not turn generic deserialization into full validation.
+pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Diagnostic>> {
+    let diagnostics: Vec<_> = document
+        .views
+        .iter()
+        .enumerate()
+        .filter(|(_, view)| matches!(view, View::Area(_)) && document.version != "0.3")
+        .map(|(index, _)| {
+            Diagnostic::new(
+                "VIZ-SCHEMA-0003",
+                "chart.area requires VizHIR version \"0.3\"",
+            )
+            .at(format!("views[{index}]"))
+        })
+        .collect();
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
 
-    if !matches!(document.version.as_str(), "0.1" | "0.2") {
+/// A 0.3 inner/source pair is required for the new area capability. Legacy
+/// source/version pair acceptance is unchanged when area is not present.
+pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    if mir.version == "0.3" && mir.source_hir_version != "0.3" {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-MIR-0008",
+                "VizMIR 0.3 requires matching source_hir_version \"0.3\"",
+            )
+            .at("source_hir_version"),
+        );
+    }
+    for (index, view) in mir.views.iter().enumerate() {
+        if matches!(view, MirView::Chart(chart) if matches!(chart.mark, ChartMark::Area { .. }))
+            && (mir.version != "0.3" || mir.source_hir_version != "0.3")
+        {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-MIR-0008",
+                    "area marks require VizMIR and source HIR version \"0.3\"",
+                )
+                .at(format!("views[{index}].mark")),
+            );
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = validate_document_capabilities(document)
+        .err()
+        .unwrap_or_default();
+
+    if !matches!(document.version.as_str(), "0.1" | "0.2" | "0.3") {
         diagnostics.push(
             Diagnostic::new(
                 "VIZ-SCHEMA-0001",
                 format!("unsupported VizHIR version {:?}", document.version),
             )
             .at("version")
-            .with_help("use version \"0.1\" or \"0.2\""),
+            .with_help("use version \"0.1\", \"0.2\", or \"0.3\""),
         );
     }
 
@@ -172,6 +230,61 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
                     &source,
                     &mut diagnostics,
                 );
+            }
+            View::Area(chart) => {
+                for (encoding, axis) in [(&chart.x, "x"), (&chart.y, "y")] {
+                    validate_axis_options(
+                        document,
+                        encoding,
+                        true,
+                        &format!("{source}.{axis}.axis"),
+                        &mut diagnostics,
+                    );
+                }
+                validate_chart_fields(
+                    document,
+                    &chart.dataset,
+                    &[&chart.x.field, &chart.y.field],
+                    &chart
+                        .series
+                        .as_ref()
+                        .map(|value| vec![value.field.as_str()])
+                        .unwrap_or_default(),
+                    &source,
+                    &mut diagnostics,
+                );
+                validate_finite(
+                    chart.baseline,
+                    &format!("{source}.baseline"),
+                    &mut diagnostics,
+                );
+                validate_palette(
+                    chart.series.as_ref().map(|value| &value.palette),
+                    &source,
+                    &mut diagnostics,
+                );
+                if chart.baseline.is_finite()
+                    && let Some(dataset) = document.datasets.get(&chart.dataset)
+                {
+                    let (minimum, maximum) = dataset
+                        .rows
+                        .iter()
+                        .filter_map(|row| row.get(&chart.y.field).and_then(Value::as_f64))
+                        .filter(|value| value.is_finite())
+                        .fold(
+                            (chart.baseline, chart.baseline),
+                            |(minimum, maximum), value| (minimum.min(value), maximum.max(value)),
+                        );
+                    if !(maximum - minimum).is_finite() {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                "VIZ-AREA-0001",
+                                "area values and baseline must have a finite combined span",
+                            )
+                            .at(format!("{source}.baseline")),
+                        );
+                    }
+                }
             }
             View::Bar(chart) => {
                 validate_axis_options(
@@ -306,14 +419,14 @@ fn validate_axis_options(
     let Some(axis) = &encoding.axis else {
         return;
     };
-    if document.version != "0.2" {
+    if !matches!(document.version.as_str(), "0.2" | "0.3") {
         diagnostics.push(
             Diagnostic::new(
                 "VIZ-SCHEMA-0002",
-                "axis options require VizHIR version \"0.2\"",
+                "axis options require VizHIR version \"0.2\" or \"0.3\"",
             )
             .at(source)
-            .with_help("set version to \"0.2\" to enable number_format"),
+            .with_help("set version to \"0.2\" or \"0.3\" to enable number_format"),
         );
     }
     if let Some(format) = &axis.number_format {
@@ -348,8 +461,8 @@ fn validate_number_format(
 }
 
 pub fn validate_mir(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
-    if !matches!(mir.version.as_str(), "0.1" | "0.2") {
+    let mut diagnostics = validate_mir_capabilities(mir).err().unwrap_or_default();
+    if !matches!(mir.version.as_str(), "0.1" | "0.2" | "0.3") {
         diagnostics.push(
             Diagnostic::new(
                 "VIZ-MIR-0001",
@@ -508,11 +621,11 @@ fn validate_mir_chart(
     for (index, guide) in chart.guides.iter().enumerate() {
         if let Some(format) = &guide.number_format {
             let format_source = format!("{source}.guides[{index}].number_format");
-            if mir.version != "0.2" {
+            if !matches!(mir.version.as_str(), "0.2" | "0.3") {
                 diagnostics.push(
                     Diagnostic::new(
                         "VIZ-MIR-0007",
-                        "number_format requires VizMIR version \"0.2\"",
+                        "number_format requires VizMIR version \"0.2\" or \"0.3\"",
                     )
                     .at(&format_source),
                 );
@@ -614,6 +727,11 @@ fn validate_mir_chart(
         group_expression,
         order_expression,
         ..
+    }
+    | ChartMark::Area {
+        group_expression,
+        order_expression,
+        ..
     } = &chart.mark
     {
         if let Some(expression) = group_expression {
@@ -632,6 +750,146 @@ fn validate_mir_chart(
             &format!("{source}.mark.order_expression"),
             diagnostics,
         );
+    }
+    if let ChartMark::Area {
+        x,
+        y,
+        color,
+        group_expression,
+        order_expression,
+        baseline,
+        ..
+    } = &chart.mark
+    {
+        validate_finite(*baseline, &format!("{source}.mark.baseline"), diagnostics);
+        let expected_guides = 2 + usize::from(color.is_some());
+        let axes_match = [
+            (x, crate::GuideOrient::Bottom),
+            (y, crate::GuideOrient::Left),
+        ]
+        .into_iter()
+        .all(|(binding, orient)| {
+            chart
+                .guides
+                .iter()
+                .filter(|guide| {
+                    guide.kind == GuideKind::Axis
+                        && guide.scale == binding.scale
+                        && guide.orient == orient
+                })
+                .count()
+                == 1
+        });
+        let legend_matches = color.as_ref().is_none_or(|color| {
+            chart
+                .guides
+                .iter()
+                .filter(|guide| {
+                    guide.kind == GuideKind::Legend
+                        && guide.scale == color.scale
+                        && guide.orient == crate::GuideOrient::Right
+                })
+                .count()
+                == 1
+        });
+        if chart.guides.len() != expected_guides || !axes_match || !legend_matches {
+            diagnostics.push(Diagnostic::new("VIZ-AREA-0005",
+                "area requires exactly one bottom x axis, one left y axis, and one right legend only when color is bound")
+                .at(format!("{source}.guides")));
+        }
+        if order_expression != &x.expression {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-AREA-0002",
+                    "area order_expression must equal x.expression",
+                )
+                .at(format!("{source}.mark.order_expression")),
+            );
+        }
+        for (name, binding) in [("x", x), ("y", y)] {
+            if let Some(scale) = chart
+                .scales
+                .iter()
+                .find(|scale| scale.id() == binding.scale)
+            {
+                if let MirScale::Linear { domain, .. } = scale {
+                    let minimum = if name == "y" {
+                        domain[0].min(*baseline)
+                    } else {
+                        domain[0]
+                    };
+                    let maximum = if name == "y" {
+                        domain[1].max(*baseline)
+                    } else {
+                        domain[1]
+                    };
+                    if !domain.iter().all(|value| value.is_finite())
+                        || !(maximum - minimum).is_finite()
+                    {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                "VIZ-AREA-0001",
+                                "area coordinates and baseline must have a finite combined span",
+                            )
+                            .at(format!("{source}.mark.{name}")),
+                        );
+                    }
+                } else {
+                    diagnostics.push(
+                        Diagnostic::new("VIZ-AREA-0003", "area coordinates require linear scales")
+                            .at(format!("{source}.mark.{name}.scale")),
+                    );
+                }
+            }
+            if let Some(expression) = mir.expressions.get(&binding.expression)
+                && !matches!(
+                    expression.result_type,
+                    ValueType::Int64 | ValueType::Float64
+                )
+            {
+                diagnostics.push(
+                    Diagnostic::new(
+                        "VIZ-AREA-0003",
+                        "area coordinates require non-null numeric expressions",
+                    )
+                    .at(format!("{source}.mark.{name}.expression")),
+                );
+            }
+        }
+        for (name, expression) in [
+            ("group_expression", group_expression.as_deref()),
+            (
+                "color",
+                color.as_ref().map(|binding| binding.expression.as_str()),
+            ),
+        ] {
+            if let Some(expression) = expression.and_then(|id| mir.expressions.get(id))
+                && !matches!(
+                    expression.result_type,
+                    ValueType::Bool | ValueType::Int64 | ValueType::Float64 | ValueType::String
+                )
+            {
+                diagnostics.push(
+                    Diagnostic::new(
+                        "VIZ-AREA-0004",
+                        "area grouping and color require non-null scalar expressions",
+                    )
+                    .at(format!("{source}.mark.{name}")),
+                );
+            }
+        }
+        if let Some(color) = color
+            && let Some(scale) = chart.scales.iter().find(|scale| scale.id() == color.scale)
+            && !matches!(scale, MirScale::OrdinalColor { .. })
+        {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-AREA-0004",
+                    "area color requires an ordinal-color scale",
+                )
+                .at(format!("{source}.mark.color.scale")),
+            );
+        }
     }
 }
 

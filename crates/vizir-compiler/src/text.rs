@@ -580,6 +580,8 @@ impl TextSession {
         })
     }
     pub(crate) fn preflight_document(&self, document: &vizir_core::Document) -> VizResult<()> {
+        vizir_core::validate_document_capabilities(document)
+            .map_err(|diagnostics| VizError::validation(&diagnostics))?;
         let mut strings = SourceText::new(self.limits);
         let mut geometry = Vec::new();
         let mut found_targets = BTreeSet::new();
@@ -608,6 +610,25 @@ impl TextSession {
                     }
                 }
                 vizir_core::View::Line(c) => {
+                    self.preflight_title(
+                        &mut strings,
+                        &c.id,
+                        c.title.as_deref(),
+                        &mut found_titles,
+                    )?;
+                    strings.add(c.x.label.as_deref().unwrap_or(&c.x.field))?;
+                    strings.add(c.y.label.as_deref().unwrap_or(&c.y.field))?;
+                    if let Some(color) = &c.series
+                        && let Some(data) = document.datasets.get(&c.dataset)
+                    {
+                        for row in &data.rows {
+                            if let Some(serde_json::Value::String(s)) = row.get(&color.field) {
+                                strings.add(s)?;
+                            }
+                        }
+                    }
+                }
+                vizir_core::View::Area(c) => {
                     self.preflight_title(
                         &mut strings,
                         &c.id,
@@ -714,6 +735,8 @@ impl TextSession {
         Ok(())
     }
     pub(crate) fn preflight_mir(&self, mir: &vizir_core::VizMir) -> VizResult<()> {
+        vizir_core::validate_mir_capabilities(mir)
+            .map_err(|diagnostics| VizError::validation(&diagnostics))?;
         let mut strings = SourceText::new(self.limits);
         let mut geometry = Vec::new();
         let mut found_targets = BTreeSet::new();
@@ -1612,7 +1635,7 @@ impl TextSession {
         for view in self.title_targets.keys() {
             if !found.contains(view) {
                 return Err(text_layout::error(format!(
-                    "chart.title target {view:?} must name one existing title in a bar, line or scatter source view"
+                    "chart.title target {view:?} must name one existing title in a bar, line or scatter source view, or an area source view under HIR/MIR 0.3"
                 )));
             }
         }

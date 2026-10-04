@@ -99,7 +99,7 @@ impl CompiledMir {
                 format!("unsupported compiled MIR format {:?}", self.format),
             ));
         }
-        if !matches!(self.mir.version.as_str(), "0.1" | "0.2")
+        if !matches!(self.mir.version.as_str(), "0.1" | "0.2" | "0.3")
             || self.mir.source_hir_version != self.mir.version
         {
             return Err(context_error(
@@ -107,6 +107,8 @@ impl CompiledMir {
                 "compiled context requires matching supported inner MIR and source HIR versions",
             ));
         }
+        vizir_core::validate_mir_capabilities(&self.mir)
+            .map_err(|diagnostics| VizError::validation(&diagnostics))?;
         self.context.validate()
     }
 }

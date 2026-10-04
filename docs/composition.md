@@ -1,8 +1,8 @@
-# Grid composition source 0.1
+# Grid composition sources 0.1 and 0.2
 
 `CompositionV1` is a small authoring wrapper that allocates equal grid cells to
-frame-free panels. It emits an ordinary, validated VizHIR 0.2 document. It is
-not a new HIR dialect or a claim that VizHIR 0.3 exists.
+frame-free panels. It emits an ordinary, validated VizHIR 0.2 document. The separate
+`vizir-composition/0.2` contract adds area panels and emits VizHIR 0.3.
 
 The pipeline is explicit:
 
@@ -61,7 +61,7 @@ cargo run -p vizir-cli -- schema composition --output out/composition.schema.jso
 
 The same generated contract is checked in at `schemas/composition.schema.json`.
 
-## Source contract
+## Composition 0.1 source contract
 
 The required root fields are `schema`, `id`, `width`, `height`, `layout`, and
 `panels`. The schema discriminator is exactly `vizir-composition/0.1`.
@@ -178,9 +178,36 @@ let compilation = compile(&hir)?;
 let schema = composition_schema();
 ```
 
-`CompositionV1` is the typed, serializable source model. `compose(&CompositionV1)`
+`CompositionV1` is the typed, serializable source model for composition 0.1. `compose(&CompositionV1)`
 returns `VizResult<Document>` and performs allocation plus HIR validation.
 `parse_document` and `compile(&Document)` retain their existing HIR-only
 contracts. Integration tests compare the composed document, MIR, and Scene2D
-with equivalent explicit HIR, and cover all five panel kinds, defaults,
+with equivalent explicit HIR, and cover all five 0.1 panel kinds, defaults,
 coordinate ownership, repeatability, and safe CLI publication failures.
+
+## Area panels in composition 0.2
+
+Set `schema: vizir-composition/0.2` to emit VizHIR 0.3. The same grid allocation,
+ordered panels, source validation and output-publication rules apply. All
+existing panel kinds remain available, and `chart.area` adds numeric x/y
+encodings, optional series, a required finite baseline and required
+`order: x-ascending`. Its frame still comes from the allocated grid cell.
+
+```yaml
+schema: vizir-composition/0.2
+# ...id, dimensions, layout and datasets...
+panels:
+  - kind: chart.area
+    id: signal
+    dataset: samples
+    x: {field: time}
+    y: {field: value}
+    baseline: 0
+    order: x-ascending
+```
+
+Run the complete [mixed area example](../examples/composition/area-dashboard.compose.yaml)
+with `vizir compose`, then pass the emitted HIR to the usual validate,
+normalize, lower, render and explain commands. [Area semantics](area-charts.md)
+apply before target emission. The original composition 0.1 still emits HIR
+0.2 and rejects area panels; no existing source changes version implicitly.

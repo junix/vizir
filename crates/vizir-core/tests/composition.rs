@@ -298,10 +298,16 @@ fn checked_in_schema_tracks_the_closed_versioned_composition_contract() {
     let checked_in: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let generated = composition_schema();
     assert_eq!(checked_in, generated);
-    assert_eq!(generated["additionalProperties"], false);
+    assert_eq!(
+        generated["$defs"]["CompositionV1"]["additionalProperties"],
+        false
+    );
     assert_eq!(
         generated["$defs"]["CompositionSchema"]["enum"],
         json!(["vizir-composition/0.1"])
     );
-    assert_eq!(generated["properties"]["panels"]["minItems"], 1);
+    assert_eq!(
+        generated["$defs"]["CompositionV1"]["properties"]["panels"]["minItems"],
+        1
+    );
 }

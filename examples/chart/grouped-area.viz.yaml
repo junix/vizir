@@ -1,0 +1,32 @@
+version: "0.3"
+id: overlapping-area-series
+width: 1000
+height: 560
+background: transparent
+
+datasets:
+  signals:
+    key: sample_id
+    rows:
+      - {sample_id: beta-3, minute: 3, value: 7, service: Beta}
+      - {sample_id: alpha-2, minute: 2, value: -2, service: Alpha}
+      - {sample_id: beta-0, minute: 0, value: 2, service: Beta}
+      - {sample_id: alpha-0, minute: 0, value: 4, service: Alpha}
+      - {sample_id: alpha-4, minute: 4, value: 3, service: Alpha}
+      - {sample_id: beta-4, minute: 4, value: 4, service: Beta}
+      - {sample_id: alpha-1, minute: 1, value: 8, service: Alpha}
+      - {sample_id: beta-1, minute: 1, value: 3, service: Beta}
+      - {sample_id: alpha-3, minute: 3, value: 5, service: Alpha}
+      - {sample_id: beta-2, minute: 2, value: 6, service: Beta}
+
+views:
+  - kind: chart.area
+    id: signals
+    title: Overlapping series with a shared baseline
+    frame: {x: 0, y: 0, width: 1000, height: 560}
+    dataset: signals
+    x: {field: minute, label: minute}
+    y: {field: value, label: signal}
+    series: {field: service, palette: ["#3366CC", "#009E73"]}
+    baseline: 0
+    order: x-ascending
