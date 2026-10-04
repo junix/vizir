@@ -6,6 +6,8 @@ use vizir_core::{
     Transform2D, UnsupportedPolicy, VizError, VizResult, negotiate_scene, validate_scene,
 };
 
+mod xml;
+
 pub fn capabilities() -> BackendCapabilities {
     BackendCapabilities {
         backend: "svg".to_owned(),
@@ -35,6 +37,7 @@ pub fn capabilities() -> BackendCapabilities {
 }
 
 pub fn render(scene: &Scene2D) -> VizResult<String> {
+    xml::validate_strings(scene)?;
     validate_scene(scene).map_err(|diagnostics| VizError::validation(&diagnostics))?;
     negotiate_scene(scene, &capabilities())?.require_accepted()?;
     let mut output = String::new();
@@ -338,14 +341,22 @@ fn escape_text(value: &str) -> String {
         .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+        // XML end-of-line normalization otherwise turns literal CR into LF.
+        .replace('\r', "&#xD;")
 }
 
 fn escape_attr(value: &str) -> String {
     escape_text(value)
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
+        // Character references bypass XML attribute whitespace normalization.
+        .replace('\t', "&#x9;")
+        .replace('\n', "&#xA;")
 }
 
 #[cfg(test)]
 #[path = "lib_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod xml_tests;

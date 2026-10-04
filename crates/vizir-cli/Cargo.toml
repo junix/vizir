@@ -30,3 +30,4 @@ same-file = "1.0.6"
 
 [dev-dependencies]
 tempfile.workspace = true
+roxmltree = "0.21.1"

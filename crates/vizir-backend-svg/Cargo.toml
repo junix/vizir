@@ -6,3 +6,6 @@ license.workspace = true
 
 [dependencies]
 vizir-core = { path = "../vizir-core" }
+
+[dev-dependencies]
+roxmltree = "0.21.1"

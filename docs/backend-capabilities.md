@@ -81,3 +81,21 @@ line override. Public API callers using a custom profile must likewise call
 an already-built Scene2D; they neither perform complete Scene2D validation nor
 bound total process memory. Negotiation does not replace document/MIR validation
 or the CLI's independent PNG and process bounds.
+
+## SVG XML string representability
+
+SVG emission separately checks every emitted source string against the
+[XML 1.0 character set](https://www.w3.org/TR/REC-xml/#charsets). Unrepresentable
+characters fail with `VIZ-SVG-0001`, naming the field, code point, and UTF-8 byte
+offset, without echoing source content. Node locations use zero-based preorder
+ordinals (`nodes(preorder)[N]`), including groups, to keep diagnostics bounded.
+This target check does not restrict generic Scene2D opaque IDs or inspect
+metadata that SVG does not emit, such as origin explanations and loss records.
+
+Attribute tabs, line feeds, and carriage returns are emitted as character
+references; text carriage returns are also referenced. XML parsing therefore
+preserves their exact values instead of normalizing them. XML-special characters
+remain escaped, and ordinary legacy output bytes are unchanged. This guarantees
+XML string round trips, not browser ID-selector syntax or text layout behavior.
+The CLI performs this check before staging or publishing SVG, PNG, or manifests;
+an XML error leaves any previous output files untouched.
