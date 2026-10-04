@@ -1,0 +1,256 @@
+{
+  "version": "0.1",
+  "source_hir_version": "0.1",
+  "document_id": "legacy-theme-source",
+  "width": 1000.0,
+  "height": 400.0,
+  "background": "transparent",
+  "spaces": {
+    "space/document": {
+      "id": "space/document",
+      "kind": "document",
+      "unit": "scene-unit",
+      "transform_to_parent": {
+        "translate": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "rotate_degrees": 0.0,
+        "scale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      }
+    }
+  },
+  "data": {
+    "data/data": {
+      "id": "data/data",
+      "schema": {
+        "key": "id",
+        "fields": {
+          "id": {
+            "type": "string"
+          },
+          "x": {
+            "type": "int64"
+          },
+          "y": {
+            "type": "int64"
+          }
+        }
+      },
+      "operator": {
+        "kind": "inline",
+        "rows": [
+          {
+            "id": "a",
+            "x": 1,
+            "y": 2
+          },
+          {
+            "id": "b",
+            "x": 3,
+            "y": 4
+          }
+        ]
+      },
+      "update_mode": "replace",
+      "deterministic": true
+    }
+  },
+  "expressions": {
+    "expr/chart/key": {
+      "result_type": {
+        "type": "string"
+      },
+      "expression": {
+        "op": "field",
+        "row": "row/chart",
+        "field": "id"
+      }
+    },
+    "expr/chart/x": {
+      "result_type": {
+        "type": "int64"
+      },
+      "expression": {
+        "op": "field",
+        "row": "row/chart",
+        "field": "x"
+      }
+    },
+    "expr/chart/y": {
+      "result_type": {
+        "type": "int64"
+      },
+      "expression": {
+        "op": "field",
+        "row": "row/chart",
+        "field": "y"
+      }
+    }
+  },
+  "views": [
+    {
+      "dialect": "chart",
+      "id": "chart",
+      "title": "Chart",
+      "frame": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 500.0,
+        "height": 400.0
+      },
+      "space": "space/document",
+      "source": "data/data",
+      "row_variable": "row/chart",
+      "key_expression": "expr/chart/key",
+      "scales": [
+        {
+          "type": "linear",
+          "id": "chart/x",
+          "domain": [
+            1.0,
+            3.0
+          ],
+          "range": [
+            64.0,
+            470.0
+          ],
+          "range_space": "space/document",
+          "zero": false
+        },
+        {
+          "type": "linear",
+          "id": "chart/y",
+          "domain": [
+            2.0,
+            4.0
+          ],
+          "range": [
+            338.0,
+            63.0
+          ],
+          "range_space": "space/document",
+          "zero": false
+        }
+      ],
+      "guides": [
+        {
+          "id": "chart/guides/x-axis",
+          "kind": "axis",
+          "scale": "chart/x",
+          "label": "x",
+          "orient": "bottom"
+        },
+        {
+          "id": "chart/guides/y-axis",
+          "kind": "axis",
+          "scale": "chart/y",
+          "label": "y",
+          "orient": "left"
+        }
+      ],
+      "mark": {
+        "type": "symbol",
+        "id": "chart/marks/points",
+        "x": {
+          "scale": "chart/x",
+          "expression": "expr/chart/x"
+        },
+        "y": {
+          "scale": "chart/y",
+          "expression": "expr/chart/y"
+        },
+        "color": null,
+        "size": 7.0,
+        "instances": [
+          {
+            "key": "a",
+            "x": 1.0,
+            "y": 2.0,
+            "color_category": null
+          },
+          {
+            "key": "b",
+            "x": 3.0,
+            "y": 4.0,
+            "color_category": null
+          }
+        ]
+      },
+      "provenance": [
+        "x domain inferred from 2 finite values",
+        "y domain inferred from 2 finite values",
+        "linear domains expanded with deterministic nice-domain policy",
+        "axes made explicit during chart dialect lowering"
+      ]
+    },
+    {
+      "dialect": "diagram",
+      "id": "graph",
+      "title": "Graph",
+      "frame": {
+        "x": 500.0,
+        "y": 0.0,
+        "width": 500.0,
+        "height": 400.0
+      },
+      "space": "space/document",
+      "nodes": [
+        {
+          "id": "a",
+          "label": "A",
+          "group": "G",
+          "position": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "stroke_width": 1.5,
+            "opacity": 1.0
+          }
+        },
+        {
+          "id": "b",
+          "label": "B",
+          "group": null,
+          "position": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "stroke_width": 1.5,
+            "opacity": 1.0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "from": "a",
+          "to": "b",
+          "label": null,
+          "style": {
+            "fill": null,
+            "stroke": null,
+            "stroke_width": 1.5,
+            "opacity": 1.0
+          }
+        }
+      ],
+      "layout_request": {
+        "id": "graph/layout",
+        "algorithm": "layered",
+        "node_ids": [
+          "a",
+          "b"
+        ],
+        "seed": 42
+      },
+      "provenance": [
+        "diagram.graph lowered to topology plus an explicit layout request",
+        "layout algorithm resolved to Layered"
+      ]
+    }
+  ],
+  "losses": []
+}

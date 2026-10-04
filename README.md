@@ -316,3 +316,12 @@ Run `just gallery` to regenerate every PNG and the searchable, self-contained
 ![Service health dashboard](gallery/service-health.png)
 
 ![Visualization compiler pipeline](gallery/compiler-pipeline.png)
+
+## Canonical themes (explicit opt-in)
+
+Use `vizir themes` to list the fourteen canonical family/mode names.
+`vizir normalize source.viz.yaml --theme azure-dark -o themed.mir.json`
+persists a versioned theme compilation context that existing validate, lower,
+render and explain commands can reload. `normalize themed.mir.json` refreshes
+intentionally edited MIR data while preserving the pinned theme and styles.
+Omitting the selector retains legacy output bytes. See [theme context and defaults](docs/themes.md).

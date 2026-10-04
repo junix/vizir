@@ -9,6 +9,7 @@ use vizir_core::{
     TypedExpression, UpdateMode, ValueType, View, VizError, VizMir, VizResult, type_expression,
 };
 
+use crate::ResolvedThemeDefaults;
 use crate::chart_layout::{ChartLayout, legend_domain};
 use crate::materialize::{
     Budget, MaterializationLimits, materialize_mark, preflight_document, preflight_hir_bindings,
@@ -22,7 +23,15 @@ const DEFAULT_PALETTE: [&str; 8] = [
 const DOCUMENT_SPACE: &str = "space/document";
 
 pub fn lower_to_mir(document: &Document) -> VizResult<VizMir> {
-    let mut budget = Budget::new(MaterializationLimits::default());
+    lower_to_mir_with_defaults(document, None, MaterializationLimits::default())
+}
+
+pub(crate) fn lower_to_mir_with_defaults(
+    document: &Document,
+    defaults: Option<&ResolvedThemeDefaults>,
+    limits: MaterializationLimits,
+) -> VizResult<VizMir> {
+    let mut budget = Budget::new(limits);
     preflight_document(document, &mut budget)?;
     vizir_core::validate_document(document)
         .map_err(|diagnostics| VizError::validation(&diagnostics))?;
@@ -42,16 +51,37 @@ pub fn lower_to_mir(document: &Document) -> VizResult<VizMir> {
     for view in &document.views {
         views.push(match view {
             View::Scatter(chart) => MirView::Chart(Box::new(
-                lower_scatter(document, chart, &data, &mut expressions, &mut budget)
-                    .map_err(lowering_error)?,
+                lower_scatter(
+                    document,
+                    chart,
+                    &data,
+                    &mut expressions,
+                    &mut budget,
+                    defaults,
+                )
+                .map_err(lowering_error)?,
             )),
             View::Line(chart) => MirView::Chart(Box::new(
-                lower_line(document, chart, &data, &mut expressions, &mut budget)
-                    .map_err(lowering_error)?,
+                lower_line(
+                    document,
+                    chart,
+                    &data,
+                    &mut expressions,
+                    &mut budget,
+                    defaults,
+                )
+                .map_err(lowering_error)?,
             )),
             View::Bar(chart) => MirView::Chart(Box::new(
-                lower_bar(document, chart, &data, &mut expressions, &mut budget)
-                    .map_err(lowering_error)?,
+                lower_bar(
+                    document,
+                    chart,
+                    &data,
+                    &mut expressions,
+                    &mut budget,
+                    defaults,
+                )
+                .map_err(lowering_error)?,
             )),
             View::Diagram(diagram) => MirView::Diagram(MirDiagram {
                 id: diagram.id.clone(),
@@ -94,7 +124,11 @@ pub fn lower_to_mir(document: &Document) -> VizResult<VizMir> {
                     title: geometry.title.clone(),
                     frame: geometry.frame,
                     space,
-                    children: geometry.children.iter().map(lower_geometry_node).collect(),
+                    children: geometry
+                        .children
+                        .iter()
+                        .map(|node| lower_geometry_node(node, defaults))
+                        .collect(),
                     provenance: vec![
                         "geometry.scene defaults expanded into normalized portable primitives"
                             .to_owned(),
@@ -126,6 +160,7 @@ fn lower_scatter(
     data: &BTreeMap<String, MirDataNode>,
     expressions: &mut BTreeMap<String, TypedExpression>,
     budget: &mut Budget,
+    defaults: Option<&ResolvedThemeDefaults>,
 ) -> Result<MirChart, String> {
     let dataset = dataset(document, &chart.dataset)?;
     let source = data_id(&chart.dataset);
@@ -203,6 +238,7 @@ fn lower_scatter(
         &chart.id,
         chart.color.as_ref(),
         instances.iter().filter_map(|p| p.color_category.as_ref()),
+        defaults,
     );
     let ticks = NumericTickLabels::new(
         Some((x_domain, chart.x.number_format())),
@@ -269,6 +305,7 @@ fn lower_line(
     data: &BTreeMap<String, MirDataNode>,
     expressions: &mut BTreeMap<String, TypedExpression>,
     budget: &mut Budget,
+    defaults: Option<&ResolvedThemeDefaults>,
 ) -> Result<MirChart, String> {
     let dataset = dataset(document, &chart.dataset)?;
     let source = data_id(&chart.dataset);
@@ -356,6 +393,7 @@ fn lower_line(
         &chart.id,
         chart.series.as_ref(),
         series.iter().filter_map(|s| s.color_category.as_ref()),
+        defaults,
     );
     let ticks = NumericTickLabels::new(
         Some((x_domain, chart.x.number_format())),
@@ -446,6 +484,7 @@ fn lower_bar(
     data: &BTreeMap<String, MirDataNode>,
     expressions: &mut BTreeMap<String, TypedExpression>,
     budget: &mut Budget,
+    defaults: Option<&ResolvedThemeDefaults>,
 ) -> Result<MirChart, String> {
     let dataset = dataset(document, &chart.dataset)?;
     let source = data_id(&chart.dataset);
@@ -523,6 +562,7 @@ fn lower_bar(
         &chart.id,
         chart.color.as_ref(),
         instances.iter().filter_map(|p| p.color_category.as_ref()),
+        defaults,
     );
     let plot = ChartLayout::new(
         &chart.id,
@@ -659,6 +699,7 @@ fn materialized_color_scale<'a>(
     chart_id: &str,
     encoding: Option<&ColorEncoding>,
     categories: impl Iterator<Item = &'a String>,
+    defaults: Option<&ResolvedThemeDefaults>,
 ) -> Option<MirScale> {
     encoding.map(|encoding| {
         let domain = categories
@@ -667,10 +708,12 @@ fn materialized_color_scale<'a>(
             .into_iter()
             .collect::<Vec<_>>();
         let palette = if encoding.palette.is_empty() {
-            DEFAULT_PALETTE
-                .iter()
-                .map(|color| Color::hex(color))
-                .collect()
+            defaults.map(|d| d.series.to_vec()).unwrap_or_else(|| {
+                DEFAULT_PALETTE
+                    .iter()
+                    .map(|color| Color::hex(color))
+                    .collect()
+            })
         } else {
             encoding.palette.clone()
         };
@@ -852,7 +895,10 @@ fn row_variable(chart_id: &str) -> String {
     format!("row/{chart_id}")
 }
 
-fn lower_geometry_node(node: &GeometryNode) -> MirGeometryNode {
+fn lower_geometry_node(
+    node: &GeometryNode,
+    defaults: Option<&ResolvedThemeDefaults>,
+) -> MirGeometryNode {
     match node {
         GeometryNode::Group {
             id,
@@ -863,7 +909,10 @@ fn lower_geometry_node(node: &GeometryNode) -> MirGeometryNode {
             id: id.clone(),
             transform: *transform,
             opacity: opacity.unwrap_or(1.0),
-            children: children.iter().map(lower_geometry_node).collect(),
+            children: children
+                .iter()
+                .map(|node| lower_geometry_node(node, defaults))
+                .collect(),
         },
         GeometryNode::Rect {
             id,
@@ -904,7 +953,13 @@ fn lower_geometry_node(node: &GeometryNode) -> MirGeometryNode {
             id: id.clone(),
             from: *from,
             to: *to,
-            style: lower_style(style, Color::transparent(), Color::hex("#1C2736")),
+            style: lower_style(
+                style,
+                Color::transparent(),
+                defaults
+                    .map(|d| d.ink.clone())
+                    .unwrap_or_else(|| Color::hex("#1C2736")),
+            ),
         },
         GeometryNode::Path {
             id,
@@ -913,7 +968,13 @@ fn lower_geometry_node(node: &GeometryNode) -> MirGeometryNode {
         } => MirGeometryNode::Path {
             id: id.clone(),
             commands: commands.clone(),
-            style: lower_style(style, Color::transparent(), Color::hex("#1C2736")),
+            style: lower_style(
+                style,
+                Color::transparent(),
+                defaults
+                    .map(|d| d.ink.clone())
+                    .unwrap_or_else(|| Color::hex("#1C2736")),
+            ),
         },
         GeometryNode::Text {
             id,
@@ -931,7 +992,11 @@ fn lower_geometry_node(node: &GeometryNode) -> MirGeometryNode {
             text: text.clone(),
             font_size: *font_size,
             anchor: *anchor,
-            color: color.clone().unwrap_or_else(|| Color::hex("#1C2736")),
+            color: color.clone().unwrap_or_else(|| {
+                defaults
+                    .map(|d| d.ink.clone())
+                    .unwrap_or_else(|| Color::hex("#1C2736"))
+            }),
             weight: *weight,
         },
     }

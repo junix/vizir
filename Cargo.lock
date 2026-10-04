@@ -132,6 +132,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "diagram-theme"
+version = "0.1.0"
+source = "git+https://github.com/junix/diagram-theme-rs.git?rev=1cc4e6667aa86444a7e9055549aa85cac293dc07#1cc4e6667aa86444a7e9055549aa85cac293dc07"
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -543,6 +548,9 @@ dependencies = [
 name = "vizir-compiler"
 version = "0.1.0"
 dependencies = [
+ "diagram-theme",
+ "schemars",
+ "serde",
  "serde_json",
  "vizir-core",
 ]

@@ -1,0 +1,44 @@
+version: "0.2"
+id: canonical-theme-defaults
+width: 1100
+height: 660
+background: transparent
+datasets:
+  services:
+    key: id
+    rows:
+      - { id: gateway, latency: 34, risk: 3, team: platform }
+      - { id: auth, latency: 28, risk: 2, team: platform }
+      - { id: billing, latency: 62, risk: 5, team: commerce }
+      - { id: checkout, latency: 48, risk: 4, team: commerce }
+      - { id: search, latency: 72, risk: 2, team: discovery }
+views:
+  - kind: chart.scatter
+    id: health
+    title: Service health
+    frame: { x: 0, y: 0, width: 640, height: 400 }
+    dataset: services
+    x: { field: latency, label: Latency (ms) }
+    y: { field: risk, label: Risk }
+    color: { field: team }
+  - kind: diagram.graph
+    id: pipeline
+    title: Request path
+    frame: { x: 640, y: 0, width: 460, height: 620 }
+    layout: manual
+    nodes:
+      - { id: intake, label: Intake, group: entry, position: { x: 230, y: 140 } }
+      - { id: route, label: Route, group: processing, position: { x: 230, y: 300 } }
+      - { id: serve, label: Serve, position: { x: 230, y: 460 } }
+    edges:
+      - { from: intake, to: route, label: validate }
+      - { from: route, to: serve, label: execute }
+  - kind: geometry.scene
+    id: notes
+    frame: { x: 0, y: 400, width: 640, height: 260 }
+    children:
+      - { type: text, anchor: start, id: heading, x: 24, y: 42, text: "Canonical defaults, authored intent", font_size: 24, weight: bold }
+      - { type: text, anchor: start, id: body, x: 24, y: 85, text: "Transparent canvas; semantic marks remain filled", font_size: 17 }
+      - { type: rect, id: swatch, x: 24, y: 115, width: 180, height: 58, radius: 10, style: { fill: "#E8B85D", stroke: "#8F6420", stroke_width: 2 } }
+      - { type: text, anchor: start, id: swatch-label, x: 43, y: 151, text: "Authored color", font_size: 17, color: "#342711" }
+      - { type: line, id: rule, from: { x: 235, y: 144 }, to: { x: 590, y: 144 } }

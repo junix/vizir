@@ -5,5 +5,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+diagram-theme = { git = "https://github.com/junix/diagram-theme-rs.git", rev = "1cc4e6667aa86444a7e9055549aa85cac293dc07" }
+schemars.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 vizir-core = { path = "../vizir-core" }

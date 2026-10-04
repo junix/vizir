@@ -7,6 +7,7 @@ use vizir_core::{
     VizResult, map_linear,
 };
 
+use crate::ResolvedThemeDefaults;
 use crate::chart_layout::{ChartLayout, header_text_width, legend_domain};
 use crate::layout::{LayeredLayoutProvider, LayoutProvider};
 use crate::materialize::{MaterializationLimits, materialize_mir_marks};
@@ -23,15 +24,23 @@ pub fn build_scene(mir: &VizMir) -> VizResult<Scene2D> {
 }
 
 pub fn build_scene_with_limits(mir: &VizMir, limits: MaterializationLimits) -> VizResult<Scene2D> {
+    build_scene_with_defaults(mir, limits, None)
+}
+
+pub(crate) fn build_scene_with_defaults(
+    mir: &VizMir,
+    limits: MaterializationLimits,
+    defaults: Option<&ResolvedThemeDefaults>,
+) -> VizResult<Scene2D> {
     let marks = materialize_mir_marks(mir, limits, true)?;
     let mut nodes = Vec::new();
     for (view, mark) in mir.views.iter().zip(&marks) {
         nodes.push(match view {
             MirView::Chart(chart) => {
-                build_chart(chart, mark.as_ref().expect("chart materialized"))?
+                build_chart(chart, mark.as_ref().expect("chart materialized"), defaults)?
             }
-            MirView::Diagram(diagram) => build_diagram(diagram)?,
-            MirView::Geometry(geometry) => build_geometry(geometry)?,
+            MirView::Diagram(diagram) => build_diagram(diagram, defaults)?,
+            MirView::Geometry(geometry) => build_geometry(geometry, defaults)?,
         });
     }
     let scene = Scene2D {
@@ -46,7 +55,11 @@ pub fn build_scene_with_limits(mir: &VizMir, limits: MaterializationLimits) -> V
     Ok(scene)
 }
 
-fn build_chart(chart: &MirChart, materialized: &ChartMark) -> VizResult<SceneNode> {
+fn build_chart(
+    chart: &MirChart,
+    materialized: &ChartMark,
+    defaults: Option<&ResolvedThemeDefaults>,
+) -> VizResult<SceneNode> {
     let mut children = Vec::new();
     let guides = ChartGuides::resolve(chart)?;
     let ticks = NumericTickLabels::new(
@@ -123,7 +136,13 @@ fn build_chart(chart: &MirChart, materialized: &ChartMark) -> VizResult<SceneNod
     // serialized MIR may differ from recomputed layout by a rounding bit.
     let plot = [x_range[0], y_range[1], x_range[1], y_range[0]];
     guides.check_ranges(chart, plot)?;
-    children.extend(build_grid_and_axes(chart, plot, &guides, ticks.as_ref()));
+    children.extend(build_grid_and_axes(
+        chart,
+        plot,
+        &guides,
+        ticks.as_ref(),
+        defaults,
+    ));
     match materialized {
         ChartMark::Symbol {
             id: mark_id,
@@ -145,6 +164,7 @@ fn build_chart(chart: &MirChart, materialized: &ChartMark) -> VizResult<SceneNod
                     chart,
                     color.as_ref().map(|binding| binding.scale.as_str()),
                     item.color_category.as_deref(),
+                    defaults,
                 );
                 children.push(SceneNode::Circle {
                     id: format!("{}/point/{}", chart.id, item.key),
@@ -169,7 +189,9 @@ fn build_chart(chart: &MirChart, materialized: &ChartMark) -> VizResult<SceneNod
                     radius: *size,
                     style: ResolvedStyle {
                         fill: color,
-                        stroke: Color::hex("#FFFFFF"),
+                        stroke: defaults
+                            .map(|d| d.point_interior.clone())
+                            .unwrap_or_else(|| Color::hex("#FFFFFF")),
                         stroke_width: 1.5,
                         opacity: 0.9,
                     },
@@ -194,6 +216,7 @@ fn build_chart(chart: &MirChart, materialized: &ChartMark) -> VizResult<SceneNod
                     chart,
                     color.as_ref().map(|binding| binding.scale.as_str()),
                     series.color_category.as_deref(),
+                    defaults,
                 );
                 let points = series
                     .points
@@ -265,7 +288,9 @@ fn build_chart(chart: &MirChart, materialized: &ChartMark) -> VizResult<SceneNod
                             center: *point,
                             radius: 3.5,
                             style: ResolvedStyle {
-                                fill: Color::hex("#FFFFFF"),
+                                fill: defaults
+                                    .map(|d| d.point_interior.clone())
+                                    .unwrap_or_else(|| Color::hex("#FFFFFF")),
                                 stroke: color.clone(),
                                 stroke_width: 2.0,
                                 opacity: 1.0,
@@ -327,6 +352,7 @@ fn build_chart(chart: &MirChart, materialized: &ChartMark) -> VizResult<SceneNod
                             chart,
                             color.as_ref().map(|binding| binding.scale.as_str()),
                             item.color_category.as_deref(),
+                            defaults,
                         ),
                         stroke: Color::transparent(),
                         stroke_width: 0.0,
@@ -342,12 +368,14 @@ fn build_chart(chart: &MirChart, materialized: &ChartMark) -> VizResult<SceneNod
         guides.legend.map(|(guide, _)| guide),
         legend_scale,
         &layout,
+        defaults,
     ));
     if let Some(title) = &chart.title {
         children.push(header_text_envelope(title_node(
             &chart.id,
             title,
             chart.frame,
+            defaults,
         )));
     }
 
@@ -477,6 +505,7 @@ fn build_grid_and_axes(
     plot: [f64; 4],
     guides: &ChartGuides<'_>,
     ticks: Option<&NumericTickLabels>,
+    defaults: Option<&ResolvedThemeDefaults>,
 ) -> Vec<SceneNode> {
     let mut nodes = Vec::new();
     let x_scale = guides.bottom.map(|(_, scale)| scale);
@@ -490,7 +519,9 @@ fn build_grid_and_axes(
                 format!("{}/grid/y/{index}", chart.id),
                 Point { x: plot[0], y },
                 Point { x: plot[2], y },
-                Color::hex(GRID),
+                defaults
+                    .map(|d| d.grid.clone())
+                    .unwrap_or_else(|| Color::hex(GRID)),
                 1.0,
                 0.7,
                 &chart.id,
@@ -510,7 +541,9 @@ fn build_grid_and_axes(
                             .unwrap_or_else(|| format_number(value, None)),
                         11.0,
                         TextAnchor::End,
-                        Color::hex(MUTED),
+                        defaults
+                            .map(|d| d.muted.clone())
+                            .unwrap_or_else(|| Color::hex(MUTED)),
                         FontWeight::Regular,
                         &chart.id,
                         "tick label generated from linear scale domain",
@@ -533,7 +566,9 @@ fn build_grid_and_axes(
                 category.clone(),
                 font_size,
                 TextAnchor::Middle,
-                Color::hex(MUTED),
+                defaults
+                    .map(|d| d.muted.clone())
+                    .unwrap_or_else(|| Color::hex(MUTED)),
                 FontWeight::Regular,
                 &chart.id,
                 "category label generated from band scale domain",
@@ -548,7 +583,9 @@ fn build_grid_and_axes(
                 format!("{}/grid/x/{index}", chart.id),
                 Point { x, y: plot[1] },
                 Point { x, y: plot[3] },
-                Color::hex(GRID),
+                defaults
+                    .map(|d| d.grid.clone())
+                    .unwrap_or_else(|| Color::hex(GRID)),
                 1.0,
                 0.45,
                 &chart.id,
@@ -568,7 +605,9 @@ fn build_grid_and_axes(
                             .unwrap_or_else(|| format_number(value, None)),
                         11.0,
                         TextAnchor::Middle,
-                        Color::hex(MUTED),
+                        defaults
+                            .map(|d| d.muted.clone())
+                            .unwrap_or_else(|| Color::hex(MUTED)),
                         FontWeight::Regular,
                         &chart.id,
                         "tick label generated from linear scale domain",
@@ -590,7 +629,9 @@ fn build_grid_and_axes(
                 x: plot[2],
                 y: plot[3],
             },
-            Color::hex(MUTED),
+            defaults
+                .map(|d| d.muted.clone())
+                .unwrap_or_else(|| Color::hex(MUTED)),
             1.4,
             1.0,
             &chart.id,
@@ -608,7 +649,9 @@ fn build_grid_and_axes(
                 x: plot[0],
                 y: plot[3],
             },
-            Color::hex(MUTED),
+            defaults
+                .map(|d| d.muted.clone())
+                .unwrap_or_else(|| Color::hex(MUTED)),
             1.4,
             1.0,
             &chart.id,
@@ -630,7 +673,9 @@ fn build_grid_and_axes(
                 guide.label.clone(),
                 12.5,
                 TextAnchor::Middle,
-                Color::hex(INK),
+                defaults
+                    .map(|d| d.ink.clone())
+                    .unwrap_or_else(|| Color::hex(INK)),
                 FontWeight::Medium,
                 &chart.id,
                 "axis title emitted from explicit MIR guide",
@@ -644,7 +689,9 @@ fn build_grid_and_axes(
                 guide.label.clone(),
                 12.5,
                 TextAnchor::Start,
-                Color::hex(INK),
+                defaults
+                    .map(|d| d.ink.clone())
+                    .unwrap_or_else(|| Color::hex(INK)),
                 FontWeight::Medium,
                 &chart.id,
                 "axis title emitted from explicit MIR guide",
@@ -661,6 +708,7 @@ fn build_legend(
     guide: Option<&MirGuide>,
     scale: Option<&MirScale>,
     layout: &ChartLayout,
+    defaults: Option<&ResolvedThemeDefaults>,
 ) -> Vec<SceneNode> {
     let Some(MirScale::OrdinalColor { domain, range, .. }) = scale else {
         return Vec::new();
@@ -704,7 +752,9 @@ fn build_legend(
             label.clone(),
             10.5,
             TextAnchor::Start,
-            Color::hex(MUTED),
+            defaults
+                .map(|d| d.muted.clone())
+                .unwrap_or_else(|| Color::hex(MUTED)),
             FontWeight::Regular,
             &chart.id,
             "legend label generated from ordinal color scale",
@@ -713,7 +763,10 @@ fn build_legend(
     nodes
 }
 
-fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
+fn build_diagram(
+    diagram: &MirDiagram,
+    defaults: Option<&ResolvedThemeDefaults>,
+) -> VizResult<SceneNode> {
     let layout = LayeredLayoutProvider.layout(
         &diagram.layout_request.algorithm,
         diagram.frame,
@@ -794,6 +847,13 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
                 to: end,
             },
         ];
+        let edge_style = resolve_style(
+            &edge.style,
+            Color::transparent(),
+            defaults
+                .map(|d| d.edge.clone())
+                .unwrap_or_else(|| Color::hex("#8793A5")),
+        );
         children.push(SceneNode::Path {
             id: format!("{}/edge/{edge_index}-{}-{}", diagram.id, edge.from, edge.to),
             bounds: Rect::from_points(start, end),
@@ -809,9 +869,12 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
                 ),
             },
             commands,
-            style: resolve_style(&edge.style, Color::transparent(), Color::hex("#8793A5")),
-            marker_end: true,
+            style: edge_style.clone(),
+            marker_end: defaults.is_none(),
         });
+        if defaults.is_some() {
+            children.push(arrow_node(diagram, edge_index, end, control2, &edge_style)?);
+        }
         if let Some(label) = &edge.label {
             children.push(text_node(
                 format!("{}/edge/{edge_index}/label", diagram.id),
@@ -822,7 +885,9 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
                 label.clone(),
                 10.5,
                 TextAnchor::Middle,
-                Color::hex(MUTED),
+                defaults
+                    .map(|d| d.muted.clone())
+                    .unwrap_or_else(|| Color::hex(MUTED)),
                 FontWeight::Medium,
                 &diagram.id,
                 "edge label placed at resolved route midpoint",
@@ -835,9 +900,11 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
     for node in &diagram.nodes {
         if let Some(group) = &node.group {
             let next = group_colors.len();
-            group_colors
-                .entry(group.clone())
-                .or_insert_with(|| Color::hex(group_palette[next % group_palette.len()]));
+            group_colors.entry(group.clone()).or_insert_with(|| {
+                defaults
+                    .map(|d| d.group_fills[next % d.group_fills.len()].clone())
+                    .unwrap_or_else(|| Color::hex(group_palette[next % group_palette.len()]))
+            });
         }
     }
     for node in &diagram.nodes {
@@ -853,7 +920,11 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
             .as_ref()
             .and_then(|group| group_colors.get(group))
             .cloned()
-            .unwrap_or_else(|| Color::hex(SURFACE));
+            .unwrap_or_else(|| {
+                defaults
+                    .map(|d| d.node_fill.clone())
+                    .unwrap_or_else(|| Color::hex(SURFACE))
+            });
         children.push(SceneNode::Rect {
             id: format!("{}/node/{}/shape", diagram.id, node.id),
             bounds,
@@ -866,7 +937,13 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
                 explanation: format!("node placed by {}; stable id preserved", layout.explanation),
             },
             radius: 14.0,
-            style: resolve_style(&node.style, default_fill, Color::hex("#B8C3D3")),
+            style: resolve_style(
+                &node.style,
+                default_fill,
+                defaults
+                    .map(|d| d.node_stroke.clone())
+                    .unwrap_or_else(|| Color::hex("#B8C3D3")),
+            ),
         });
         children.push(text_node(
             format!("{}/node/{}/label", diagram.id, node.id),
@@ -881,14 +958,16 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
                 13.0
             },
             TextAnchor::Middle,
-            Color::hex(INK),
+            defaults
+                .map(|d| d.ink.clone())
+                .unwrap_or_else(|| Color::hex(INK)),
             FontWeight::Medium,
             &node.id,
             "diagram label positioned inside resolved node bounds",
         ));
     }
     if let Some(title) = &diagram.title {
-        children.push(title_node(&diagram.id, title, diagram.frame));
+        children.push(title_node(&diagram.id, title, diagram.frame, defaults));
     }
     Ok(SceneNode::Group {
         id: diagram.id.clone(),
@@ -907,7 +986,10 @@ fn build_diagram(diagram: &MirDiagram) -> VizResult<SceneNode> {
     })
 }
 
-fn build_geometry(geometry: &MirGeometry) -> VizResult<SceneNode> {
+fn build_geometry(
+    geometry: &MirGeometry,
+    defaults: Option<&ResolvedThemeDefaults>,
+) -> VizResult<SceneNode> {
     let mut children = geometry
         .children
         .iter()
@@ -920,7 +1002,9 @@ fn build_geometry(geometry: &MirGeometry) -> VizResult<SceneNode> {
             title.clone(),
             21.0,
             TextAnchor::Start,
-            Color::hex(INK),
+            defaults
+                .map(|d| d.ink.clone())
+                .unwrap_or_else(|| Color::hex(INK)),
             FontWeight::Bold,
             &geometry.id,
             "geometry scene title retained from HIR",
@@ -1137,9 +1221,16 @@ fn resolve_mir_style(style: &MirShapeStyle) -> ResolvedStyle {
     }
 }
 
-fn resolve_color(chart: &MirChart, scale_id: Option<&str>, category: Option<&str>) -> Color {
+fn resolve_color(
+    chart: &MirChart,
+    scale_id: Option<&str>,
+    category: Option<&str>,
+    defaults: Option<&ResolvedThemeDefaults>,
+) -> Color {
     let (Some(scale_id), Some(category)) = (scale_id, category) else {
-        return Color::hex(BLUE);
+        return defaults
+            .map(|d| d.mark.clone())
+            .unwrap_or_else(|| Color::hex(BLUE));
     };
     if let Some(MirScale::OrdinalColor { domain, range, .. }) =
         chart.scales.iter().find(|scale| scale.id() == scale_id)
@@ -1147,7 +1238,9 @@ fn resolve_color(chart: &MirChart, scale_id: Option<&str>, category: Option<&str
     {
         return range[index].clone();
     }
-    Color::hex(BLUE)
+    defaults
+        .map(|d| d.mark.clone())
+        .unwrap_or_else(|| Color::hex(BLUE))
 }
 
 fn linear_scale(chart: &MirChart, id: &str) -> VizResult<([f64; 2], [f64; 2])> {
@@ -1213,7 +1306,12 @@ fn frame_rect(frame: vizir_core::Frame) -> Rect {
     }
 }
 
-fn title_node(id: &str, title: &str, frame: vizir_core::Frame) -> SceneNode {
+fn title_node(
+    id: &str,
+    title: &str,
+    frame: vizir_core::Frame,
+    defaults: Option<&ResolvedThemeDefaults>,
+) -> SceneNode {
     text_node(
         format!("{id}/title"),
         Point {
@@ -1223,7 +1321,9 @@ fn title_node(id: &str, title: &str, frame: vizir_core::Frame) -> SceneNode {
         title.to_owned(),
         18.0,
         TextAnchor::Start,
-        Color::hex(INK),
+        defaults
+            .map(|d| d.ink.clone())
+            .unwrap_or_else(|| Color::hex(INK)),
         FontWeight::Bold,
         id,
         "view title retained from HIR",
@@ -1354,4 +1454,66 @@ fn numeric_tick_envelope(node: SceneNode, ticks: Option<&NumericTickLabels>) -> 
     } else {
         node
     }
+}
+
+// The legacy SVG marker uses markerUnits=strokeWidth, a 7x7 viewport and
+// refX=9 on a 10-unit triangle. Resolve that same triangle once in Scene2D.
+fn arrow_node(
+    diagram: &MirDiagram,
+    edge_index: usize,
+    end: Point,
+    control: Point,
+    edge_style: &ResolvedStyle,
+) -> VizResult<SceneNode> {
+    let edge = &diagram.edges[edge_index];
+    let dx = end.x - control.x;
+    let dy = end.y - control.y;
+    let length = dx.hypot(dy);
+    if !length.is_finite() || length == 0.0 || !edge_style.stroke_width.is_finite() {
+        return Err(crate::theme::theme_error(
+            "0005",
+            "cannot resolve a finite diagram arrow tangent",
+        ));
+    }
+    let unit = edge_style.stroke_width * 0.7;
+    let direction = Point {
+        x: dx / length,
+        y: dy / length,
+    };
+    let project = |x: f64, y: f64| Point {
+        x: end.x + unit * (direction.x * x - direction.y * y),
+        y: end.y + unit * (direction.y * x + direction.x * y),
+    };
+    let vertices = [project(-9.0, -5.0), project(1.0, 0.0), project(-9.0, 5.0)];
+    if vertices
+        .iter()
+        .any(|p| !p.x.is_finite() || !p.y.is_finite())
+    {
+        return Err(crate::theme::theme_error(
+            "0005",
+            "diagram arrow coordinates overflow",
+        ));
+    }
+    let min = Point {
+        x: vertices.iter().map(|p| p.x).fold(f64::INFINITY, f64::min),
+        y: vertices.iter().map(|p| p.y).fold(f64::INFINITY, f64::min),
+    };
+    let max = Point {
+        x: vertices
+            .iter()
+            .map(|p| p.x)
+            .fold(f64::NEG_INFINITY, f64::max),
+        y: vertices
+            .iter()
+            .map(|p| p.y)
+            .fold(f64::NEG_INFINITY, f64::max),
+    };
+    Ok(SceneNode::Path {
+        id: format!("{}/edge/{edge_index}-{}-{}/arrow", diagram.id, edge.from, edge.to),
+        bounds: Rect::from_points(min, max),
+        origin: Origin { hir_node: diagram.id.clone(), mir_node: format!("{}/edges/{edge_index}", diagram.id), data_key: Some(format!("{}->{}", edge.from, edge.to)), data_lineage: Vec::new(), generated_by: "resolve-diagram-arrow".to_owned(), explanation: "arrow triangle resolved from edge tangent and authored stroke before target emission".to_owned() },
+        commands: vec![PathCommand::Move { to: vertices[0] }, PathCommand::Line { to: vertices[1] }, PathCommand::Line { to: vertices[2] }, PathCommand::Close],
+        style: ResolvedStyle { fill: edge_style.stroke.clone(), stroke: Color::transparent(), stroke_width: 0.0, opacity: edge_style.opacity },
+        marker_end: false,
+    })
 }

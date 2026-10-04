@@ -5,13 +5,14 @@ use std::process::Command;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use tempfile::Builder;
-use vizir_compiler::compile;
+use vizir_compiler::themed_mir_schema;
 use vizir_core::{
     BackendCapabilities, Color, LossRecord, LoweringFidelity, UnsupportedPolicy, VizError,
     VizResult, capability_schema, compose, composition_schema, find_scene_node, mir_schema,
-    negotiate_scene, parse_composition, parse_document, scene_patch_schema, validate_document,
+    negotiate_scene, parse_composition, scene_patch_schema,
 };
 
+mod input;
 mod paths;
 mod process;
 mod publication;
@@ -32,22 +33,36 @@ enum Commands {
         output: Option<PathBuf>,
     },
     /// Validate VizHIR structure, references, types, and stable identity.
-    Validate { input: PathBuf },
+    Validate {
+        input: PathBuf,
+        /// Opt in to canonical defaults; use a listed family or family-dark.
+        #[arg(long)]
+        theme: Option<String>,
+    },
     /// Emit canonical normalized VizMIR as JSON.
     Normalize {
         input: PathBuf,
+        /// Canonical defaults for HIR; persisted context cannot be re-themed.
+        #[arg(long)]
+        theme: Option<String>,
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
     /// Emit resolved Scene2D as JSON.
     Lower {
         input: PathBuf,
+        /// Canonical defaults for HIR; persisted context cannot be re-themed.
+        #[arg(long)]
+        theme: Option<String>,
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
     /// Render exact SVG or alpha-preserving PNG.
     Render {
         input: PathBuf,
+        /// Canonical defaults for HIR; persisted context cannot be re-themed.
+        #[arg(long)]
+        theme: Option<String>,
         #[arg(long, value_enum, default_value = "png")]
         format: OutputFormat,
         #[arg(long)]
@@ -61,9 +76,14 @@ enum Commands {
     /// Explain the provenance of one stable Scene2D node.
     Explain {
         input: PathBuf,
+        /// Canonical defaults for HIR; persisted context cannot be re-themed.
+        #[arg(long)]
+        theme: Option<String>,
         #[arg(long)]
         node: String,
     },
+    /// List the fourteen canonical opt-in theme names.
+    Themes,
     /// Report a backend's supported capability surface.
     Capabilities { backend: Backend },
     /// Emit a canonical JSON Schema for a persisted IR contract.
@@ -91,6 +111,7 @@ enum Backend {
 enum IrKind {
     Composition,
     Mir,
+    ThemedMir,
     ScenePatch,
     Capability,
 }
@@ -117,39 +138,40 @@ fn run(cli: Cli) -> VizResult<()> {
             let document = compose(&composition)?;
             emit_json(&document, output.as_deref())?;
         }
-        Commands::Validate { input } => {
-            let document = parse_document(&input)?;
-            validate_document(&document)
-                .map_err(|diagnostics| VizError::validation(&diagnostics))?;
-            println!(
-                "valid: {} (VizHIR {}, {} views)",
-                document.id,
-                document.version,
-                document.views.len()
-            );
+        Commands::Validate { input, theme } => {
+            println!("{}", input::read(&input, theme)?.validate()?);
         }
-        Commands::Normalize { input, output } => {
-            let document = parse_document(&input)?;
+        Commands::Normalize {
+            input,
+            output,
+            theme,
+        } => {
+            let document = input::read(&input, theme)?;
             paths::check_destinations(&input, output.as_deref(), None)?;
-            let compilation = compile(&document)?;
+            let compilation = document.compile(true)?;
             emit_json(&compilation.mir, output.as_deref())?;
         }
-        Commands::Lower { input, output } => {
-            let document = parse_document(&input)?;
+        Commands::Lower {
+            input,
+            output,
+            theme,
+        } => {
+            let document = input::read(&input, theme)?;
             paths::check_destinations(&input, output.as_deref(), None)?;
-            let compilation = compile(&document)?;
+            let compilation = document.compile(false)?;
             emit_json(&compilation.scene, output.as_deref())?;
         }
         Commands::Render {
             input,
+            theme,
             format,
             background,
             output,
             manifest,
         } => {
-            let document = parse_document(&input)?;
+            let document = input::read(&input, theme)?;
             paths::check_destinations(&input, Some(&output), manifest.as_deref())?;
-            let mut compilation = compile(&document)?;
+            let mut compilation = document.compile(false)?;
             if let Some(background) = background {
                 validate_cli_color(&background)?;
                 compilation.scene.background = Color(background);
@@ -185,10 +207,10 @@ fn run(cli: Cli) -> VizResult<()> {
                 }
             }
             if let Some(staged_manifest) = &staged_manifest {
-                let report = serde_json::json!({
+                let mut report = serde_json::json!({
                     "compiler": format!("vizir/{}", env!("CARGO_PKG_VERSION")),
-                    "document_id": document.id,
-                    "source_ir_version": document.version,
+                    "document_id": compilation.mir.inner().document_id,
+                    "source_ir_version": compilation.mir.inner().source_hir_version,
                     "format": format_name(format),
                     "background": compilation.scene.background,
                     "output": serde_json::to_value(&output)?,
@@ -196,6 +218,10 @@ fn run(cli: Cli) -> VizResult<()> {
                     "capability_report": capability_report,
                     "losses": target_losses,
                 });
+                if let Some(theme) = compilation.mir.theme() {
+                    report["theme"] = serde_json::to_value(theme)?;
+                    report["source_context_format"] = vizir_compiler::THEMED_MIR_FORMAT.into();
+                }
                 staged_manifest.write(&serde_json::to_vec_pretty(&report)?)?;
             }
             let mut files = vec![staged_output];
@@ -206,7 +232,7 @@ fn run(cli: Cli) -> VizResult<()> {
             }
             println!(
                 "rendered: {} -> {} ({}, {} loss records)",
-                document.id,
+                compilation.mir.inner().document_id,
                 output.display(),
                 match format {
                     OutputFormat::Svg => "svg",
@@ -215,9 +241,9 @@ fn run(cli: Cli) -> VizResult<()> {
                 compilation.scene.losses.len() + target_losses.len()
             );
         }
-        Commands::Explain { input, node } => {
-            let document = parse_document(&input)?;
-            let compilation = compile(&document)?;
+        Commands::Explain { input, node, theme } => {
+            let document = input::read(&input, theme)?;
+            let compilation = document.compile(false)?;
             let found = find_scene_node(&compilation.scene.nodes, &node).ok_or_else(|| {
                 VizError::Diagnostic(format!("VIZ-EXPLAIN-0001: no Scene2D node named {node:?}"))
             })?;
@@ -234,6 +260,9 @@ fn run(cli: Cli) -> VizResult<()> {
             println!("generated-by: {}", origin.generated_by);
             println!("reason: {}", origin.explanation);
         }
+        Commands::Themes => {
+            println!("{}", vizir_compiler::THEME_NAMES.join("\n"));
+        }
         Commands::Capabilities { backend } => {
             let report = match backend {
                 Backend::Svg => vizir_backend_svg::capabilities(),
@@ -245,6 +274,7 @@ fn run(cli: Cli) -> VizResult<()> {
             let schema = match ir {
                 IrKind::Composition => composition_schema(),
                 IrKind::Mir => mir_schema(),
+                IrKind::ThemedMir => themed_mir_schema(),
                 IrKind::ScenePatch => scene_patch_schema(),
                 IrKind::Capability => capability_schema(),
             };

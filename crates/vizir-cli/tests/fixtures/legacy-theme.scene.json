@@ -1,0 +1,1114 @@
+{
+  "document_id": "legacy-theme-source",
+  "width": 1000.0,
+  "height": 400.0,
+  "background": "transparent",
+  "nodes": [
+    {
+      "type": "group",
+      "id": "chart",
+      "bounds": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 500.0,
+        "height": 400.0
+      },
+      "origin": {
+        "hir_node": "chart",
+        "mir_node": "chart",
+        "data_lineage": [
+          "data/data"
+        ],
+        "generated_by": "build-chart-scene",
+        "explanation": "x domain inferred from 2 finite values; y domain inferred from 2 finite values; linear domains expanded with deterministic nice-domain policy; axes made explicit during chart dialect lowering"
+      },
+      "transform": {
+        "translate": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "rotate_degrees": 0.0,
+        "scale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "opacity": 1.0,
+      "children": [
+        {
+          "type": "line",
+          "id": "chart/grid/y/0",
+          "bounds": {
+            "x": 64.0,
+            "y": 63.0,
+            "width": 406.0,
+            "height": 0.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 64.0,
+            "y": 63.0
+          },
+          "to": {
+            "x": 470.0,
+            "y": 63.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.7
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/y/label/0",
+          "bounds": {
+            "x": 47.62,
+            "y": 56.0,
+            "width": 6.38,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 54.0,
+            "y": 67.0
+          },
+          "text": "4",
+          "font_size": 11.0,
+          "anchor": "end",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/y/1",
+          "bounds": {
+            "x": 64.0,
+            "y": 118.0,
+            "width": 406.0,
+            "height": 0.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 64.0,
+            "y": 118.0
+          },
+          "to": {
+            "x": 470.0,
+            "y": 118.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.7
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/y/label/1",
+          "bounds": {
+            "x": 34.86,
+            "y": 111.0,
+            "width": 19.139999999999997,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 54.0,
+            "y": 122.0
+          },
+          "text": "3.6",
+          "font_size": 11.0,
+          "anchor": "end",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/y/2",
+          "bounds": {
+            "x": 64.0,
+            "y": 173.0,
+            "width": 406.0,
+            "height": 0.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 64.0,
+            "y": 173.0
+          },
+          "to": {
+            "x": 470.0,
+            "y": 173.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.7
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/y/label/2",
+          "bounds": {
+            "x": 34.86,
+            "y": 166.0,
+            "width": 19.139999999999997,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 54.0,
+            "y": 177.0
+          },
+          "text": "3.2",
+          "font_size": 11.0,
+          "anchor": "end",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/y/3",
+          "bounds": {
+            "x": 64.0,
+            "y": 228.0,
+            "width": 406.0,
+            "height": 0.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 64.0,
+            "y": 228.0
+          },
+          "to": {
+            "x": 470.0,
+            "y": 228.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.7
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/y/label/3",
+          "bounds": {
+            "x": 34.86,
+            "y": 221.0,
+            "width": 19.139999999999997,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 54.0,
+            "y": 232.0
+          },
+          "text": "2.8",
+          "font_size": 11.0,
+          "anchor": "end",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/y/4",
+          "bounds": {
+            "x": 64.0,
+            "y": 283.0,
+            "width": 406.0,
+            "height": 0.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 64.0,
+            "y": 283.0
+          },
+          "to": {
+            "x": 470.0,
+            "y": 283.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.7
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/y/label/4",
+          "bounds": {
+            "x": 34.86,
+            "y": 276.0,
+            "width": 19.139999999999997,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 54.0,
+            "y": 287.0
+          },
+          "text": "2.4",
+          "font_size": 11.0,
+          "anchor": "end",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/y/5",
+          "bounds": {
+            "x": 64.0,
+            "y": 338.0,
+            "width": 406.0,
+            "height": 0.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 64.0,
+            "y": 338.0
+          },
+          "to": {
+            "x": 470.0,
+            "y": 338.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.7
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/y/label/5",
+          "bounds": {
+            "x": 47.62,
+            "y": 331.0,
+            "width": 6.38,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 54.0,
+            "y": 342.0
+          },
+          "text": "2",
+          "font_size": 11.0,
+          "anchor": "end",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/x/0",
+          "bounds": {
+            "x": 64.0,
+            "y": 63.0,
+            "width": 0.0,
+            "height": 275.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 64.0,
+            "y": 63.0
+          },
+          "to": {
+            "x": 64.0,
+            "y": 338.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.45
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/x/label/0",
+          "bounds": {
+            "x": 60.81,
+            "y": 347.0,
+            "width": 6.38,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 64.0,
+            "y": 358.0
+          },
+          "text": "1",
+          "font_size": 11.0,
+          "anchor": "middle",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/x/1",
+          "bounds": {
+            "x": 145.2,
+            "y": 63.0,
+            "width": 0.0,
+            "height": 275.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 145.2,
+            "y": 63.0
+          },
+          "to": {
+            "x": 145.2,
+            "y": 338.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.45
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/x/label/1",
+          "bounds": {
+            "x": 135.63,
+            "y": 347.0,
+            "width": 19.139999999999997,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 145.2,
+            "y": 358.0
+          },
+          "text": "1.4",
+          "font_size": 11.0,
+          "anchor": "middle",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/x/2",
+          "bounds": {
+            "x": 226.4,
+            "y": 63.0,
+            "width": 0.0,
+            "height": 275.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 226.4,
+            "y": 63.0
+          },
+          "to": {
+            "x": 226.4,
+            "y": 338.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.45
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/x/label/2",
+          "bounds": {
+            "x": 216.83,
+            "y": 347.0,
+            "width": 19.139999999999997,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 226.4,
+            "y": 358.0
+          },
+          "text": "1.8",
+          "font_size": 11.0,
+          "anchor": "middle",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/x/3",
+          "bounds": {
+            "x": 307.6,
+            "y": 63.0,
+            "width": 0.0,
+            "height": 275.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 307.6,
+            "y": 63.0
+          },
+          "to": {
+            "x": 307.6,
+            "y": 338.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.45
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/x/label/3",
+          "bounds": {
+            "x": 298.03000000000003,
+            "y": 347.0,
+            "width": 19.139999999999997,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 307.6,
+            "y": 358.0
+          },
+          "text": "2.2",
+          "font_size": 11.0,
+          "anchor": "middle",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/x/4",
+          "bounds": {
+            "x": 388.8,
+            "y": 63.0,
+            "width": 0.0,
+            "height": 275.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 388.8,
+            "y": 63.0
+          },
+          "to": {
+            "x": 388.8,
+            "y": 338.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.45
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/x/label/4",
+          "bounds": {
+            "x": 379.23,
+            "y": 347.0,
+            "width": 19.139999999999997,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 388.8,
+            "y": 358.0
+          },
+          "text": "2.6",
+          "font_size": 11.0,
+          "anchor": "middle",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/grid/x/5",
+          "bounds": {
+            "x": 470.0,
+            "y": 63.0,
+            "width": 0.0,
+            "height": 275.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "axis guide generated from normalized scale"
+          },
+          "from": {
+            "x": 470.0,
+            "y": 63.0
+          },
+          "to": {
+            "x": 470.0,
+            "y": 338.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#D7DEE8",
+            "stroke_width": 1.0,
+            "opacity": 0.45
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/x/label/5",
+          "bounds": {
+            "x": 466.81,
+            "y": 347.0,
+            "width": 6.38,
+            "height": 13.75
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "tick label generated from linear scale domain"
+          },
+          "position": {
+            "x": 470.0,
+            "y": 358.0
+          },
+          "text": "3",
+          "font_size": 11.0,
+          "anchor": "middle",
+          "color": "#596579",
+          "weight": "regular"
+        },
+        {
+          "type": "line",
+          "id": "chart/axis/x",
+          "bounds": {
+            "x": 64.0,
+            "y": 338.0,
+            "width": 406.0,
+            "height": 0.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "bottom axis emitted from explicit MIR guide"
+          },
+          "from": {
+            "x": 64.0,
+            "y": 338.0
+          },
+          "to": {
+            "x": 470.0,
+            "y": 338.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#596579",
+            "stroke_width": 1.4,
+            "opacity": 1.0
+          },
+          "marker_end": false
+        },
+        {
+          "type": "line",
+          "id": "chart/axis/y",
+          "bounds": {
+            "x": 64.0,
+            "y": 63.0,
+            "width": 0.0,
+            "height": 275.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "build-guide-scene",
+            "explanation": "left axis emitted from explicit MIR guide"
+          },
+          "from": {
+            "x": 64.0,
+            "y": 63.0
+          },
+          "to": {
+            "x": 64.0,
+            "y": 338.0
+          },
+          "style": {
+            "fill": "transparent",
+            "stroke": "#596579",
+            "stroke_width": 1.4,
+            "opacity": 1.0
+          },
+          "marker_end": false
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/x/title",
+          "bounds": {
+            "x": 260.625,
+            "y": 371.5,
+            "width": 12.75,
+            "height": 15.625
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "axis title emitted from explicit MIR guide"
+          },
+          "position": {
+            "x": 267.0,
+            "y": 384.0
+          },
+          "text": "x",
+          "font_size": 12.5,
+          "anchor": "middle",
+          "color": "#1C2736",
+          "weight": "medium"
+        },
+        {
+          "type": "text",
+          "id": "chart/axis/y/title",
+          "bounds": {
+            "x": 16.0,
+            "y": 38.5,
+            "width": 12.75,
+            "height": 15.625
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "axis title emitted from explicit MIR guide"
+          },
+          "position": {
+            "x": 16.0,
+            "y": 51.0
+          },
+          "text": "y",
+          "font_size": 12.5,
+          "anchor": "start",
+          "color": "#1C2736",
+          "weight": "medium"
+        },
+        {
+          "type": "circle",
+          "id": "chart/point/a",
+          "bounds": {
+            "x": 57.0,
+            "y": 331.0,
+            "width": 14.0,
+            "height": 14.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart/marks/points",
+            "data_key": "a",
+            "data_lineage": [
+              "data/data"
+            ],
+            "generated_by": "build-symbol-scene",
+            "explanation": "datum a mapped through scales chart/x and chart/y"
+          },
+          "center": {
+            "x": 64.0,
+            "y": 338.0
+          },
+          "radius": 7.0,
+          "style": {
+            "fill": "#3B6EF5",
+            "stroke": "#FFFFFF",
+            "stroke_width": 1.5,
+            "opacity": 0.9
+          }
+        },
+        {
+          "type": "circle",
+          "id": "chart/point/b",
+          "bounds": {
+            "x": 463.0,
+            "y": 56.0,
+            "width": 14.0,
+            "height": 14.0
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart/marks/points",
+            "data_key": "b",
+            "data_lineage": [
+              "data/data"
+            ],
+            "generated_by": "build-symbol-scene",
+            "explanation": "datum b mapped through scales chart/x and chart/y"
+          },
+          "center": {
+            "x": 470.0,
+            "y": 63.0
+          },
+          "radius": 7.0,
+          "style": {
+            "fill": "#3B6EF5",
+            "stroke": "#FFFFFF",
+            "stroke_width": 1.5,
+            "opacity": 0.9
+          }
+        },
+        {
+          "type": "text",
+          "id": "chart/title",
+          "bounds": {
+            "x": 18.0,
+            "y": 10.0,
+            "width": 69.7,
+            "height": 22.5
+          },
+          "origin": {
+            "hir_node": "chart",
+            "mir_node": "chart",
+            "generated_by": "shape-native-text",
+            "explanation": "view title retained from HIR"
+          },
+          "position": {
+            "x": 18.0,
+            "y": 28.0
+          },
+          "text": "Chart",
+          "font_size": 18.0,
+          "anchor": "start",
+          "color": "#1C2736",
+          "weight": "bold"
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "id": "graph",
+      "bounds": {
+        "x": 500.0,
+        "y": 0.0,
+        "width": 500.0,
+        "height": 400.0
+      },
+      "origin": {
+        "hir_node": "graph",
+        "mir_node": "graph",
+        "generated_by": "build-diagram-scene",
+        "explanation": "diagram.graph lowered to topology plus an explicit layout request; layout algorithm resolved to Layered; directed acyclic topology ranked with deterministic Kahn traversal"
+      },
+      "transform": {
+        "translate": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "rotate_degrees": 0.0,
+        "scale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "opacity": 1.0,
+      "children": [
+        {
+          "type": "path",
+          "id": "graph/edge/0-a-b",
+          "bounds": {
+            "x": 670.0,
+            "y": 212.5,
+            "width": 160.0,
+            "height": 0.0
+          },
+          "origin": {
+            "hir_node": "graph",
+            "mir_node": "graph/edges/0",
+            "data_key": "a->b",
+            "generated_by": "route-diagram-edge",
+            "explanation": "edge a -> b routed after directed acyclic topology ranked with deterministic Kahn traversal"
+          },
+          "commands": [
+            {
+              "op": "move",
+              "to": {
+                "x": 670.0,
+                "y": 212.5
+              }
+            },
+            {
+              "op": "cubic",
+              "control1": {
+                "x": 742.0,
+                "y": 212.5
+              },
+              "control2": {
+                "x": 758.0,
+                "y": 212.5
+              },
+              "to": {
+                "x": 830.0,
+                "y": 212.5
+              }
+            }
+          ],
+          "style": {
+            "fill": "transparent",
+            "stroke": "#8793A5",
+            "stroke_width": 1.5,
+            "opacity": 1.0
+          },
+          "marker_end": true
+        },
+        {
+          "type": "rect",
+          "id": "graph/node/a/shape",
+          "bounds": {
+            "x": 520.0,
+            "y": 181.5,
+            "width": 150.0,
+            "height": 62.0
+          },
+          "origin": {
+            "hir_node": "a",
+            "mir_node": "graph/nodes/a",
+            "data_key": "a",
+            "generated_by": "build-diagram-node",
+            "explanation": "node placed by directed acyclic topology ranked with deterministic Kahn traversal; stable id preserved"
+          },
+          "radius": 14.0,
+          "style": {
+            "fill": "#EAF0FF",
+            "stroke": "#B8C3D3",
+            "stroke_width": 1.5,
+            "opacity": 1.0
+          }
+        },
+        {
+          "type": "text",
+          "id": "graph/node/a/label",
+          "bounds": {
+            "x": 591.23,
+            "y": 204.5,
+            "width": 7.539999999999999,
+            "height": 16.25
+          },
+          "origin": {
+            "hir_node": "a",
+            "mir_node": "a",
+            "generated_by": "shape-native-text",
+            "explanation": "diagram label positioned inside resolved node bounds"
+          },
+          "position": {
+            "x": 595.0,
+            "y": 217.5
+          },
+          "text": "A",
+          "font_size": 13.0,
+          "anchor": "middle",
+          "color": "#1C2736",
+          "weight": "medium"
+        },
+        {
+          "type": "rect",
+          "id": "graph/node/b/shape",
+          "bounds": {
+            "x": 830.0,
+            "y": 181.5,
+            "width": 150.0,
+            "height": 62.0
+          },
+          "origin": {
+            "hir_node": "b",
+            "mir_node": "graph/nodes/b",
+            "data_key": "b",
+            "generated_by": "build-diagram-node",
+            "explanation": "node placed by directed acyclic topology ranked with deterministic Kahn traversal; stable id preserved"
+          },
+          "radius": 14.0,
+          "style": {
+            "fill": "#F7F9FC",
+            "stroke": "#B8C3D3",
+            "stroke_width": 1.5,
+            "opacity": 1.0
+          }
+        },
+        {
+          "type": "text",
+          "id": "graph/node/b/label",
+          "bounds": {
+            "x": 901.23,
+            "y": 204.5,
+            "width": 7.539999999999999,
+            "height": 16.25
+          },
+          "origin": {
+            "hir_node": "b",
+            "mir_node": "b",
+            "generated_by": "shape-native-text",
+            "explanation": "diagram label positioned inside resolved node bounds"
+          },
+          "position": {
+            "x": 905.0,
+            "y": 217.5
+          },
+          "text": "B",
+          "font_size": 13.0,
+          "anchor": "middle",
+          "color": "#1C2736",
+          "weight": "medium"
+        },
+        {
+          "type": "text",
+          "id": "graph/title",
+          "bounds": {
+            "x": 518.0,
+            "y": 10.0,
+            "width": 52.199999999999996,
+            "height": 22.5
+          },
+          "origin": {
+            "hir_node": "graph",
+            "mir_node": "graph",
+            "generated_by": "shape-native-text",
+            "explanation": "view title retained from HIR"
+          },
+          "position": {
+            "x": 518.0,
+            "y": 28.0
+          },
+          "text": "Graph",
+          "font_size": 18.0,
+          "anchor": "start",
+          "color": "#1C2736",
+          "weight": "bold"
+        }
+      ]
+    }
+  ],
+  "losses": []
+}
