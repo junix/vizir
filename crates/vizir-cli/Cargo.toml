@@ -21,6 +21,7 @@ unsafe-libyaml = "=0.2.11"
 vizir-backend-svg = { path = "../vizir-backend-svg" }
 vizir-compiler = { path = "../vizir-compiler" }
 vizir-core = { path = "../vizir-core" }
+vizir-web = { path = "../vizir-web" }
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1.1", features = ["fs"] }

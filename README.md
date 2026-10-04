@@ -330,9 +330,11 @@ provenance, capability reporting, Scene2D construction, and artifact emission.
 It does not own natural-language intent interpretation or backend routing; that
 remains the responsibility of the `create-plot` skill.
 
-Interaction, animation, Scene3D, external layout providers, native TikZ, and
-large columnar instance buffers are planned dialect/runtime extensions, not
-MVP placeholders hidden behind generic enums.
+A separate, opt-in [HTML explorer](docs/html-explorer.md) adds a document camera,
+source inspection and single Scene-node selection over the existing SVG. Its
+real-browser/DOM acceptance gate remains blocked; native tests are separate.
+The broader interaction/dataflow roadmap, animation, Scene3D, external layout
+providers, native TikZ and large columnar instance buffers remain separate work.
 
 See [the IR family contract](docs/ir-family.md) for the ownership boundary,
 stable 0.1 surface, and promotion rules.

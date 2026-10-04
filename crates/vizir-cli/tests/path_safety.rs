@@ -14,10 +14,13 @@ fn input(directory: &Path) -> PathBuf {
 
 fn run(kind: &str, input: &Path, output: &Path, manifest: Option<&Path>) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_vizir"));
-    if matches!(kind, "svg" | "png") {
+    if matches!(kind, "svg" | "png" | "html") {
         command.args(["render", "--format", kind]);
     } else {
         command.arg(kind);
+    }
+    if kind == "html" {
+        command.args(["--interaction-profile", "explorer-v1"]);
     }
     command.arg(input).arg("--output").arg(output);
     if let Some(manifest) = manifest {
@@ -50,7 +53,7 @@ fn accepted(result: Output) {
 
 #[test]
 fn every_writing_command_rejects_the_input_as_output_without_changing_it() {
-    for kind in ["normalize", "lower", "svg", "png"] {
+    for kind in ["normalize", "lower", "svg", "png", "html"] {
         for spelling in [
             "source.viz.yaml",
             "./source.viz.yaml",
@@ -87,7 +90,7 @@ fn relative_and_absolute_spellings_collide() {
 
 #[test]
 fn manifest_cannot_overwrite_source_and_render_never_starts() {
-    for kind in ["svg", "png"] {
+    for kind in ["svg", "png", "html"] {
         for existing_output in [false, true] {
             let temporary = tempfile::tempdir().unwrap();
             let source = input(temporary.path());
@@ -114,7 +117,7 @@ fn manifest_cannot_overwrite_source_and_render_never_starts() {
 
 #[test]
 fn output_and_manifest_must_be_distinct_even_when_both_are_new() {
-    for kind in ["svg", "png"] {
+    for kind in ["svg", "png", "html"] {
         for existing in [false, true] {
             let temporary = tempfile::tempdir().unwrap();
             let source = input(temporary.path());
@@ -142,7 +145,7 @@ fn output_and_manifest_must_be_distinct_even_when_both_are_new() {
 
 #[test]
 fn hardlinked_inputs_outputs_and_manifests_are_protected() {
-    for kind in ["normalize", "lower", "svg", "png"] {
+    for kind in ["normalize", "lower", "svg", "png", "html"] {
         let temporary = tempfile::tempdir().unwrap();
         let source = input(temporary.path());
         let original = fs::read(&source).unwrap();
@@ -154,7 +157,7 @@ fn hardlinked_inputs_outputs_and_manifests_are_protected() {
             &["input", "output"],
         );
         assert_eq!(fs::read(&alias).unwrap(), original);
-        if matches!(kind, "svg" | "png") {
+        if matches!(kind, "svg" | "png" | "html") {
             let output = temporary.path().join("plot");
             fs::write(&output, SENTINEL).unwrap();
             rejected(
@@ -197,7 +200,7 @@ fn missing_parent_then_dotdot_cannot_reach_an_input_hardlink() {
 
 #[test]
 fn distinct_nested_destinations_and_existing_artifacts_remain_supported() {
-    for kind in ["normalize", "lower", "svg"] {
+    for kind in ["normalize", "lower", "svg", "html"] {
         let temporary = tempfile::tempdir().unwrap();
         let source = input(temporary.path());
         let original = fs::read(&source).unwrap();
@@ -226,7 +229,7 @@ mod unix {
 
     #[test]
     fn symlinked_input_and_destinations_are_protected_in_every_role() {
-        for kind in ["normalize", "lower", "svg", "png"] {
+        for kind in ["normalize", "lower", "svg", "png", "html"] {
             let temporary = tempfile::tempdir().unwrap();
             let source = input(temporary.path());
             let original = fs::read(&source).unwrap();
@@ -242,7 +245,7 @@ mod unix {
                 "VIZ-PATH-0001",
                 &["input", "output"],
             );
-            if matches!(kind, "svg" | "png") {
+            if matches!(kind, "svg" | "png" | "html") {
                 let output = temporary.path().join("plot");
                 fs::write(&output, SENTINEL).unwrap();
                 rejected(
@@ -267,7 +270,7 @@ mod unix {
 
     #[test]
     fn symlinked_parents_and_dangling_links_cannot_alias_new_artifacts() {
-        for kind in ["svg", "png"] {
+        for kind in ["svg", "png", "html"] {
             for dangling_leaf in [false, true] {
                 let temporary = tempfile::tempdir().unwrap();
                 let source = input(temporary.path());

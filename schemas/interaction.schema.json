@@ -1,0 +1,192 @@
+{
+  "$defs": {
+    "CameraPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "drag_threshold_css_px": {
+          "const": 4.0,
+          "format": "double",
+          "type": "number"
+        },
+        "max_zoom": {
+          "const": 16.0,
+          "format": "double",
+          "type": "number"
+        },
+        "min_zoom": {
+          "const": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "pan_fraction": {
+          "const": 0.1,
+          "format": "double",
+          "type": "number"
+        },
+        "zoom_factor": {
+          "const": 1.25,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min_zoom",
+        "max_zoom",
+        "zoom_factor",
+        "pan_fraction",
+        "drag_threshold_css_px"
+      ],
+      "type": "object"
+    },
+    "NodeIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "dom_id": {
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Origin"
+        },
+        "parent_scene_node_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scene_node_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scene_node_id",
+        "dom_id",
+        "origin",
+        "parent_scene_node_id"
+      ],
+      "type": "object"
+    },
+    "Origin": {
+      "additionalProperties": false,
+      "properties": {
+        "data_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data_lineage": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "generated_by": {
+          "type": "string"
+        },
+        "hir_node": {
+          "type": "string"
+        },
+        "mir_node": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "hir_node",
+        "mir_node",
+        "generated_by",
+        "explanation"
+      ],
+      "type": "object"
+    },
+    "Viewport": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 1,
+          "type": "number"
+        },
+        "width": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 1,
+          "type": "number"
+        },
+        "x": {
+          "const": 0,
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "const": 0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "camera": {
+      "$ref": "#/$defs/CameraPolicy"
+    },
+    "document_id": {
+      "type": "string"
+    },
+    "format": {
+      "const": "vizir-interaction/1",
+      "type": "string"
+    },
+    "home": {
+      "$ref": "#/$defs/Viewport"
+    },
+    "instance_key": {
+      "pattern": "^[a-z][a-z0-9-]{0,31}$(?![\\s\\S])",
+      "type": "string"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/NodeIdentity"
+      },
+      "maxItems": 8192,
+      "type": "array"
+    },
+    "profile": {
+      "const": "explorer-v1",
+      "type": "string"
+    },
+    "runtime_payload_sha256": {
+      "pattern": "^[0-9a-f]{64}$(?![\\s\\S])",
+      "type": "string"
+    },
+    "scene_sha256": {
+      "pattern": "^[0-9a-f]{64}$(?![\\s\\S])",
+      "type": "string"
+    }
+  },
+  "required": [
+    "format",
+    "profile",
+    "document_id",
+    "scene_sha256",
+    "runtime_payload_sha256",
+    "instance_key",
+    "home",
+    "camera",
+    "nodes"
+  ],
+  "title": "InteractionContext",
+  "type": "object"
+}

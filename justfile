@@ -17,8 +17,10 @@ check:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace
+    node --test crates/vizir-web/runtime/runtime.test.mjs
 
 schemas:
+    cargo run -q -p vizir-cli -- schema interaction --output schemas/interaction.schema.json
     cargo run -q -p vizir-cli -- schema csv-import-spec --output schemas/csv-import-spec.schema.json
     cargo run -q -p vizir-cli -- schema composition --output schemas/composition.schema.json
     cargo run -q -p vizir-cli -- schema mir --output schemas/viz-mir.schema.json

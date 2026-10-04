@@ -1,0 +1,14 @@
+.vizir-explorer{font:14px system-ui,sans-serif;color:#17233b;background:#fff;border:1px solid #a9b5c9;border-radius:8px;max-width:100%;padding:12px;box-sizing:border-box}
+.vizir-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+.vizir-toolbar button,.vizir-toolbar select{font:inherit;color:inherit;background:#fff;border:1px solid #687a96;border-radius:4px;padding:7px;max-width:100%}
+.vizir-toolbar button[aria-pressed="true"]{background:#17233b;color:#fff}
+.vizir-viewport{overflow:hidden;border:1px solid #bdc7d8;border-radius:4px}
+.vizir-viewport svg{display:block;width:100%;height:auto;max-height:75vh}
+.vizir-is-panning [data-vizir-viewport]{touch-action:pinch-zoom;cursor:grab}
+.vizir-is-dragging [data-vizir-viewport]{cursor:grabbing}
+.vizir-explorer :focus-visible{outline:3px solid #005fcc;outline-offset:3px}
+.vizir-is-selected{outline:3px solid #005fcc;outline-offset:2px}
+.vizir-is-inspected{outline:2px dashed #8b4300;outline-offset:4px}
+[data-vizir-inspector]{font:12px ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:20rem;overflow:auto;margin:10px 0 0}
+[data-vizir-status]{overflow-wrap:anywhere}
+.vizir-help{font-size:12px;color:#43536c;margin:8px 0}

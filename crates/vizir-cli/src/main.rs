@@ -67,7 +67,7 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
-    /// Render exact SVG or alpha-preserving PNG.
+    /// Render exact SVG, alpha-preserving PNG, or an opt-in HTML explorer.
     Render {
         input: PathBuf,
         /// Canonical defaults for HIR; persisted context cannot be re-themed.
@@ -77,6 +77,12 @@ enum Commands {
         text: input::TextOptions,
         #[arg(long, value_enum, default_value = "png")]
         format: OutputFormat,
+        /// Required for HTML: explorer-v1. Unsupported on static formats.
+        #[arg(long)]
+        interaction_profile: Option<String>,
+        /// HTML instance identity; defaults to main. Use unique keys when embedding.
+        #[arg(long)]
+        instance_key: Option<String>,
         #[arg(long)]
         background: Option<String>,
         #[arg(short, long)]
@@ -109,21 +115,24 @@ enum Commands {
     },
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum OutputFormat {
     Svg,
     Png,
+    Html,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Backend {
     Svg,
     Png,
+    Html,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum IrKind {
     CsvImportSpec,
+    Interaction,
     Composition,
     Mir,
     ThemedMir,
@@ -190,10 +199,33 @@ fn run(cli: Cli) -> VizResult<()> {
             theme,
             text,
             format,
+            interaction_profile,
+            instance_key,
             background,
             output,
             manifest,
         } => {
+            let explorer =
+                match (format, interaction_profile.as_deref(), instance_key) {
+                    (OutputFormat::Html, Some(vizir_web::PROFILE), key) => {
+                        Some(vizir_web::ExplorerOptions {
+                            instance_key: key.unwrap_or_else(|| "main".into()),
+                        })
+                    }
+                    (OutputFormat::Html, _, _) => {
+                        return Err(VizError::Diagnostic(
+                            "VIZ-WEB-0001: HTML requires --interaction-profile explorer-v1".into(),
+                        ));
+                    }
+                    (_, None, None) => None,
+                    _ => return Err(VizError::Diagnostic(
+                        "VIZ-WEB-0001: interaction profile and instance key require --format html"
+                            .into(),
+                    )),
+                };
+            if let Some(options) = &explorer {
+                vizir_backend_svg::SvgRenderContext::new(&options.instance_key)?;
+            }
             let document = input::read(&input, theme, text)?;
             document.check_destinations(&input, Some(&output), manifest.as_deref())?;
             let mut compilation = document.compile(false)?;
@@ -201,13 +233,23 @@ fn run(cli: Cli) -> VizResult<()> {
                 validate_cli_color(&background)?;
                 compilation.scene.background = Color(background);
             }
+            // HTML preflight must run before any recursive target negotiation.
+            let html = explorer
+                .as_ref()
+                .map(|options| vizir_web::render_html(&compilation.scene, options))
+                .transpose()?;
             let capabilities = match format {
                 OutputFormat::Svg => vizir_backend_svg::capabilities(),
                 OutputFormat::Png => png_capabilities(),
+                OutputFormat::Html => vizir_web::capabilities(),
             };
             let capability_report = negotiate_scene(&compilation.scene, &capabilities)?;
             capability_report.require_accepted()?;
-            let svg = vizir_backend_svg::render(&compilation.scene)?;
+            let svg = if format == OutputFormat::Html {
+                String::new()
+            } else {
+                vizir_backend_svg::render(&compilation.scene)?
+            };
             if compilation
                 .mir
                 .context()
@@ -223,6 +265,8 @@ fn run(cli: Cli) -> VizResult<()> {
             let mut target_losses = Vec::new();
             let mut rasterizer = None;
             match format {
+                OutputFormat::Html => staged_output
+                    .write(html.as_ref().expect("HTML export prepared").html.as_bytes())?,
                 OutputFormat::Svg => staged_output.write(svg.as_bytes())?,
                 OutputFormat::Png => {
                     rasterizer = Some(render_png(
@@ -250,6 +294,9 @@ fn run(cli: Cli) -> VizResult<()> {
                     "capability_report": capability_report,
                     "losses": compilation.scene.losses.iter().chain(&target_losses).collect::<Vec<_>>(),
                 });
+                if let Some(html) = &html {
+                    report["interaction"] = serde_json::to_value(&html.manifest)?;
+                }
                 if let Some(theme) = compilation.mir.theme() {
                     report["theme"] = serde_json::to_value(theme)?;
                 }
@@ -274,6 +321,7 @@ fn run(cli: Cli) -> VizResult<()> {
                 match format {
                     OutputFormat::Svg => "svg",
                     OutputFormat::Png => "png",
+                    OutputFormat::Html => "html",
                 },
                 compilation.scene.losses.len() + target_losses.len()
             );
@@ -309,12 +357,14 @@ fn run(cli: Cli) -> VizResult<()> {
             let report = match backend {
                 Backend::Svg => vizir_backend_svg::capabilities(),
                 Backend::Png => png_capabilities(),
+                Backend::Html => vizir_web::capabilities(),
             };
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
         Commands::Schema { ir, output } => {
             let schema = match ir {
                 IrKind::CsvImportSpec => vizir_core::csv_import_spec_schema(),
+                IrKind::Interaction => vizir_web::interaction_schema(),
                 IrKind::Composition => composition_schema(),
                 IrKind::Mir => mir_schema(),
                 IrKind::ThemedMir => themed_mir_schema(),
@@ -627,6 +677,7 @@ fn format_name(format: OutputFormat) -> &'static str {
     match format {
         OutputFormat::Svg => "svg",
         OutputFormat::Png => "png",
+        OutputFormat::Html => "html",
     }
 }
 

@@ -903,6 +903,7 @@ dependencies = [
  "vizir-backend-svg",
  "vizir-compiler",
  "vizir-core",
+ "vizir-web",
  "windows-sys",
 ]
 
@@ -938,6 +939,19 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "thiserror",
+]
+
+[[package]]
+name = "vizir-web"
+version = "0.1.0"
+dependencies = [
+ "roxmltree",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "vizir-backend-svg",
+ "vizir-core",
 ]
 
 [[package]]

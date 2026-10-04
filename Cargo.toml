@@ -4,6 +4,7 @@ members = [
   "crates/vizir-compiler",
   "crates/vizir-backend-svg",
   "crates/vizir-cli",
+  "crates/vizir-web",
 ]
 resolver = "2"
 

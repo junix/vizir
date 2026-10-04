@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Write;
+use std::fmt::{self, Write};
 
 use vizir_core::{
     BackendCapabilities, FontWeight, PathCommand, ResolvedStyle, Scene2D, SceneNode, TextAnchor,
@@ -36,45 +36,148 @@ pub fn capabilities() -> BackendCapabilities {
     }
 }
 
+/// Opt-in identity domain for embedding the same scene more than once.
+/// The legacy `render` entry point deliberately keeps its exact existing bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SvgRenderContext {
+    instance_key: String,
+}
+
+impl SvgRenderContext {
+    pub fn new(instance_key: &str) -> VizResult<Self> {
+        let valid = !instance_key.is_empty()
+            && instance_key.len() <= 32
+            && instance_key.as_bytes()[0].is_ascii_lowercase()
+            && instance_key
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+        if !valid {
+            return Err(VizError::Diagnostic(
+                "VIZ-SVG-0003: instance key must match [a-z][a-z0-9-]{0,31}".into(),
+            ));
+        }
+        Ok(Self {
+            instance_key: instance_key.into(),
+        })
+    }
+
+    pub fn instance_key(&self) -> &str {
+        &self.instance_key
+    }
+
+    pub fn node_id(&self, id: &str) -> String {
+        let mut result = format!("vzi-{}-node-", self.instance_key);
+        for byte in id.as_bytes() {
+            write!(result, "{byte:02x}").expect("writing to String cannot fail");
+        }
+        result
+    }
+
+    pub fn title_id(&self) -> String {
+        format!("vzi-{}-title", self.instance_key)
+    }
+    pub fn marker_id(&self) -> String {
+        format!("vzi-{}-marker", self.instance_key)
+    }
+}
+
 pub fn render(scene: &Scene2D) -> VizResult<String> {
-    xml::validate_strings(scene)?;
-    validate_scene(scene).map_err(|diagnostics| VizError::validation(&diagnostics))?;
-    negotiate_scene(scene, &capabilities())?.require_accepted()?;
     let mut output = String::new();
-    writeln!(
-        output,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}" viewBox="0 0 {} {}" role="img" aria-labelledby="vizir-title">"#,
-        format_number(scene.width),
-        format_number(scene.height),
-        format_number(scene.width),
-        format_number(scene.height)
-    )
-    .expect("writing to String cannot fail");
-    writeln!(
-        output,
-        "  <title id=\"vizir-title\">{}</title>",
-        escape_text(&scene.document_id)
-    )
-    .expect("writing to String cannot fail");
-    output.push_str(
-        "  <defs>\n    <marker id=\"vizir-arrow\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"7\" markerHeight=\"7\" orient=\"auto-start-reverse\">\n      <path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"#8793A5\"/>\n    </marker>\n  </defs>\n",
-    );
-    if scene.background.0 != "transparent" {
-        writeln!(
-            output,
-            "  <rect width=\"100%\" height=\"100%\" fill=\"{}\"/>",
-            escape_attr(&scene.background.0)
-        )
-        .expect("writing to String cannot fail");
-    }
-    for node in &scene.nodes {
-        render_node(&mut output, node, 1);
-    }
-    output.push_str("</svg>\n");
+    render_into(scene, None, &mut output)?;
     Ok(output)
 }
 
-fn render_node(output: &mut String, node: &SceneNode, depth: usize) {
+/// Stream namespaced SVG to a caller-owned (optionally bounded) sink. This is
+/// the same primitive renderer as `render`, not a second rendering backend.
+/// A bounded runtime must preflight traversal depth before entering this API.
+pub fn render_to_with_context(
+    scene: &Scene2D,
+    context: &SvgRenderContext,
+    output: &mut impl Write,
+) -> VizResult<()> {
+    render_into(scene, Some(context), output)
+}
+
+fn writer_error(_: fmt::Error) -> VizError {
+    VizError::Diagnostic("VIZ-SVG-0002: SVG output writer refused more bytes".into())
+}
+
+fn render_into(
+    scene: &Scene2D,
+    context: Option<&SvgRenderContext>,
+    output: &mut impl Write,
+) -> VizResult<()> {
+    xml::validate_strings(scene)?;
+    validate_scene(scene).map_err(|diagnostics| VizError::validation(&diagnostics))?;
+    negotiate_scene(scene, &capabilities())?.require_accepted()?;
+    let title_id = context.map_or_else(|| "vizir-title".into(), SvgRenderContext::title_id);
+    let marker_id = context.map_or_else(|| "vizir-arrow".into(), SvgRenderContext::marker_id);
+    let canvas = if context.is_some() {
+        " data-vizir-canvas=\"1\""
+    } else {
+        ""
+    };
+    writeln!(
+        output,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}" viewBox="0 0 {} {}" role="img" aria-labelledby="{}"{}>"#,
+        canvas_number(scene.width, context), canvas_number(scene.height, context),
+        canvas_number(scene.width, context), canvas_number(scene.height, context), title_id, canvas
+    ).map_err(writer_error)?;
+    writeln!(
+        output,
+        "  <title id=\"{}\">{}</title>",
+        title_id,
+        escape_text(&scene.document_id)
+    )
+    .map_err(writer_error)?;
+    writeln!(output, "  <defs>\n    <marker id=\"{}\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"7\" markerHeight=\"7\" orient=\"auto-start-reverse\">\n      <path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"#8793A5\"/>\n    </marker>\n  </defs>", marker_id).map_err(writer_error)?;
+    if scene.background.0 != "transparent" {
+        let (width, height) = if context.is_some() {
+            (scene.width.to_string(), scene.height.to_string())
+        } else {
+            ("100%".into(), "100%".into())
+        };
+        writeln!(
+            output,
+            "  <rect width=\"{}\" height=\"{}\" fill=\"{}\"/>",
+            width,
+            height,
+            escape_attr(&scene.background.0)
+        )
+        .map_err(writer_error)?;
+    }
+    for node in &scene.nodes {
+        render_node(output, node, 1, context)?;
+    }
+    output.write_str("</svg>\n").map_err(writer_error)?;
+    Ok(())
+}
+
+fn canvas_number(value: f64, context: Option<&SvgRenderContext>) -> String {
+    if context.is_some() {
+        value.to_string()
+    } else {
+        format_number(value)
+    }
+}
+
+fn emitted_identity(id: &str, context: Option<&SvgRenderContext>) -> String {
+    match context {
+        None => format!("id=\"{}\"", escape_attr(id)),
+        Some(context) => format!(
+            "id=\"{}\" data-vizir-scene-id=\"{}\"",
+            context.node_id(id),
+            escape_attr(id)
+        ),
+    }
+}
+
+fn render_node(
+    output: &mut impl Write,
+    node: &SceneNode,
+    depth: usize,
+    context: Option<&SvgRenderContext>,
+) -> VizResult<()> {
     let indent = "  ".repeat(depth);
     match node {
         SceneNode::Group {
@@ -87,17 +190,17 @@ fn render_node(output: &mut String, node: &SceneNode, depth: usize) {
         } => {
             writeln!(
                 output,
-                "{indent}<g id=\"{}\"{} opacity=\"{}\"{}>",
-                escape_attr(id),
+                "{indent}<g {}{} opacity=\"{}\"{}>",
+                emitted_identity(id, context),
                 origin_attrs(origin),
                 format_number(*opacity),
                 transform_attr(transform)
             )
-            .expect("writing to String cannot fail");
+            .map_err(writer_error)?;
             for child in children {
-                render_node(output, child, depth + 1);
+                render_node(output, child, depth + 1, context)?;
             }
-            writeln!(output, "{indent}</g>").expect("writing to String cannot fail");
+            writeln!(output, "{indent}</g>").map_err(writer_error)?;
         }
         SceneNode::Rect {
             id,
@@ -108,8 +211,8 @@ fn render_node(output: &mut String, node: &SceneNode, depth: usize) {
         } => {
             writeln!(
                 output,
-                "{indent}<rect id=\"{}\"{} x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\"{}/>",
-                escape_attr(id),
+                "{indent}<rect {}{} x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\"{}/>",
+                emitted_identity(id, context),
                 origin_attrs(origin),
                 format_number(bounds.x),
                 format_number(bounds.y),
@@ -118,7 +221,7 @@ fn render_node(output: &mut String, node: &SceneNode, depth: usize) {
                 format_number(*radius),
                 style_attrs(style)
             )
-            .expect("writing to String cannot fail");
+            .map_err(writer_error)?;
         }
         SceneNode::Circle {
             id,
@@ -130,15 +233,15 @@ fn render_node(output: &mut String, node: &SceneNode, depth: usize) {
         } => {
             writeln!(
                 output,
-                "{indent}<circle id=\"{}\"{} cx=\"{}\" cy=\"{}\" r=\"{}\"{}/>",
-                escape_attr(id),
+                "{indent}<circle {}{} cx=\"{}\" cy=\"{}\" r=\"{}\"{}/>",
+                emitted_identity(id, context),
                 origin_attrs(origin),
                 format_number(center.x),
                 format_number(center.y),
                 format_number(*radius),
                 style_attrs(style)
             )
-            .expect("writing to String cannot fail");
+            .map_err(writer_error)?;
         }
         SceneNode::Line {
             id,
@@ -151,17 +254,17 @@ fn render_node(output: &mut String, node: &SceneNode, depth: usize) {
         } => {
             writeln!(
                 output,
-                "{indent}<line id=\"{}\"{} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"{}{} />",
-                escape_attr(id),
+                "{indent}<line {}{} x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\"{}{} />",
+                emitted_identity(id, context),
                 origin_attrs(origin),
                 format_number(from.x),
                 format_number(from.y),
                 format_number(to.x),
                 format_number(to.y),
                 style_attrs(style),
-                marker_attr(*marker_end)
+                marker_attr(*marker_end, context)
             )
-            .expect("writing to String cannot fail");
+            .map_err(writer_error)?;
         }
         SceneNode::Path {
             id,
@@ -171,16 +274,21 @@ fn render_node(output: &mut String, node: &SceneNode, depth: usize) {
             marker_end,
             ..
         } => {
+            write!(
+                output,
+                "{indent}<path {}{} d=\"",
+                emitted_identity(id, context),
+                origin_attrs(origin)
+            )
+            .map_err(writer_error)?;
+            write_path_data(output, commands)?;
             writeln!(
                 output,
-                "{indent}<path id=\"{}\"{} d=\"{}\"{}{} />",
-                escape_attr(id),
-                origin_attrs(origin),
-                path_data(commands),
+                "\"{}{} />",
                 style_attrs(style),
-                marker_attr(*marker_end)
+                marker_attr(*marker_end, context)
             )
-            .expect("writing to String cannot fail");
+            .map_err(writer_error)?;
         }
         SceneNode::Text {
             id,
@@ -195,8 +303,8 @@ fn render_node(output: &mut String, node: &SceneNode, depth: usize) {
         } => {
             writeln!(
                 output,
-                "{indent}<text id=\"{}\"{} x=\"{}\" y=\"{}\" font-family=\"Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif\" font-size=\"{}\" font-weight=\"{}\" text-anchor=\"{}\" fill=\"{}\">{}</text>",
-                escape_attr(id),
+                "{indent}<text {}{} x=\"{}\" y=\"{}\" font-family=\"Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif\" font-size=\"{}\" font-weight=\"{}\" text-anchor=\"{}\" fill=\"{}\">{}</text>",
+                emitted_identity(id, context),
                 origin_attrs(origin),
                 format_number(position.x),
                 format_number(position.y),
@@ -206,9 +314,10 @@ fn render_node(output: &mut String, node: &SceneNode, depth: usize) {
                 escape_attr(&color.0),
                 escape_text(text)
             )
-            .expect("writing to String cannot fail");
+            .map_err(writer_error)?;
         }
     }
+    Ok(())
 }
 
 fn style_attrs(style: &ResolvedStyle) -> String {
@@ -259,19 +368,19 @@ fn origin_attrs(origin: &vizir_core::Origin) -> String {
     )
 }
 
-fn marker_attr(enabled: bool) -> &'static str {
+fn marker_attr(enabled: bool, context: Option<&SvgRenderContext>) -> String {
     if enabled {
-        " marker-end=\"url(#vizir-arrow)\""
+        let id = context.map_or_else(|| "vizir-arrow".into(), SvgRenderContext::marker_id);
+        format!(" marker-end=\"url(#{id})\"")
     } else {
-        ""
+        String::new()
     }
 }
 
-fn path_data(commands: &[PathCommand]) -> String {
-    let mut output = String::new();
-    for command in commands {
-        if !output.is_empty() {
-            output.push(' ');
+fn write_path_data(output: &mut impl Write, commands: &[PathCommand]) -> VizResult<()> {
+    for (index, command) in commands.iter().enumerate() {
+        if index != 0 {
+            output.write_char(' ').map_err(writer_error)?;
         }
         match command {
             PathCommand::Move { to } => {
@@ -294,14 +403,11 @@ fn path_data(commands: &[PathCommand]) -> String {
                 format_number(to.x),
                 format_number(to.y)
             ),
-            PathCommand::Close => {
-                output.push('Z');
-                continue;
-            }
+            PathCommand::Close => output.write_char('Z'),
         }
-        .expect("writing to String cannot fail");
+        .map_err(writer_error)?;
     }
-    output
+    Ok(())
 }
 
 fn text_anchor(anchor: TextAnchor) -> &'static str {

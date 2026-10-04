@@ -39,6 +39,11 @@ every domain concept.
 
 ## 0.4 — interactive web runtime
 
+The first bounded [HTML explorer](html-explorer.md) implements a document
+camera, recorded-source inspection and single Scene-node selection. Its real
+browser/DOM acceptance remains blocked; this does not promote the full phase
+or implement the broader contracts below.
+
 - expression evaluation in the browser using the already-stable typed AST;
 - signals, point/interval selections, reducers, and named event spaces;
 - immutable MIR plus transactional runtime state;
