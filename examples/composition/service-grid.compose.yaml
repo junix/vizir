@@ -1,0 +1,55 @@
+schema: vizir-composition/0.1
+id: service-grid
+width: 1440
+height: 600
+background: transparent
+title: Service health and dependencies
+
+layout:
+  kind: grid
+  columns: 2
+  padding: 24
+  gap: 24
+
+datasets:
+  services:
+    key: service_id
+    rows:
+      - {service_id: gateway, service: Gateway, p95_ms: 118, error_rate: 0.42, team: Edge}
+      - {service_id: identity, service: Identity, p95_ms: 146, error_rate: 0.31, team: Core}
+      - {service_id: billing, service: Billing, p95_ms: 238, error_rate: 0.92, team: Commerce}
+      - {service_id: catalog, service: Catalog, p95_ms: 174, error_rate: 0.47, team: Commerce}
+      - {service_id: profiles, service: Profiles, p95_ms: 132, error_rate: 0.36, team: Core}
+      - {service_id: ledger, service: Ledger, p95_ms: 187, error_rate: 0.58, team: Commerce}
+
+panels:
+  - kind: chart.scatter
+    id: latency-risk
+    title: Latency and error exposure
+    dataset: services
+    x: {field: p95_ms, label: p95 latency (ms)}
+    y:
+      field: error_rate
+      label: error rate (%)
+      axis:
+        number_format: {notation: fixed, precision: 2}
+    color:
+      field: team
+      palette: ["#3B6EF5", "#18A999", "#F2A541"]
+    point_size: 9
+
+  - kind: diagram.graph
+    id: service-topology
+    title: Request dependencies
+    layout: layered
+    nodes:
+      - {id: gateway, label: Gateway, group: edge}
+      - {id: catalog, label: Catalog, group: service}
+      - {id: billing, label: Billing, group: service}
+      - {id: catalog-cache, label: Catalog cache, group: storage}
+      - {id: billing-ledger, label: Ledger, group: storage}
+    edges:
+      - {from: gateway, to: catalog}
+      - {from: gateway, to: billing}
+      - {from: catalog, to: catalog-cache}
+      - {from: billing, to: billing-ledger}

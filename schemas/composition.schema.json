@@ -1,0 +1,943 @@
+{
+  "$defs": {
+    "AxisOptions": {
+      "additionalProperties": false,
+      "description": "Opt-in axis semantics, available starting with VizHIR 0.2.",
+      "properties": {
+        "number_format": {
+          "$ref": "#/$defs/NumberFormat"
+        }
+      },
+      "type": "object"
+    },
+    "ColorEncoding": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "palette": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
+    "CompositionSchema": {
+      "description": "Independent source contract; this is not a new HIR or MIR version.",
+      "enum": [
+        "vizir-composition/0.1"
+      ],
+      "type": "string"
+    },
+    "Dataset": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "DiagramEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "label": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ShapeStyle",
+          "default": {
+            "fill": null,
+            "opacity": 1.0,
+            "stroke": null,
+            "stroke_width": 1.5
+          }
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "DiagramLayout": {
+      "enum": [
+        "layered",
+        "manual"
+      ],
+      "type": "string"
+    },
+    "DiagramNode": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Point"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "style": {
+          "$ref": "#/$defs/ShapeStyle",
+          "default": {
+            "fill": null,
+            "opacity": 1.0,
+            "stroke": null,
+            "stroke_width": 1.5
+          }
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "type": "object"
+    },
+    "FieldEncoding": {
+      "additionalProperties": false,
+      "properties": {
+        "axis": {
+          "$ref": "#/$defs/AxisOptions"
+        },
+        "field": {
+          "type": "string"
+        },
+        "label": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
+    "FontWeight": {
+      "enum": [
+        "regular",
+        "medium",
+        "bold"
+      ],
+      "type": "string"
+    },
+    "GeometryNode": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/GeometryNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "opacity": {
+              "default": null,
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "transform": {
+              "$ref": "#/$defs/Transform2D",
+              "default": {
+                "rotate_degrees": 0.0,
+                "scale": {
+                  "x": 1.0,
+                  "y": 1.0
+                },
+                "translate": {
+                  "x": 0.0,
+                  "y": 0.0
+                }
+              }
+            },
+            "type": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "children"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "radius": {
+              "default": 0.0,
+              "format": "double",
+              "type": "number"
+            },
+            "style": {
+              "$ref": "#/$defs/ShapeStyle",
+              "default": {
+                "fill": null,
+                "opacity": 1.0,
+                "stroke": null,
+                "stroke_width": 1.5
+              }
+            },
+            "type": {
+              "const": "rect",
+              "type": "string"
+            },
+            "width": {
+              "format": "double",
+              "type": "number"
+            },
+            "x": {
+              "format": "double",
+              "type": "number"
+            },
+            "y": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "cx": {
+              "format": "double",
+              "type": "number"
+            },
+            "cy": {
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "radius": {
+              "format": "double",
+              "type": "number"
+            },
+            "style": {
+              "$ref": "#/$defs/ShapeStyle",
+              "default": {
+                "fill": null,
+                "opacity": 1.0,
+                "stroke": null,
+                "stroke_width": 1.5
+              }
+            },
+            "type": {
+              "const": "circle",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "cx",
+            "cy",
+            "radius"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "$ref": "#/$defs/Point"
+            },
+            "id": {
+              "type": "string"
+            },
+            "style": {
+              "$ref": "#/$defs/ShapeStyle",
+              "default": {
+                "fill": null,
+                "opacity": 1.0,
+                "stroke": null,
+                "stroke_width": 1.5
+              }
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            },
+            "type": {
+              "const": "line",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "from",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "commands": {
+              "items": {
+                "$ref": "#/$defs/PathCommand"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "style": {
+              "$ref": "#/$defs/ShapeStyle",
+              "default": {
+                "fill": null,
+                "opacity": 1.0,
+                "stroke": null,
+                "stroke_width": 1.5
+              }
+            },
+            "type": {
+              "const": "path",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "commands"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "anchor": {
+              "$ref": "#/$defs/TextAnchor",
+              "default": "middle"
+            },
+            "color": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "font_size": {
+              "default": 16.0,
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "const": "text",
+              "type": "string"
+            },
+            "weight": {
+              "$ref": "#/$defs/FontWeight",
+              "default": "regular"
+            },
+            "x": {
+              "format": "double",
+              "type": "number"
+            },
+            "y": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "text"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "NumberFormat": {
+      "additionalProperties": false,
+      "description": "Locale-independent numeric tick formatting; precision is decimal places.",
+      "properties": {
+        "notation": {
+          "$ref": "#/$defs/NumberNotation"
+        },
+        "precision": {
+          "format": "uint8",
+          "maximum": 12,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "notation",
+        "precision"
+      ],
+      "type": "object"
+    },
+    "NumberNotation": {
+      "enum": [
+        "scientific",
+        "fixed"
+      ],
+      "type": "string"
+    },
+    "Panel": {
+      "description": "Panel payloads deliberately have no frame. An authored frame is an error,\nrather than an ignored value or an ambiguous override of the grid.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.scatter",
+              "type": "string"
+            },
+            "point_size": {
+              "default": 7.0,
+              "format": "double",
+              "type": "number"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.line",
+              "type": "string"
+            },
+            "line_width": {
+              "default": 2.5,
+              "format": "double",
+              "type": "number"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "show_points": {
+              "default": true,
+              "type": "boolean"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.bar",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "category",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edges": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "diagram.graph",
+              "type": "string"
+            },
+            "layout": {
+              "$ref": "#/$defs/DiagramLayout",
+              "default": "layered"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "nodes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/GeometryNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "geometry.scene",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "children"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PanelLayout": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "columns": {
+              "format": "uint32",
+              "maximum": 4294967295,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "gap": {
+              "default": 0.0,
+              "format": "double",
+              "minimum": 0,
+              "type": "number"
+            },
+            "kind": {
+              "const": "grid",
+              "type": "string"
+            },
+            "padding": {
+              "default": 0.0,
+              "format": "double",
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "columns"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PathCommand": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "move",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "line",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "control1": {
+              "$ref": "#/$defs/Point"
+            },
+            "control2": {
+              "$ref": "#/$defs/Point"
+            },
+            "op": {
+              "const": "cubic",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "control1",
+            "control2",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "close",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Point": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "ShapeStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "fill": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "stroke": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stroke_width": {
+          "default": 1.5,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "TextAnchor": {
+      "enum": [
+        "start",
+        "middle",
+        "end"
+      ],
+      "type": "string"
+    },
+    "Transform2D": {
+      "additionalProperties": false,
+      "properties": {
+        "rotate_degrees": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/Point",
+          "default": {
+            "x": 1.0,
+            "y": 1.0
+          }
+        },
+        "translate": {
+          "$ref": "#/$defs/Point",
+          "default": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "background": {
+      "default": "transparent",
+      "type": "string"
+    },
+    "datasets": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Dataset"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "height": {
+      "exclusiveMinimum": 0,
+      "format": "double",
+      "type": "number"
+    },
+    "id": {
+      "type": "string"
+    },
+    "layout": {
+      "$ref": "#/$defs/PanelLayout"
+    },
+    "panels": {
+      "items": {
+        "$ref": "#/$defs/Panel"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema": {
+      "$ref": "#/$defs/CompositionSchema"
+    },
+    "title": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "width": {
+      "exclusiveMinimum": 0,
+      "format": "double",
+      "type": "number"
+    }
+  },
+  "required": [
+    "schema",
+    "id",
+    "width",
+    "height",
+    "layout",
+    "panels"
+  ],
+  "title": "CompositionV1",
+  "type": "object"
+}

@@ -41,6 +41,21 @@ cargo run -p vizir-cli -- render \
 Use `vizir explain <file> --node <stable-id>` to inspect why a Scene2D node
 exists, and `vizir capabilities <backend>` to inspect output support.
 
+### Optional grid composition
+
+[CompositionV1](docs/composition.md) assigns equal grid cells to frame-free chart,
+diagram, and geometry panels, then emits ordinary VizHIR 0.2. Existing absolute
+frames and APIs remain unchanged. It allocates frames without auto-fit, scaling,
+or clipping; one column or one row also provides a stack.
+
+```sh
+cargo run -q -p vizir-cli -- compose examples/composition/service-grid.compose.yaml --output /tmp/service-grid.viz.json
+cargo run -q -p vizir-cli -- render /tmp/service-grid.viz.json --format png --output /tmp/service-grid.png
+```
+
+`just composition-demo` runs this pipeline into the Cargo target directory.
+The independent input schema is available through `vizir schema composition`.
+
 ### Numeric axes in VizHIR 0.2
 
 Use `version: "0.2"` and `axis.number_format: {notation: scientific, precision: 2}`

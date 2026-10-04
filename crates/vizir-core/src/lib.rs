@@ -1,4 +1,5 @@
 pub mod capability;
+pub mod composition;
 pub mod error;
 pub mod expression;
 pub mod hir;
@@ -8,6 +9,7 @@ pub mod scene;
 pub mod validate;
 
 pub use capability::*;
+pub use composition::*;
 pub use error::{Diagnostic, VizError, VizResult};
 pub use expression::*;
 pub use hir::*;

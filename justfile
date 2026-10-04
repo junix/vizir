@@ -19,6 +19,7 @@ check:
     cargo test --workspace
 
 schemas:
+    cargo run -q -p vizir-cli -- schema composition --output schemas/composition.schema.json
     cargo run -q -p vizir-cli -- schema mir --output schemas/viz-mir.schema.json
     cargo run -q -p vizir-cli -- schema scene-patch --output schemas/scene-patch.schema.json
     cargo run -q -p vizir-cli -- schema capability --output schemas/capability.schema.json
@@ -38,3 +39,11 @@ install: build
     mkdir -p "{{ install_bin }}"
     @set -eu; dest="{{ install_bin }}/vizir"; mkdir -p "$(dirname "$dest")"; tmp="$(mktemp "{{ install_bin }}/.vizir.XXXXXX")"; trap 'rm -f "$tmp"' EXIT; cp "{{ target_dir }}/release/vizir" "$tmp"; chmod 755 "$tmp"; if [ "$(uname -s)" = "Darwin" ]; then xattr -c "$tmp" 2>/dev/null || true; codesign --force --sign - "$tmp"; fi; mv -f "$tmp" "$dest"
     @echo "installed {{ install_bin }}/vizir"
+
+# Composition is an independent source contract; emit HIR before rendering it.
+composition-demo:
+    mkdir -p "{{ target_dir }}/composition-demo"
+    cargo run -q -p vizir-cli -- compose examples/composition/service-grid.compose.yaml --output "{{ target_dir }}/composition-demo/service-grid.viz.json"
+    cargo run -q -p vizir-cli -- validate "{{ target_dir }}/composition-demo/service-grid.viz.json"
+    cargo run -q -p vizir-cli -- render "{{ target_dir }}/composition-demo/service-grid.viz.json" --format svg --output "{{ target_dir }}/composition-demo/service-grid.svg"
+    cargo run -q -p vizir-cli -- render "{{ target_dir }}/composition-demo/service-grid.viz.json" --format png --background transparent --output "{{ target_dir }}/composition-demo/service-grid.png"

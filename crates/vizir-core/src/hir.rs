@@ -8,23 +8,23 @@ fn default_version() -> String {
     "0.1".to_owned()
 }
 
-fn default_background() -> Color {
+pub(crate) fn default_background() -> Color {
     Color::transparent()
 }
 
-fn default_point_size() -> f64 {
+pub(crate) fn default_point_size() -> f64 {
     7.0
 }
 
-fn default_line_width() -> f64 {
+pub(crate) fn default_line_width() -> f64 {
     2.5
 }
 
-fn default_true() -> bool {
+pub(crate) fn default_true() -> bool {
     true
 }
 
-fn default_diagram_layout() -> DiagramLayout {
+pub(crate) fn default_diagram_layout() -> DiagramLayout {
     DiagramLayout::Layered
 }
 
@@ -45,7 +45,7 @@ pub struct Document {
     pub views: Vec<View>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Dataset {
     pub key: String,
@@ -98,7 +98,7 @@ pub struct Frame {
     pub height: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct FieldEncoding {
     pub field: String,
@@ -109,6 +109,7 @@ pub struct FieldEncoding {
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_present"
     )]
+    #[schemars(with = "AxisOptions")]
     pub axis: Option<AxisOptions>,
 }
 
@@ -194,7 +195,7 @@ impl FieldEncoding {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ColorEncoding {
     pub field: String,

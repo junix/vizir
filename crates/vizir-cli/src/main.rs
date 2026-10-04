@@ -8,8 +8,8 @@ use tempfile::Builder;
 use vizir_compiler::compile;
 use vizir_core::{
     BackendCapabilities, Color, LossRecord, LoweringFidelity, UnsupportedPolicy, VizError,
-    VizResult, capability_schema, find_scene_node, mir_schema, negotiate_scene, parse_document,
-    scene_patch_schema, validate_document,
+    VizResult, capability_schema, compose, composition_schema, find_scene_node, mir_schema,
+    negotiate_scene, parse_composition, parse_document, scene_patch_schema, validate_document,
 };
 
 mod paths;
@@ -25,6 +25,12 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    /// Resolve a frame-free grid composition into ordinary VizHIR 0.2 JSON.
+    Compose {
+        input: PathBuf,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
     /// Validate VizHIR structure, references, types, and stable identity.
     Validate { input: PathBuf },
     /// Emit canonical normalized VizMIR as JSON.
@@ -83,6 +89,7 @@ enum Backend {
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum IrKind {
+    Composition,
     Mir,
     ScenePatch,
     Capability,
@@ -104,6 +111,12 @@ fn main() {
 
 fn run(cli: Cli) -> VizResult<()> {
     match cli.command {
+        Commands::Compose { input, output } => {
+            let composition = parse_composition(&input)?;
+            paths::check_destinations(&input, output.as_deref(), None)?;
+            let document = compose(&composition)?;
+            emit_json(&document, output.as_deref())?;
+        }
         Commands::Validate { input } => {
             let document = parse_document(&input)?;
             validate_document(&document)
@@ -230,6 +243,7 @@ fn run(cli: Cli) -> VizResult<()> {
         }
         Commands::Schema { ir, output } => {
             let schema = match ir {
+                IrKind::Composition => composition_schema(),
                 IrKind::Mir => mir_schema(),
                 IrKind::ScenePatch => scene_patch_schema(),
                 IrKind::Capability => capability_schema(),

@@ -8,7 +8,7 @@ The `create-plot` skill owns natural-language intent and renderer routing.
 
 ## Invariants
 
-- Edit `.viz.yaml` or Rust source; never hand-edit MIR, Scene2D, SVG, or PNG as
+- Edit `.viz.yaml`, `.compose.yaml`, or Rust source; never hand-edit MIR, Scene2D, SVG, or PNG as
   canonical source.
 - Preserve stable semantic IDs, data keys, provenance, and deterministic output.
 - Resolve data, scales, and layout before target emission.
