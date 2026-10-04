@@ -81,3 +81,55 @@ fn infer_dataset_fields_treats_sparse_columns_as_optional() {
     let fields = infer_dataset_fields(&boundaries).unwrap();
     assert_eq!(fields["n"], ValueType::Float64);
 }
+
+#[test]
+fn tiny_nice_domains_preserve_relative_scale_and_cover_input() {
+    for raw in [[1e-120, 3e-120], [-3e-120, -1e-120], [-1e-120, 1e-120]] {
+        for include_zero in [false, true] {
+            let domain = nice_domain(raw, include_zero);
+            assert!(domain[0].is_finite() && domain[1].is_finite());
+            assert!(
+                domain[0] <= raw[0] && domain[1] >= raw[1],
+                "raw={raw:?} domain={domain:?} zero={include_zero}"
+            );
+            let expected_span = if include_zero {
+                raw[1].max(0.0) - raw[0].min(0.0)
+            } else {
+                raw[1] - raw[0]
+            };
+            assert!(domain[1] - domain[0] <= expected_span * 2.0, "{domain:?}");
+            assert_eq!(domain, nice_domain(raw, include_zero));
+        }
+    }
+}
+
+#[test]
+fn tiny_nice_step_underflow_preserves_finite_nonconstant_domain() {
+    let smallest = f64::from_bits(1);
+    for raw in [
+        [0.0, smallest],
+        [smallest, 2.0 * smallest],
+        [smallest, 3.0 * smallest],
+        [-3.0 * smallest, -smallest],
+        [-smallest, smallest],
+    ] {
+        // Either the decimal power or power/5 step is unrepresentable.
+        assert_eq!(nice_domain(raw, false), raw);
+    }
+    assert_eq!(
+        nice_domain([smallest, 2.0 * smallest], true),
+        [0.0, 2.0 * smallest]
+    );
+}
+
+#[test]
+fn tiny_representable_subnormal_steps_still_cover_input() {
+    let smallest = f64::from_bits(1);
+    for raw in [[0.0, 4.0 * smallest], [1e-320, 3e-320], [-3e-320, -1e-320]] {
+        let domain = nice_domain(raw, false);
+        assert!(domain[0].is_finite() && domain[1].is_finite());
+        assert!(domain[0] <= raw[0] && domain[1] >= raw[1]);
+        assert!(domain[0] < domain[1]);
+        assert!((domain[1] - domain[0]) / (raw[1] - raw[0]) <= 2.0);
+    }
+}

@@ -409,7 +409,9 @@ pub fn mir_schema() -> serde_json::Value {
 
 pub fn map_linear(value: f64, domain: [f64; 2], range: [f64; 2]) -> f64 {
     let span = domain[1] - domain[0];
-    if span.abs() < f64::EPSILON {
+    // Only an exactly constant domain maps to the range midpoint. Tiny
+    // representable spans must preserve distinct datum positions.
+    if span == 0.0 {
         return (range[0] + range[1]) / 2.0;
     }
     range[0] + (value - domain[0]) / span * (range[1] - range[0])

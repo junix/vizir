@@ -947,7 +947,8 @@ fn nice_domain(domain: [f64; 2], include_zero: bool) -> [f64; 2] {
         min = min.min(0.0);
         max = max.max(0.0);
     }
-    if (max - min).abs() < f64::EPSILON {
+    // A small representable span is still a meaningful nonconstant domain.
+    if min == max {
         let delta = max.abs().max(1.0) * 0.1;
         return [min - delta, max + delta];
     }
@@ -961,7 +962,18 @@ fn nice_domain(domain: [f64; 2], include_zero: bool) -> [f64; 2] {
     } else {
         power
     };
-    [(min / step).floor() * step, (max / step).ceil() * step]
+    // At subnormal magnitudes the decimal power or its subdivision can
+    // underflow to zero. Keep the finite input extent instead of dividing
+    // by that unrepresentable step and manufacturing NaN bounds.
+    if step == 0.0 {
+        return [min, max];
+    }
+    // Multiplying a rounded quotient can land one rounding unit inside
+    // an original endpoint, so never shrink past the input extent.
+    [
+        ((min / step).floor() * step).min(min),
+        ((max / step).ceil() * step).max(max),
+    ]
 }
 
 fn lowering_error(message: String) -> VizError {
