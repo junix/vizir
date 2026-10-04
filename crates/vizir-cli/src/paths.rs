@@ -36,7 +36,8 @@ impl<'a> CheckedPath<'a> {
 }
 
 /// A read-only preflight against accidental overwrites, not a race-free write
-/// transaction. Keep the caller's original paths for actual emission.
+/// transaction. Publication resolves the same destination semantics while
+/// keeping the caller's original paths for reports and diagnostics.
 pub(crate) fn check_destinations(
     input: &Path,
     output: Option<&Path>,
@@ -100,6 +101,10 @@ fn same_file(left: &CheckedPath<'_>, right: &CheckedPath<'_>) -> io::Result<bool
         let _ = (left_metadata, right_metadata);
         same_file::is_same_file(&left.resolved, &right.resolved)
     }
+}
+
+pub(crate) fn destination_for_write(path: &Path) -> VizResult<PathBuf> {
+    resolve_destination(path, &mut 64).map_err(|error| path_error("output", path, error))
 }
 
 // Resolve each existing component before consuming `..`; allow missing parents

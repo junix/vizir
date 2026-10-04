@@ -14,6 +14,7 @@ use vizir_core::{
 
 mod paths;
 mod process;
+mod publication;
 
 #[derive(Debug, Parser)]
 #[command(name = "vizir", version = version(), about = "Compile semantic visualization IR")]
@@ -147,15 +148,19 @@ fn run(cli: Cli) -> VizResult<()> {
             let capability_report = negotiate_scene(&compilation.scene, &capabilities)?;
             capability_report.require_accepted()?;
             let svg = vizir_backend_svg::render(&compilation.scene)?;
-            ensure_parent(&output)?;
+            let staged_output = publication::StagedFile::new(&output)?;
+            let staged_manifest = manifest
+                .as_deref()
+                .map(publication::StagedFile::new)
+                .transpose()?;
             let mut target_losses = Vec::new();
             let mut rasterizer = None;
             match format {
-                OutputFormat::Svg => write(&output, svg.as_bytes())?,
+                OutputFormat::Svg => staged_output.write(svg.as_bytes())?,
                 OutputFormat::Png => {
                     rasterizer = Some(render_png(
                         &svg,
-                        &output,
+                        staged_output.path(),
                         compilation.scene.background.0 == "transparent",
                     )?);
                     target_losses.push(LossRecord {
@@ -166,19 +171,25 @@ fn run(cli: Cli) -> VizResult<()> {
                     });
                 }
             }
-            if let Some(manifest) = manifest {
+            if let Some(staged_manifest) = &staged_manifest {
                 let report = serde_json::json!({
                     "compiler": format!("vizir/{}", env!("CARGO_PKG_VERSION")),
                     "document_id": document.id,
                     "source_ir_version": document.version,
                     "format": format_name(format),
                     "background": compilation.scene.background,
-                    "output": output,
+                    "output": serde_json::to_value(&output)?,
                     "rasterizer": rasterizer,
                     "capability_report": capability_report,
                     "losses": target_losses,
                 });
-                emit_json(&report, Some(&manifest))?;
+                staged_manifest.write(&serde_json::to_vec_pretty(&report)?)?;
+            }
+            let mut files = vec![staged_output];
+            files.extend(staged_manifest);
+            publication::publish(files)?;
+            if let Some(manifest) = &manifest {
+                println!("emitted: {}", manifest.display());
             }
             println!(
                 "rendered: {} -> {} ({}, {} loss records)",
@@ -284,8 +295,9 @@ fn png_capabilities() -> BackendCapabilities {
 fn emit_json<T: serde::Serialize>(value: &T, output: Option<&Path>) -> VizResult<()> {
     let rendered = serde_json::to_vec_pretty(value)?;
     if let Some(output) = output {
-        ensure_parent(output)?;
-        write(output, &rendered)?;
+        let staged = publication::StagedFile::new(output)?;
+        staged.write(&rendered)?;
+        publication::publish(vec![staged])?;
         println!("emitted: {}", output.display());
     } else {
         println!("{}", String::from_utf8_lossy(&rendered));
@@ -471,25 +483,6 @@ fn validate_cli_color(value: &str) -> VizResult<()> {
             "VIZ-TYPE-0004: invalid background {value:?}; use transparent, #RRGGBB, or #RRGGBBAA"
         )))
     }
-}
-
-fn ensure_parent(path: &Path) -> VizResult<()> {
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        fs::create_dir_all(parent).map_err(|source| VizError::Write {
-            path: parent.display().to_string(),
-            source,
-        })?;
-    }
-    Ok(())
-}
-
-fn write(path: &Path, content: &[u8]) -> VizResult<()> {
-    fs::write(path, content).map_err(|source| VizError::Write {
-        path: path.display().to_string(),
-        source,
-    })
 }
 
 #[cfg(test)]

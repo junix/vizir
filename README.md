@@ -53,15 +53,56 @@ Checks include relative/absolute spellings, existing symlinks and hard links,
 symlinked parent directories, and dangling symlinks to new destinations. Missing
 parents are projected without creating them, respecting symlinks before `..`.
 Distinct destinations still support automatic parent creation and overwriting
-an existing artifact; JSON output to stdout and `schema` are unchanged.
+an existing artifact; JSON output to stdout is unchanged.
 
 This is protection against accidental path collisions, not a filesystem security
-boundary or atomic transaction. Concurrent path/link changes after the preflight
-can invalidate the check. Writes remain direct, so a later write or rasterizer
-failure may leave partial output; the artifact and manifest are not committed
-together. Checks rely on the filesystem's path resolution and file identities;
+boundary. Concurrent path/link changes after the preflight can invalidate the
+check. Checks rely on the filesystem's path resolution and file identities;
 they do not predict filesystem-specific aliases between differently spelled
 files that do not exist yet (for example, case folding on some volumes).
+
+### Output publication
+
+All file writers (`normalize`, `lower`, `schema`, SVG, PNG, and render manifests)
+first write to fresh staging directories beside their destinations (mode `0700`
+on Unix; inherited access control on other platforms).
+PNG rasterizers receive an absent staging path, never the final output, and that
+fresh artifact must pass the complete PNG and alpha checks before publication.
+A renderer that exits successfully without writing cannot reuse an old PNG.
+Compilation, provider selection, rendering, validation, or manifest serialization
+failure leaves existing artifact and manifest contents untouched; absent outputs
+remain absent. The manifest always records the requested output path.
+
+After staging succeeds, every destination and required backup is prepared before
+any final file changes. Ordinary files are replaced by same-directory rename;
+existing leaf symlinks remain links and their resolved targets are updated.
+Multiply hardlinked files are copied in place to preserve their shared inode,
+with an independent readable backup for rollback. On Unix and Windows the link
+count selects this behavior; other platforms conservatively copy in place.
+Ordinary write-only files can use a hardlink backup without reading their contents.
+An unreadable multiply linked file, or an ordinary file that cannot be backed up
+by either hardlink or copy, is rejected before any final file changes. Existing
+file write permission is required even when rename would otherwise be possible.
+Existing Unix read/write/execute permission bits and platform permission flags
+are preserved; special bits remain subject to OS write semantics. Ownership,
+ACLs, and extended attributes are not promised across rename replacement.
+Destination directories must permit
+staging; their permissions are never changed. Newly created parent directories
+may remain after a failed command.
+
+If a publication operation fails, VizIR attempts to restore all destinations it
+changed, including the partially copied hardlinked file. Success messages appear
+only after the artifact and optional manifest are published. If rollback itself
+fails (for example, because the filesystem becomes unwritable), `VIZ-OUTPUT-0001`
+reports the failure and retained recovery directories; it does not claim that
+old contents were restored. Normal success and handled failures clean staging.
+
+This is not a multi-file atomic or crash-durable transaction: readers may observe
+the new artifact before its manifest, and hardlink updates may expose partial
+bytes. Crashes, forced termination, power loss, concurrent writers, path/link
+changes, and external processes that keep modifying staged files are outside
+the guarantee. A crash can leave mixed versions and staging/backup directories;
+there is no automatic crash recovery or directory `fsync` durability guarantee.
 
 ### External renderer limits
 
@@ -87,11 +128,10 @@ handles close. No process groups, global signal handlers, or global environment
 changes are used. Deadlines are polling bounds (5 ms interval), with cancellation
 grace and normal OS scheduling/spawn overhead, not hard real-time guarantees.
 
-Success also requires a zero exit status and a decodable, complete PNG passing
-the alpha contract. Failed or timed-out direct writes can still leave partial
-output, and an old artifact or manifest is not rolled back or removed. These
-process limits do not provide atomic publication or prove that an existing PNG
-was freshly written by a renderer that exits successfully without producing output.
+Success also requires a zero exit status and a decodable, complete fresh PNG
+passing the alpha contract. Failed and timed-out renders discard their staging
+without changing existing output or manifest contents. See Output publication
+above for publication rollback and crash/concurrency limits.
 
 The executable contracts can be emitted directly from the Rust model:
 

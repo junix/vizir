@@ -238,6 +238,8 @@ fn renderer_timeout_rejects_partial_output_and_does_not_emit_manifest() {
     let started = Instant::now();
     fixture.assert_failure(fixture.run(), "rsvg-convert: timed out after 30000 ms");
     assert!(started.elapsed() < Duration::from_secs(35));
-    // Direct writes are intentionally not staged or rolled back by this feature.
-    assert_eq!(fs::read(&fixture.output).unwrap(), b"partial");
+    assert!(
+        !fixture.output.exists(),
+        "partial staging must not be published"
+    );
 }
