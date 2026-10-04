@@ -79,6 +79,9 @@ fn build_chart(
     defaults: Option<&ResolvedThemeDefaults>,
     text: Option<&TextSession>,
 ) -> VizResult<SceneNode> {
+    if matches!(materialized, ChartMark::Heatmap { .. }) {
+        return build_heatmap(chart, materialized, defaults, text);
+    }
     let mut children = Vec::new();
     let guides = ChartGuides::resolve(chart)?;
     let ticks = NumericTickLabels::new_with_measurement(
@@ -100,7 +103,7 @@ fn build_chart(
             ChartMark::Symbol { color, .. }
             | ChartMark::Line { color, .. }
             | ChartMark::Bar { color, .. } => color.as_ref(),
-            ChartMark::Area { .. } => None,
+            ChartMark::Area { .. } | ChartMark::Heatmap { .. } => None,
         }?;
         chart
             .scales
@@ -146,6 +149,7 @@ fn build_chart(
         .map_err(VizError::Diagnostic)?;
     let plot = layout.plot;
     let (x_range, y_range) = match &chart.mark {
+        ChartMark::Heatmap { .. } => unreachable!("heatmap has its own bounded layout"),
         ChartMark::Symbol { x, y, .. }
         | ChartMark::Line { x, y, .. }
         | ChartMark::Area { x, y, .. } => (
@@ -189,6 +193,7 @@ fn build_chart(
         text,
     )?);
     match materialized {
+        ChartMark::Heatmap { .. } => unreachable!("heatmap emitted above"),
         ChartMark::Symbol {
             id: mark_id,
             x,
@@ -510,6 +515,383 @@ fn build_chart(
         opacity: 1.0,
         children,
     })
+}
+
+/// Heatmaps use a scoped shared categorical layout rather than inheriting the
+/// legacy numeric grid, reversed numeric y range, or ordinal legend fallback.
+fn build_heatmap(
+    chart: &MirChart,
+    mark: &ChartMark,
+    defaults: Option<&ResolvedThemeDefaults>,
+    text: Option<&TextSession>,
+) -> VizResult<SceneNode> {
+    use crate::heatmap::{HeatmapLayout, IntervalLegend, band_boundaries, cell_extent, serialized};
+    let ChartMark::Heatmap {
+        id: mark_id,
+        x,
+        y,
+        color,
+        instances,
+    } = mark
+    else {
+        unreachable!()
+    };
+    let (x_domain, x_range, _) = band_scale(chart, &x.scale)?;
+    let (y_domain, y_range, _) = band_scale(chart, &y.scale)?;
+    let color_scale = chart
+        .scales
+        .iter()
+        .find(|s| s.id() == color.scale)
+        .ok_or_else(|| crate::heatmap::error("missing quantitative color scale"))?;
+    let MirScale::QuantizeColor {
+        domain,
+        thresholds,
+        range,
+        ..
+    } = color_scale
+    else {
+        return Err(crate::heatmap::error(
+            "heatmap color must bind a quantitative scale",
+        ));
+    };
+    let guide = |kind: GuideKind, orient: GuideOrient, scale: &str| {
+        chart
+            .guides
+            .iter()
+            .find(|g| g.kind == kind && g.orient == orient && g.scale == scale)
+            .ok_or_else(|| crate::heatmap::error("missing explicit heatmap guide"))
+    };
+    let x_guide = guide(GuideKind::Axis, GuideOrient::Bottom, &x.scale)?;
+    let y_guide = guide(GuideKind::Axis, GuideOrient::Left, &y.scale)?;
+    let color_guide = guide(GuideKind::Legend, GuideOrient::Right, &color.scale)?;
+    let legend = IntervalLegend::new(color_scale, color_guide.number_format.as_ref())?;
+    let layout = HeatmapLayout::new(
+        &chart.id,
+        chart.frame,
+        chart.title.as_deref(),
+        x_domain,
+        y_domain,
+        &x_guide.label,
+        &y_guide.label,
+        &color_guide.label,
+        &legend,
+        text,
+    )?;
+    if !ranges_match(
+        x_range,
+        [layout.plot[0], layout.plot[2]],
+        chart.frame.x,
+        chart.frame.width,
+    ) || !ranges_match(
+        y_range,
+        [layout.plot[1], layout.plot[3]],
+        chart.frame.y,
+        chart.frame.height,
+    ) {
+        return Err(crate::heatmap::error(
+            "explicit heatmap ranges differ from the shared axes/legend layout; normalize again from original HIR",
+        ));
+    }
+    let xb = band_boundaries(x_range, x_domain.len())?;
+    let yb = band_boundaries(y_range, y_domain.len())?;
+    let x_index = x_domain
+        .iter()
+        .enumerate()
+        .map(|(i, v)| (v.as_str(), i))
+        .collect::<BTreeMap<_, _>>();
+    let y_index = y_domain
+        .iter()
+        .enumerate()
+        .map(|(i, v)| (v.as_str(), i))
+        .collect::<BTreeMap<_, _>>();
+    let mut children = Vec::new();
+    for cell in instances {
+        let column = *x_index
+            .get(cell.x.as_str())
+            .ok_or_else(|| crate::heatmap::error("cell x is outside explicit domain"))?;
+        let row = *y_index
+            .get(cell.y.as_str())
+            .ok_or_else(|| crate::heatmap::error("cell y is outside explicit domain"))?;
+        let bin = vizir_core::quantize_color_index(cell.value, *domain, thresholds, range.len())?;
+        children.push(SceneNode::Rect {
+            id: format!("{}/cell/{}",chart.id,cell.key),
+            bounds: Rect { x: xb[column], y: yb[row], width: cell_extent(xb[column],xb[column+1]), height: cell_extent(yb[row],yb[row+1]) },
+            origin: Origin { hir_node: chart.id.clone(), mir_node: mark_id.clone(), data_key: Some(cell.key.clone()), data_lineage: vec![chart.source.clone()], generated_by: "build-heatmap-cell".into(), explanation: format!("source row cell ({:?}, {:?}) value {} maps to quantitative bin {bin}; explicit shared serialized band edges",cell.x,cell.y,cell.value) },
+            radius: 0.,
+            style: ResolvedStyle { fill: range[bin].clone(), stroke: Color::transparent(), stroke_width: 0., opacity: 1. },
+        });
+    }
+    let ink = defaults
+        .map(|d| d.ink.clone())
+        .unwrap_or_else(|| Color::hex(INK));
+    let muted = defaults
+        .map(|d| d.muted.clone())
+        .unwrap_or_else(|| Color::hex(MUTED));
+    let grid = defaults
+        .map(|d| d.grid.clone())
+        .unwrap_or_else(|| Color::hex(GRID));
+    let plot = [
+        xb[0],
+        yb[0],
+        *xb.last().expect("nonempty x"),
+        *yb.last().expect("nonempty y"),
+    ];
+    // Rules describe actual band boundaries. They do not fill sparse interiors.
+    for (i, coordinate) in xb.iter().enumerate() {
+        children.push(line_node(
+            format!("{}/grid/x/{i}", chart.id),
+            Point {
+                x: *coordinate,
+                y: plot[1],
+            },
+            Point {
+                x: *coordinate,
+                y: plot[3],
+            },
+            grid.clone(),
+            1.,
+            0.45,
+            &chart.id,
+            "grid boundary from categorical x Band scale",
+        ));
+    }
+    for (i, coordinate) in yb.iter().enumerate() {
+        children.push(line_node(
+            format!("{}/grid/y/{i}", chart.id),
+            Point {
+                x: plot[0],
+                y: *coordinate,
+            },
+            Point {
+                x: plot[2],
+                y: *coordinate,
+            },
+            grid.clone(),
+            1.,
+            0.45,
+            &chart.id,
+            "grid boundary from categorical y Band scale",
+        ));
+    }
+    children.push(line_node(
+        format!("{}/axis/x", chart.id),
+        Point {
+            x: plot[0],
+            y: plot[3],
+        },
+        Point {
+            x: plot[2],
+            y: plot[3],
+        },
+        muted.clone(),
+        1.4,
+        1.,
+        &chart.id,
+        "bottom categorical axis from explicit guide",
+    ));
+    children.push(line_node(
+        format!("{}/axis/y", chart.id),
+        Point {
+            x: plot[0],
+            y: plot[1],
+        },
+        Point {
+            x: plot[0],
+            y: plot[3],
+        },
+        muted.clone(),
+        1.4,
+        1.,
+        &chart.id,
+        "left categorical axis; first domain category at top",
+    ));
+    for (i, label) in x_domain.iter().enumerate() {
+        let center = (xb[i] + xb[i + 1]) / 2.;
+        children.push(line_node(
+            format!("{}/axis/x/tick/{i}", chart.id),
+            Point {
+                x: center,
+                y: plot[3],
+            },
+            Point {
+                x: center,
+                y: plot[3] + 4.,
+            },
+            muted.clone(),
+            1.,
+            1.,
+            &chart.id,
+            "tick centered in categorical x band",
+        ));
+        children.push(heatmap_text_node(
+            format!("{}/axis/x/category/{i}", chart.id),
+            layout.x_labels[i],
+            label.clone(),
+            10.,
+            TextAnchor::Middle,
+            muted.clone(),
+            FontWeight::Regular,
+            chart,
+            x_guide,
+            text,
+        )?);
+    }
+    for (i, label) in y_domain.iter().enumerate() {
+        let center = (yb[i] + yb[i + 1]) / 2.;
+        children.push(line_node(
+            format!("{}/axis/y/tick/{i}", chart.id),
+            Point {
+                x: plot[0] - 4.,
+                y: center,
+            },
+            Point {
+                x: plot[0],
+                y: center,
+            },
+            muted.clone(),
+            1.,
+            1.,
+            &chart.id,
+            "tick centered in categorical y band",
+        ));
+        children.push(heatmap_text_node(
+            format!("{}/axis/y/category/{i}", chart.id),
+            layout.y_labels[i],
+            label.clone(),
+            10.,
+            TextAnchor::End,
+            muted.clone(),
+            FontWeight::Regular,
+            chart,
+            y_guide,
+            text,
+        )?);
+    }
+    for (i, (label, color)) in legend.labels.iter().zip(&legend.colors).enumerate() {
+        let point = layout.legend[i];
+        children.push(SceneNode::Rect {
+            id: format!("{}/legend/{i}/swatch", chart.id),
+            bounds: Rect {
+                x: serialized(point.x),
+                y: serialized(point.y),
+                width: 12.,
+                height: 12.,
+            },
+            origin: Origin {
+                hir_node: chart.id.clone(),
+                mir_node: color_guide.id.clone(),
+                data_key: None,
+                data_lineage: vec![chart.source.clone()],
+                generated_by: "build-quantitative-legend".into(),
+                explanation: format!("numeric interval {label} from resolved quantitative scale"),
+            },
+            radius: 0.,
+            style: ResolvedStyle {
+                fill: color.clone(),
+                stroke: Color::transparent(),
+                stroke_width: 0.,
+                opacity: 1.,
+            },
+        });
+        children.push(heatmap_text_node(
+            format!("{}/legend/{i}/label", chart.id),
+            layout.legend_labels[i],
+            label.clone(),
+            10.5,
+            TextAnchor::Start,
+            muted.clone(),
+            FontWeight::Regular,
+            chart,
+            color_guide,
+            text,
+        )?);
+    }
+    for (id, position, guide, anchor) in [
+        ("axis/x/title", layout.x_title, x_guide, TextAnchor::Middle),
+        ("axis/y/title", layout.y_title, y_guide, TextAnchor::Start),
+        (
+            "legend/title",
+            layout.legend_title,
+            color_guide,
+            TextAnchor::Start,
+        ),
+    ] {
+        children.push(heatmap_text_node(
+            format!("{}/{id}", chart.id),
+            position,
+            guide.label.clone(),
+            12.5,
+            anchor,
+            ink.clone(),
+            FontWeight::Medium,
+            chart,
+            guide,
+            text,
+        )?);
+    }
+    if let Some(title) = &chart.title {
+        let node = header_text_envelope(title_node(&chart.id, title, chart.frame, defaults));
+        if let Some(text) = text {
+            text.register_chart_title(&chart.id, &node, chart.frame)?;
+        }
+        children.push(node);
+    }
+    if let Some(text) = text {
+        text.check_chart(&children, chart.frame, plot)?;
+    }
+    Ok(SceneNode::Group {
+        id: chart.id.clone(),
+        bounds: frame_rect(chart.frame),
+        origin: Origin {
+            hir_node: chart.id.clone(),
+            mir_node: chart.id.clone(),
+            data_key: None,
+            data_lineage: vec![chart.source.clone()],
+            generated_by: "build-chart-scene".into(),
+            explanation: chart.provenance.join("; "),
+        },
+        transform: Transform2D::default(),
+        opacity: 1.,
+        children,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn heatmap_text_node(
+    id: String,
+    position: Point,
+    label: String,
+    size: f64,
+    anchor: TextAnchor,
+    color: Color,
+    weight: FontWeight,
+    chart: &MirChart,
+    guide: &MirGuide,
+    text: Option<&TextSession>,
+) -> VizResult<SceneNode> {
+    let bounds = crate::heatmap::label_bounds(&label, size, weight, position, anchor, text)?;
+    let mut node = text_node(
+        id,
+        position,
+        label,
+        size,
+        anchor,
+        color,
+        weight,
+        &chart.id,
+        "resolved categorical/quantitative heatmap guide label",
+    );
+    if let SceneNode::Text {
+        bounds: target,
+        origin,
+        ..
+    } = &mut node
+    {
+        *target = bounds;
+        origin.mir_node = guide.id.clone();
+        origin.data_lineage = vec![chart.source.clone()];
+    }
+    Ok(node)
 }
 
 // JSON parsing and layout recomputation can round independently. Permit only

@@ -62,7 +62,8 @@ fn rename_scales(chart: &mut MirChart) {
         let id = match scale {
             MirScale::Linear { id, .. }
             | MirScale::Band { id, .. }
-            | MirScale::OrdinalColor { id, .. } => id,
+            | MirScale::OrdinalColor { id, .. }
+            | MirScale::QuantizeColor { id, .. } => id,
         };
         *id = renamed[id].clone();
     }
@@ -70,6 +71,7 @@ fn rename_scales(chart: &mut MirChart) {
         guide.scale = renamed[&guide.scale].clone();
     }
     let bindings = match &mut chart.mark {
+        ChartMark::Heatmap { .. } => unreachable!("heatmap guide IDs have a separate test matrix"),
         ChartMark::Symbol { x, y, color, .. }
         | ChartMark::Line { x, y, color, .. }
         | ChartMark::Area { x, y, color, .. } => (x, y, color),

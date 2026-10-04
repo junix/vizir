@@ -1,4 +1,4 @@
-# VizHIR wire formats 0.1, 0.2 and 0.3
+# VizHIR wire formats 0.1, 0.2, 0.3 and 0.4
 
 A document declares `version`, stable `id`, output dimensions, named inline
 datasets, and one or more views. Each view has an explicit frame so dashboard
@@ -10,7 +10,8 @@ Supported view tags:
 chart.scatter
 chart.line
 chart.bar
-chart.area (0.3 only)
+chart.area (0.3 and 0.4)
+chart.heatmap (0.4 only)
 diagram.graph
 geometry.scene
 ```
@@ -68,8 +69,9 @@ domain, and mark values remain numeric. Changing notation or precision does
 not change domain inference or materialized mark values.
 
 The format applies only to numeric axes. A bar `category` axis rejects these
-options even if its source values happen to be numbers. Color and series
-legends do not accept numeric axis options. Unknown option fields and notation
+options even if its source values happen to be numbers. Categorical color and series
+legends do not accept numeric axis options. The separate numeric heatmap legend
+in 0.4 accepts `color.number_format`; it does not use `axis.number_format`. Unknown option fields and notation
 values are rejected; precision outside 0–12 is diagnosed.
 
 When at least one axis opts in, all numeric tick labels in that chart use the
@@ -119,3 +121,33 @@ Versions 0.1 and 0.2 retain their existing contracts and reject area marks.
 The published old schema branches retain their closed dependency definitions;
 0.3 uses its own branch. The themed and compiled envelope names stay at version
 1, with a matching 0.3 MIR/source pair admitted by their new branches.
+
+## Categorical heatmaps in 0.4
+
+VizHIR 0.4 adds `chart.heatmap` with required dataset, frame, string-category
+`x`/`y` encodings, and a finite numeric `color` encoding. Each category encoding
+accepts `field`, optional `label`, and optional ordered string `domain`. Color
+accepts `field`, optional `label`, optional numeric `domain: [lo, hi]`, an optional
+2–9-color `palette`, and optional `number_format`. New optional fields must be
+absent rather than `null`.
+
+Observed category pairs must be unique. Missing pairs stay empty and present
+zero values create keyed rectangles. Explicit domains cover every observation
+and may reserve empty bands. No aggregation, trimming, case folding, dropping,
+or imputation occurs. Color uses explicit quantization thresholds and an honest
+interval legend; out-of-range values are rejected. See [the complete heatmap
+contract](heatmaps.md) for arithmetic, constant domains, layout, and limits.
+
+A 0.4 document normalizes to VizMIR 0.4 with `source_hir_version: "0.4"`.
+Existing view kinds, including areas, remain available. The heatmap mark stores
+x/y/color bindings and source-ordered `{key, x, y, value}` instances. Its three
+scales are zero-padding x/y bands and `quantize-color`, with explicit domain,
+thresholds, and the full resolved palette. Exactly two bound axes and one
+right quantitative legend are required. Refresh preserves that resolved plan;
+stale instances fail ordinary replay.
+
+Versions 0.1–0.3 reject heatmaps and retain their old schema closures. New 0.4
+branches extend the existing themed/compiled envelope names without a new
+context format. Runtime enum additions may break exhaustive Rust matches.
+Standalone `ChartMark` and `Panel` schemas intentionally remain legacy; use
+versioned MIR and composition root schemas for heatmaps.

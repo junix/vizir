@@ -21,6 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &y.expression
         }
         ChartMark::Bar { value, .. } => &value.expression,
+        ChartMark::Heatmap { color, .. } => &color.expression,
     }
     .clone();
     let expression = mir

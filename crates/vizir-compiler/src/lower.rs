@@ -3,10 +3,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::Value;
 use vizir_core::{
     AreaChart, BarChart, ChartMark, Color, ColorEncoding, CoordinateSpace2D, CoordinateSpaceKind,
-    Document, Expression, GeometryNode, GuideKind, GuideOrient, LineChart, MirChart, MirDataNode,
-    MirDataOperator, MirDataSchema, MirDiagram, MirGeometry, MirGeometryNode, MirGuide, MirScale,
-    MirShapeStyle, MirView, ScaleBinding, ScatterChart, SpatialUnit, Transform2D, TypeEnvironment,
-    TypedExpression, UpdateMode, ValueType, View, VizError, VizMir, VizResult, type_expression,
+    Document, Expression, GeometryNode, GuideKind, GuideOrient, HeatmapChart, LineChart, MirChart,
+    MirDataNode, MirDataOperator, MirDataSchema, MirDiagram, MirGeometry, MirGeometryNode,
+    MirGuide, MirScale, MirShapeStyle, MirView, ScaleBinding, ScatterChart, SpatialUnit,
+    Transform2D, TypeEnvironment, TypedExpression, UpdateMode, ValueType, View, VizError, VizMir,
+    VizResult, type_expression,
 };
 
 use crate::ResolvedThemeDefaults;
@@ -89,6 +90,18 @@ pub(crate) fn lower_to_mir_with_context(
             )),
             View::Area(chart) => MirView::Chart(Box::new(
                 lower_area(
+                    document,
+                    chart,
+                    &data,
+                    &mut expressions,
+                    &mut budget,
+                    defaults,
+                    text,
+                )
+                .map_err(lowering_error)?,
+            )),
+            View::Heatmap(chart) => MirView::Chart(Box::new(
+                lower_heatmap(
                     document,
                     chart,
                     &data,
@@ -911,6 +924,147 @@ fn lower_bar(
             "band placement remains unresolved until Scene2D construction".to_owned(),
         ],
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_heatmap(
+    document: &Document,
+    chart: &HeatmapChart,
+    data: &BTreeMap<String, MirDataNode>,
+    expressions: &mut BTreeMap<String, TypedExpression>,
+    budget: &mut Budget,
+    defaults: Option<&ResolvedThemeDefaults>,
+    text: Option<&TextSession>,
+) -> Result<MirChart, String> {
+    let dataset = dataset(document, &chart.dataset)?;
+    let source = data_id(&chart.dataset);
+    preflight_hir_bindings(&data[&source], budget).map_err(|e| e.to_string())?;
+    let row_variable = row_variable(&chart.id);
+    let mut field = |role: &str, name: &str| {
+        register_field_expression(
+            expressions,
+            data,
+            &source,
+            &row_variable,
+            &chart.id,
+            role,
+            name,
+        )
+    };
+    let key_expression = field("key", &dataset.key)?;
+    let x = scale_binding(format!("{}/x", chart.id), field("x", &chart.x.field)?);
+    let y = scale_binding(format!("{}/y", chart.id), field("y", &chart.y.field)?);
+    let color = scale_binding(
+        format!("{}/color", chart.id),
+        field("color", &chart.color.field)?,
+    );
+    let plan = ChartMark::Heatmap {
+        id: format!("{}/marks/cells", chart.id),
+        x,
+        y,
+        color,
+        instances: Vec::new(),
+    };
+    let mark = materialize_mark(
+        &data[&source],
+        &row_variable,
+        &key_expression,
+        &plan,
+        expressions,
+        &chart.id,
+        budget,
+    )
+    .map_err(|e| e.to_string())?;
+    let ChartMark::Heatmap { instances, .. } = &mark else {
+        unreachable!()
+    };
+    let x_domain = crate::heatmap::resolve_domain(
+        chart.x.domain.as_deref(),
+        instances.iter().map(|p| p.x.as_str()),
+    )
+    .map_err(|e| e.to_string())?;
+    let y_domain = crate::heatmap::resolve_domain(
+        chart.y.domain.as_deref(),
+        instances.iter().map(|p| p.y.as_str()),
+    )
+    .map_err(|e| e.to_string())?;
+    crate::heatmap::check_domains(&x_domain, &y_domain).map_err(|e| e.to_string())?;
+    let mut domain = chart.color.domain.unwrap_or_else(|| {
+        instances
+            .iter()
+            .fold([f64::INFINITY, f64::NEG_INFINITY], |[lo, hi], p| {
+                [lo.min(p.value), hi.max(p.value)]
+            })
+    });
+    // Preserve all original source values; only resolved zero endpoints canonicalize.
+    for endpoint in &mut domain {
+        if *endpoint == 0. {
+            *endpoint = 0.;
+        }
+    }
+    let range = chart
+        .color
+        .palette
+        .clone()
+        .map(Ok)
+        .unwrap_or_else(|| crate::heatmap::palette(defaults))
+        .map_err(|e| e.to_string())?;
+    let thresholds = vizir_core::canonical_quantize_thresholds(domain, range.len())
+        .map_err(|e| e.to_string())?;
+    let color_scale = MirScale::QuantizeColor {
+        id: format!("{}/color", chart.id),
+        domain,
+        thresholds,
+        range,
+    };
+    let legend =
+        crate::heatmap::IntervalLegend::new(&color_scale, chart.color.number_format.as_ref())
+            .map_err(|e| e.to_string())?;
+    let x_label = chart.x.label.as_deref().unwrap_or(&chart.x.field);
+    let y_label = chart.y.label.as_deref().unwrap_or(&chart.y.field);
+    let color_label = chart.color.label.as_deref().unwrap_or(&chart.color.field);
+    let layout_labels = x_domain.len() + y_domain.len() + legend.labels.len() * 2 + 4;
+    budget
+        .charge((layout_labels * layout_labels) as u64, &chart.id)
+        .map_err(|e| e.to_string())?;
+    let plot = crate::heatmap::HeatmapLayout::new(
+        &chart.id,
+        chart.frame,
+        chart.title.as_deref(),
+        &x_domain,
+        &y_domain,
+        x_label,
+        y_label,
+        color_label,
+        &legend,
+        text,
+    )
+    .map_err(|e| e.to_string())?
+    .plot;
+    let result = MirChart {
+        id: chart.id.clone(), title: chart.title.clone(), frame: chart.frame,
+        space: DOCUMENT_SPACE.to_owned(), source, row_variable, key_expression,
+        scales: vec![
+            MirScale::Band { id: format!("{}/x", chart.id), domain: x_domain, range: [plot[0],plot[2]], range_space: DOCUMENT_SPACE.to_owned(), padding: 0. },
+            MirScale::Band { id: format!("{}/y", chart.id), domain: y_domain, range: [plot[1],plot[3]], range_space: DOCUMENT_SPACE.to_owned(), padding: 0. },
+            color_scale,
+        ],
+        guides: vec![
+            MirGuide { id: format!("{}/guides/x-axis", chart.id), kind: GuideKind::Axis, scale: format!("{}/x", chart.id), label: x_label.into(), orient: GuideOrient::Bottom, number_format: None },
+            MirGuide { id: format!("{}/guides/y-axis", chart.id), kind: GuideKind::Axis, scale: format!("{}/y", chart.id), label: y_label.into(), orient: GuideOrient::Left, number_format: None },
+            MirGuide { id: format!("{}/guides/color-legend", chart.id), kind: GuideKind::Legend, scale: format!("{}/color", chart.id), label: color_label.into(), orient: GuideOrient::Right, number_format: chart.color.number_format },
+        ],
+        mark,
+        provenance: vec![
+            "sparse heatmap: one keyed cell per unique string (x,y) pair; source rows and cache order retained".into(),
+            "x categories run left to right; y categories run top to bottom; absent pairs create no cell".into(),
+            "quantize-ramp/1: explicit numeric intervals, upper-bin ties, closed final endpoint, strict domain membership".into(),
+            "resolved full palette retained; constant domains select the lower middle color".into(),
+        ],
+    };
+    crate::materialize::check_scale_membership(&result, &result.mark, budget)
+        .map_err(|e| e.to_string())?;
+    Ok(result)
 }
 
 fn chart_guides(chart: &ScatterChart, color: Option<&ColorEncoding>) -> Vec<MirGuide> {

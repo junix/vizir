@@ -142,7 +142,7 @@ fn validate_reports_each_diagnostic_with_its_source_and_help() {
     assert!(!result.status.success());
     let stderr = stderr_of(&result);
     assert!(stderr.contains("VIZ-SCHEMA-0001: unsupported VizHIR version \"0.9\" at version"));
-    assert!(stderr.contains("help: use version \"0.1\", \"0.2\", or \"0.3\""));
+    assert!(stderr.contains("help: use version \"0.1\", \"0.2\", \"0.3\", or \"0.4\""));
     assert!(stderr.contains("VIZ-VALIDATE-0003: document has no views at views"));
     assert_eq!(stdout_of(&result), "");
 }

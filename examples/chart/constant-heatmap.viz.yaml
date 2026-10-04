@@ -1,0 +1,25 @@
+version: "0.4"
+id: constant-service-matrix
+width: 800
+height: 500
+background: transparent
+datasets:
+  baseline:
+    key: sample_id
+    rows:
+      - {sample_id: api-mon, day: Mon, service: API, value: 7}
+      - {sample_id: api-tue, day: Tue, service: API, value: 7}
+      - {sample_id: jobs-mon, day: Mon, service: Jobs, value: 7}
+      - {sample_id: jobs-tue, day: Tue, service: Jobs, value: 7}
+views:
+  - kind: chart.heatmap
+    id: baseline
+    title: A constant domain has one honest legend value
+    frame: {x: 0, y: 0, width: 800, height: 500}
+    dataset: baseline
+    x: {field: day, label: day}
+    y: {field: service, label: service}
+    color:
+      field: value
+      label: baseline
+      palette: ["#E2EFF9", "#A8D1EB", "#559CCC", "#1B609C"]

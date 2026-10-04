@@ -11,7 +11,8 @@ VizHIR -> validated document -> VizMIR -> Scene2D -> capability report -> target
 The MVP deliberately supports three dialect families instead of pretending one
 renderer can understand every visual system:
 
-- `chart.scatter`, `chart.line`, `chart.bar`, and explicit `chart.area` in VizHIR 0.3;
+- `chart.scatter`, `chart.line`, `chart.bar`, explicit `chart.area` from VizHIR 0.3,
+  and categorical `chart.heatmap` from VizHIR 0.4;
 - `diagram.graph` with deterministic layered or manual layout;
 - `geometry.scene` with typed groups, shapes, text, paths, and transforms.
 
@@ -88,6 +89,24 @@ its limits and the existing theme/measured-text workflow.
   `vizir-composition/0.2` to emit HIR 0.3
 
 Existing composition 0.1 continues to emit HIR 0.2.
+
+### Categorical heatmaps in VizHIR 0.4
+
+`chart.heatmap` uses string x/y categories and finite numeric color values.
+Explicit ordered category domains can reserve empty bands; missing pairs stay
+empty, and present zero values keep their keyed rectangles. Quantized legends
+show numeric intervals, including exact threshold and constant-domain semantics.
+See [heatmap authoring, layout, limits, and replay](docs/heatmaps.md).
+
+- [Sparse matrix](examples/chart/sparse-heatmap.viz.yaml)
+- [Dense matrix](examples/chart/dense-heatmap.viz.yaml)
+- [Constant domain](examples/chart/constant-heatmap.viz.yaml)
+- [Mixed heatmap dashboard](examples/composition/heatmap-dashboard.compose.yaml),
+  using `vizir-composition/0.3` to emit HIR 0.4
+
+Existing HIR/MIR 0.1–0.3 and composition 0.1–0.2 keep their versioned contracts.
+New runtime enum variants may require updates to exhaustive Rust matches; use
+versioned root schemas for the new mark and panel variants.
 
 ### Output path safety
 
@@ -353,7 +372,9 @@ Add a source-targeted `--text-layout` policy to measured text for bounded Latin/
 ### Measured chart-title blocks (explicit role)
 
 `vizir-text-wrap/2` adds `chart.title` semantic targets for bar, line and scatter
-charts, and for area charts in HIR/MIR 0.3. Titles reserve their full measured height before plot ranges and legend
+charts, area charts from HIR/MIR 0.3, and heatmaps from HIR/MIR 0.4. Heatmap
+category and legend wrapping remain deferred. Titles reserve their full measured
+height before plot ranges and legend
 positions are fixed. See [the narrow three-chart composition](examples/composition/wrapped-chart-titles.compose.yaml)
 and [versioned policy/CLI instructions](docs/wrapping.md#semantic-chart-titles-vizir-text-wrap2).
 

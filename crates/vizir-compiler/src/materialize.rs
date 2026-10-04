@@ -3,9 +3,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::Value;
 use vizir_core::{
-    ChartMark, Document, Expression, LiteralValue, MirBarItem, MirChart, MirDataNode,
-    MirDataOperator, MirGeometryNode, MirPointItem, MirScale, MirSeries, MirView, TypedExpression,
-    UpdateMode, ValueType, VizError, VizMir, VizResult, value_as_key,
+    ChartMark, Document, Expression, LiteralValue, MAX_HEATMAP_CATEGORIES, MAX_HEATMAP_CELLS,
+    MAX_HEATMAP_CELLS_PER_CALL, MAX_HEATMAP_DOMAIN_BYTES, MAX_HEATMAP_GRID_CELLS,
+    MAX_HEATMAP_LABEL_BYTES, MirBarItem, MirChart, MirDataNode, MirDataOperator, MirGeometryNode,
+    MirHeatmapCell, MirPointItem, MirScale, MirSeries, MirView, TypedExpression, UpdateMode,
+    ValueType, View, VizError, VizMir, VizResult, canonical_quantize_thresholds,
+    quantize_color_index, validate_heatmap_category, value_as_key,
 };
 
 /// Whole-call limits, checked before recursive expression typing or cloning.
@@ -40,11 +43,11 @@ impl Budget {
         }
     }
 
-    fn step(&mut self, context: &str) -> VizResult<()> {
+    pub(crate) fn step(&mut self, context: &str) -> VizResult<()> {
         self.charge(1, context)
     }
 
-    fn charge(&mut self, steps: u64, context: &str) -> VizResult<()> {
+    pub(crate) fn charge(&mut self, steps: u64, context: &str) -> VizResult<()> {
         self.remaining = self.remaining.checked_sub(steps).ok_or_else(|| {
             error(
                 "VIZ-MATERIALIZE-0001",
@@ -145,6 +148,7 @@ pub(crate) fn materialize_mir_marks(
 }
 
 pub(crate) fn preflight_document(document: &Document, budget: &mut Budget) -> VizResult<()> {
+    preflight_heatmap_document(document, budget)?;
     for (name, data) in &document.datasets {
         let mut fields = BTreeSet::new();
         for row in &data.rows {
@@ -169,6 +173,322 @@ pub(crate) fn preflight_document(document: &Document, budget: &mut Budget) -> Vi
     Ok(())
 }
 
+// Heatmap-specific hard ceilings are checked before schema inference, validation,
+// expression typing, or refreshing clones. They do not change the public limits API.
+fn check_heatmap_row_count(count: usize, context: &str) -> VizResult<()> {
+    if count == 0 || count > MAX_HEATMAP_CELLS {
+        return Err(error(
+            "VIZ-MATERIALIZE-0011",
+            context,
+            "heatmap requires 1..=16384 source rows per chart",
+        ));
+    }
+    Ok(())
+}
+
+fn add_heatmap_call_count(total: &mut usize, count: usize, context: &str) -> VizResult<()> {
+    *total = total.checked_add(count).ok_or_else(|| {
+        error(
+            "VIZ-MATERIALIZE-0001",
+            context,
+            "heatmap whole-call count overflow",
+        )
+    })?;
+    if *total > MAX_HEATMAP_CELLS_PER_CALL {
+        return Err(error(
+            "VIZ-MATERIALIZE-0001",
+            context,
+            "heatmap whole-call source-row or supplied-cache limit exceeded (65536)",
+        ));
+    }
+    Ok(())
+}
+
+fn heatmap_category<'a>(
+    value: &'a str,
+    values: &mut BTreeSet<&'a str>,
+    bytes: &mut usize,
+    budget: &mut Budget,
+    context: &str,
+) -> VizResult<bool> {
+    budget.charge(value.len() as u64 + 1, context)?;
+    validate_heatmap_category(value)?;
+    let fresh = values.insert(value);
+    if fresh {
+        *bytes = bytes.checked_add(value.len()).ok_or_else(|| {
+            error(
+                "VIZ-MATERIALIZE-0001",
+                context,
+                "heatmap category byte count overflow",
+            )
+        })?;
+        if values.len() > MAX_HEATMAP_CATEGORIES || *bytes > MAX_HEATMAP_DOMAIN_BYTES {
+            return Err(error(
+                "VIZ-MATERIALIZE-0011",
+                context,
+                "heatmap domains require at most 256 categories per axis and 1048576 combined UTF-8 bytes",
+            ));
+        }
+    }
+    Ok(fresh)
+}
+
+fn heatmap_domain<'a>(
+    domain: &'a [String],
+    bytes: &mut usize,
+    budget: &mut Budget,
+    context: &str,
+) -> VizResult<BTreeSet<&'a str>> {
+    if domain.is_empty() || domain.len() > MAX_HEATMAP_CATEGORIES {
+        return Err(error(
+            "VIZ-MATERIALIZE-0011",
+            context,
+            "heatmap axis domains require 1..=256 categories",
+        ));
+    }
+    let mut values = BTreeSet::new();
+    for value in domain {
+        if !heatmap_category(value, &mut values, bytes, budget, context)? {
+            return Err(error(
+                "VIZ-MATERIALIZE-0011",
+                context,
+                "heatmap axis domain contains a duplicate category",
+            ));
+        }
+    }
+    Ok(values)
+}
+
+fn check_heatmap_grid(x: usize, y: usize, context: &str) -> VizResult<()> {
+    if x.checked_mul(y)
+        .is_none_or(|cells| cells > MAX_HEATMAP_GRID_CELLS)
+    {
+        return Err(error(
+            "VIZ-MATERIALIZE-0011",
+            context,
+            "heatmap axis-domain product exceeds 65536",
+        ));
+    }
+    Ok(())
+}
+
+fn preflight_heatmap_document(document: &Document, budget: &mut Budget) -> VizResult<()> {
+    let mut total = 0;
+    // Count every chart's source, even when charts share one dataset.
+    for view in &document.views {
+        let View::Heatmap(chart) = view else { continue };
+        budget.step(&chart.id)?;
+        if let Some(data) = document.datasets.get(&chart.dataset) {
+            check_heatmap_row_count(data.rows.len(), &chart.id)?;
+            add_heatmap_call_count(&mut total, data.rows.len(), &chart.id)?;
+        }
+    }
+    for view in &document.views {
+        let View::Heatmap(chart) = view else { continue };
+        for label in [
+            chart.x.label.as_deref().unwrap_or(&chart.x.field),
+            chart.y.label.as_deref().unwrap_or(&chart.y.field),
+            chart.color.label.as_deref().unwrap_or(&chart.color.field),
+        ] {
+            if label.len() > MAX_HEATMAP_LABEL_BYTES {
+                return Err(error(
+                    "VIZ-MATERIALIZE-0011",
+                    &chart.id,
+                    "heatmap labels cannot exceed 16384 UTF-8 bytes",
+                ));
+            }
+            budget.charge(label.len() as u64 + 1, &chart.id)?;
+        }
+        let Some(data) = document.datasets.get(&chart.dataset) else {
+            continue;
+        };
+        let mut bytes = 0;
+        let mut x_domain = chart
+            .x
+            .domain
+            .as_ref()
+            .map(|domain| heatmap_domain(domain, &mut bytes, budget, &chart.id))
+            .transpose()?
+            .unwrap_or_default();
+        let mut y_domain = chart
+            .y
+            .domain
+            .as_ref()
+            .map(|domain| heatmap_domain(domain, &mut bytes, budget, &chart.id))
+            .transpose()?
+            .unwrap_or_default();
+        let mut coordinates = BTreeSet::new();
+        for row in &data.rows {
+            budget.step(&chart.id)?;
+            if let Some(Value::String(key)) = row.get(&data.key) {
+                budget.charge(key.len() as u64, &chart.id)?;
+            }
+            let category = |field: &str| -> VizResult<&str> {
+                match row.get(field) {
+                    Some(Value::String(value)) => Ok(value),
+                    _ => Err(error(
+                        "VIZ-MATERIALIZE-0011",
+                        &chart.id,
+                        format!(
+                            "heatmap category field {field:?} requires exact non-null String values"
+                        ),
+                    )),
+                }
+            };
+            let x = category(&chart.x.field)?;
+            let y = category(&chart.y.field)?;
+            for (value, explicit, domain) in [
+                (x, chart.x.domain.is_some(), &mut x_domain),
+                (y, chart.y.domain.is_some(), &mut y_domain),
+            ] {
+                if explicit {
+                    budget.charge(value.len() as u64 + 1, &chart.id)?;
+                    validate_heatmap_category(value)?;
+                    if !domain.contains(value) {
+                        return Err(error(
+                            "VIZ-MATERIALIZE-0011",
+                            &chart.id,
+                            "heatmap source category is absent from its explicit axis domain",
+                        ));
+                    }
+                } else {
+                    heatmap_category(value, domain, &mut bytes, budget, &chart.id)?;
+                }
+            }
+            if !coordinates.insert((x, y)) {
+                return Err(error(
+                    "VIZ-MATERIALIZE-0011",
+                    &chart.id,
+                    "duplicate heatmap (x, y) category pair",
+                ));
+            }
+        }
+        check_heatmap_grid(x_domain.len(), y_domain.len(), &chart.id)?;
+    }
+    Ok(())
+}
+
+fn preflight_heatmap_mir(mir: &VizMir, budget: &mut Budget) -> VizResult<()> {
+    let mut total_rows = 0;
+    let mut total_caches = 0;
+    for view in &mir.views {
+        let MirView::Chart(chart) = view else {
+            continue;
+        };
+        let ChartMark::Heatmap { instances, .. } = &chart.mark else {
+            continue;
+        };
+        budget.step(&chart.id)?;
+        if instances.len() > MAX_HEATMAP_CELLS {
+            return Err(error(
+                "VIZ-MATERIALIZE-0001",
+                &chart.id,
+                "heatmap supplied-cache limit exceeded (16384 per chart)",
+            ));
+        }
+        add_heatmap_call_count(&mut total_caches, instances.len(), &chart.id)?;
+        if let Some(source) = mir.data.get(&chart.source) {
+            let MirDataOperator::Inline { rows } = &source.operator;
+            check_heatmap_row_count(rows.len(), &chart.id)?;
+            add_heatmap_call_count(&mut total_rows, rows.len(), &chart.id)?;
+        }
+    }
+    for view in &mir.views {
+        let MirView::Chart(chart) = view else {
+            continue;
+        };
+        let ChartMark::Heatmap {
+            x, y, instances, ..
+        } = &chart.mark
+        else {
+            continue;
+        };
+        for guide in &chart.guides {
+            if guide.label.len() > MAX_HEATMAP_LABEL_BYTES {
+                return Err(error(
+                    "VIZ-MATERIALIZE-0011",
+                    &chart.id,
+                    "heatmap labels cannot exceed 16384 UTF-8 bytes",
+                ));
+            }
+            budget.charge(guide.label.len() as u64 + 1, &chart.id)?;
+        }
+        // Inspect all supplied scales before core validation can clone them.
+        let mut bytes = 0;
+        for scale in &chart.scales {
+            budget.step(&chart.id)?;
+            match scale {
+                MirScale::Band { domain, .. } => {
+                    heatmap_domain(domain, &mut bytes, budget, &chart.id)?;
+                }
+                MirScale::QuantizeColor {
+                    thresholds, range, ..
+                } => {
+                    if thresholds.len() > 8 || !(2..=9).contains(&range.len()) {
+                        return Err(error(
+                            "VIZ-MATERIALIZE-0011",
+                            &chart.id,
+                            "heatmap quantize scales require 2..=9 colors and at most 8 thresholds",
+                        ));
+                    }
+                    budget.charge((thresholds.len() + range.len()) as u64, &chart.id)?;
+                }
+                _ => {}
+            }
+        }
+        for cell in instances {
+            if cell.x.len() > MAX_HEATMAP_LABEL_BYTES || cell.y.len() > MAX_HEATMAP_LABEL_BYTES {
+                return Err(error(
+                    "VIZ-MATERIALIZE-0011",
+                    &chart.id,
+                    "heatmap cached category exceeds 16384 UTF-8 bytes",
+                ));
+            }
+            // Reserve string clone/comparison work even when refreshing stale caches.
+            budget.charge(
+                (cell.key.len() + cell.x.len() + cell.y.len()) as u64 + 1,
+                &chart.id,
+            )?;
+        }
+        let Some(source) = mir.data.get(&chart.source) else {
+            continue;
+        };
+        let MirDataOperator::Inline { rows } = &source.operator;
+        for row in rows {
+            budget.step(&chart.id)?;
+            if let Some(Value::String(key)) = row.get(&source.schema.key) {
+                budget.charge(key.len() as u64, &chart.id)?;
+            }
+        }
+        // Valid String programs are fields or literals. Inspect their category
+        // sizes without cloning, before the core type checker clones each AST.
+        for binding in [x, y] {
+            let Some(typed) = mir.expressions.get(&binding.expression) else {
+                continue;
+            };
+            match &typed.expression {
+                Expression::Field { field, .. } => {
+                    for row in rows {
+                        budget.step(&chart.id)?;
+                        if let Some(Value::String(value)) = row.get(field) {
+                            budget.charge(value.len() as u64, &chart.id)?;
+                            validate_heatmap_category(value)?;
+                        }
+                    }
+                }
+                Expression::Literal {
+                    value: LiteralValue::String(value),
+                } => {
+                    budget.charge(value.len() as u64 + 1, &chart.id)?;
+                    validate_heatmap_category(value)?;
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn preflight_hir_bindings(source: &MirDataNode, budget: &mut Budget) -> VizResult<()> {
     // HIR emits at most four field expressions, each cloning the complete type environment.
     for _ in 0..4 {
@@ -180,6 +500,10 @@ pub(crate) fn preflight_hir_bindings(source: &MirDataNode, budget: &mut Budget) 
 }
 
 fn preflight_mir(mir: &VizMir, budget: &mut Budget) -> VizResult<()> {
+    preflight_heatmap_mir(mir, budget)?;
+    let has_heatmap = mir.views.iter().any(|view| {
+        matches!(view, MirView::Chart(chart) if matches!(chart.mark, ChartMark::Heatmap { .. }))
+    });
     let mut count = 0usize;
     let mut expression_costs = BTreeMap::new();
     let mut schema_costs = BTreeMap::new();
@@ -202,6 +526,13 @@ fn preflight_mir(mir: &VizMir, budget: &mut Budget) -> VizResult<()> {
                 ));
             }
             let next = depth + 1;
+            if has_heatmap
+                && let Expression::Literal {
+                    value: LiteralValue::String(value),
+                } = expr
+            {
+                budget.charge(value.len() as u64, id)?;
+            }
             match expr {
                 Expression::Literal { .. }
                 | Expression::Field { .. }
@@ -527,6 +858,17 @@ struct Evaluated {
 }
 
 impl Evaluated {
+    fn exact_string(self, path: &str) -> VizResult<String> {
+        match self.value {
+            Scalar::String(value) => Ok(value),
+            _ => Err(error(
+                "VIZ-MATERIALIZE-0011",
+                path,
+                "heatmap x/y channels require exact non-null String values",
+            )),
+        }
+    }
+
     fn number(&self, path: &str) -> VizResult<f64> {
         match self.value {
             Scalar::Int(v) => Ok(v as f64),
@@ -556,6 +898,7 @@ struct Evaluator<'a, 'b> {
     schema: &'a BTreeMap<String, ValueType>,
     row_variable: &'a str,
     budget: &'b mut Budget,
+    heatmap: bool,
 }
 
 impl Evaluator<'_, '_> {
@@ -577,6 +920,11 @@ impl Evaluator<'_, '_> {
                         format!("missing field {field:?}"),
                     )
                 })?;
+                if self.heatmap
+                    && let Value::String(value) = raw
+                {
+                    self.budget.charge(value.len() as u64, path)?;
+                }
                 let scalar = match (self.schema.get(field), raw) {
                     (Some(ValueType::Int64), Value::Number(n)) => Scalar::Int(
                         n.as_i64()
@@ -599,14 +947,23 @@ impl Evaluator<'_, '_> {
                 };
                 return Ok(Evaluated {
                     value: scalar,
-                    category: value_as_key(raw),
+                    category: if self.heatmap {
+                        None
+                    } else {
+                        value_as_key(raw)
+                    },
                 });
             }
             Expression::Literal { value } => match value {
                 LiteralValue::Int64(v) => Scalar::Int(*v),
                 LiteralValue::Float64(v) if v.is_finite() => Scalar::Float(*v),
                 LiteralValue::Bool(v) => Scalar::Bool(*v),
-                LiteralValue::String(v) => Scalar::String(v.clone()),
+                LiteralValue::String(v) => {
+                    if self.heatmap {
+                        self.budget.charge(v.len() as u64, path)?;
+                    }
+                    Scalar::String(v.clone())
+                }
                 _ => {
                     return Err(error(
                         "VIZ-MATERIALIZE-0004",
@@ -702,11 +1059,134 @@ fn check_role(
     ))
 }
 
-fn check_scale_membership(
+fn check_string_role(
+    expressions: &BTreeMap<String, TypedExpression>,
+    id: &str,
+    context: &str,
+    budget: &mut Budget,
+) -> VizResult<()> {
+    budget.step(context)?;
+    if expressions
+        .get(id)
+        .is_some_and(|expression| expression.result_type == ValueType::String)
+    {
+        Ok(())
+    } else {
+        Err(error(
+            "VIZ-MATERIALIZE-0011",
+            context,
+            format!("heatmap category expression {id:?} requires non-null String type"),
+        ))
+    }
+}
+
+/// Validate fresh cells against authored scale plans, without filling sparse gaps.
+/// Called both after HIR lowering and during MIR replay/refresh.
+pub(crate) fn check_heatmap_membership(
     chart: &MirChart,
     mark: &ChartMark,
     budget: &mut Budget,
 ) -> VizResult<()> {
+    let ChartMark::Heatmap {
+        x,
+        y,
+        color,
+        instances,
+        ..
+    } = mark
+    else {
+        return Ok(());
+    };
+    check_heatmap_row_count(instances.len(), &chart.id)?;
+    let mut bytes = 0;
+    let mut domains = Vec::with_capacity(2);
+    for binding in [x, y] {
+        let scale = chart
+            .scales
+            .iter()
+            .find(|scale| scale.id() == binding.scale);
+        let Some(MirScale::Band {
+            domain,
+            range,
+            padding,
+            ..
+        }) = scale
+        else {
+            return Err(error(
+                "VIZ-MATERIALIZE-0011",
+                &chart.id,
+                "heatmap x/y bindings require band scales",
+            ));
+        };
+        if *padding != 0.0 {
+            return Err(error(
+                "VIZ-MATERIALIZE-0011",
+                &chart.id,
+                "heatmap band scales require zero padding",
+            ));
+        }
+        let values = heatmap_domain(domain, &mut bytes, budget, &chart.id)?;
+        budget.charge(domain.len() as u64 + 1, &chart.id)?;
+        crate::heatmap::band_boundaries(*range, domain.len())?;
+        domains.push(values);
+    }
+    check_heatmap_grid(domains[0].len(), domains[1].len(), &chart.id)?;
+    let Some(MirScale::QuantizeColor {
+        domain,
+        thresholds,
+        range,
+        ..
+    }) = chart.scales.iter().find(|scale| scale.id() == color.scale)
+    else {
+        return Err(error(
+            "VIZ-MATERIALIZE-0011",
+            &chart.id,
+            "heatmap color binding requires a quantize-color scale",
+        ));
+    };
+    budget.charge(range.len() as u64 + 1, &chart.id)?;
+    let canonical = canonical_quantize_thresholds(*domain, range.len())?;
+    let labels = (domains[0].len() + domains[1].len() + 2 * range.len() + 4) as u64;
+    let layout_work = labels.checked_mul(labels).ok_or_else(|| {
+        error(
+            "VIZ-MATERIALIZE-0001",
+            &chart.id,
+            "heatmap label-layout work overflow",
+        )
+    })?;
+    budget.charge(layout_work, &chart.id)?;
+    if thresholds.len() != canonical.len() {
+        return Err(error(
+            "VIZ-MATERIALIZE-0011",
+            &chart.id,
+            "heatmap quantize thresholds do not match the color domain and palette",
+        ));
+    }
+    for cell in instances {
+        budget.charge(
+            (cell.x.len() + cell.y.len() + range.len()) as u64 + 1,
+            &chart.id,
+        )?;
+        if !domains[0].contains(cell.x.as_str()) || !domains[1].contains(cell.y.as_str()) {
+            return Err(error(
+                "VIZ-MATERIALIZE-0011",
+                &chart.id,
+                "materialized heatmap category is absent from explicit axis domain; update the scale deliberately",
+            ));
+        }
+        quantize_color_index(cell.value, *domain, thresholds, range.len())?;
+    }
+    Ok(())
+}
+
+pub(crate) fn check_scale_membership(
+    chart: &MirChart,
+    mark: &ChartMark,
+    budget: &mut Budget,
+) -> VizResult<()> {
+    if matches!(mark, ChartMark::Heatmap { .. }) {
+        return check_heatmap_membership(chart, mark, budget);
+    }
     let mut domains = BTreeMap::new();
     for scale in &chart.scales {
         let (id, domain) = match scale {
@@ -741,6 +1221,7 @@ fn check_scale_membership(
         | ChartMark::Line { color, .. }
         | ChartMark::Area { color, .. }
         | ChartMark::Bar { color, .. } => color,
+        ChartMark::Heatmap { .. } => unreachable!("heatmap handled above"),
     };
     if let Some(color) = color
         && !chart
@@ -817,6 +1298,7 @@ fn check_scale_membership(
                 }
             }
         }
+        ChartMark::Heatmap { .. } => unreachable!("heatmap handled above"),
     }
     check_area_projection(chart, mark, budget)
 }
@@ -926,6 +1408,11 @@ pub(crate) fn materialize_mark(
     }
     check_role(expressions, key_expression, false, chart_id, budget)?;
     match mark {
+        ChartMark::Heatmap { x, y, color, .. } => {
+            check_string_role(expressions, &x.expression, chart_id, budget)?;
+            check_string_role(expressions, &y.expression, chart_id, budget)?;
+            check_role(expressions, &color.expression, true, chart_id, budget)?;
+        }
         ChartMark::Symbol { x, y, color, .. }
         | ChartMark::Line { x, y, color, .. }
         | ChartMark::Area { x, y, color, .. } => {
@@ -979,6 +1466,11 @@ pub(crate) fn materialize_mark(
         ));
     }
     let MirDataOperator::Inline { rows } = &source.operator;
+    if matches!(mark, ChartMark::Heatmap { .. }) {
+        check_heatmap_row_count(rows.len(), chart_id)?;
+    }
+    let mut cells = Vec::new();
+    let mut cell_coordinates = BTreeSet::new();
     let mut keys = BTreeSet::new();
     let mut points = Vec::new();
     let mut bars = Vec::new();
@@ -1018,6 +1510,7 @@ pub(crate) fn materialize_mark(
             schema: &source.schema.fields,
             row_variable,
             budget,
+            heatmap: matches!(mark, ChartMark::Heatmap { .. }),
         };
         let mut eval = |id: &str| -> VizResult<Evaluated> {
             let expression = expressions.get(id).ok_or_else(|| {
@@ -1033,6 +1526,22 @@ pub(crate) fn materialize_mark(
             )
         };
         match mark {
+            ChartMark::Heatmap { x, y, color, .. } => {
+                let x = eval(&x.expression)?.exact_string(&context)?;
+                let y = eval(&y.expression)?.exact_string(&context)?;
+                let value = eval(&color.expression)?.number(&context)?;
+                budget.charge((x.len() + y.len() + key.len()) as u64 + 1, &context)?;
+                validate_heatmap_category(&x)?;
+                validate_heatmap_category(&y)?;
+                if !cell_coordinates.insert((x.clone(), y.clone())) {
+                    return Err(error(
+                        "VIZ-MATERIALIZE-0011",
+                        &context,
+                        "duplicate heatmap (x, y) category pair",
+                    ));
+                }
+                cells.push(MirHeatmapCell { key, x, y, value });
+            }
             ChartMark::Symbol { x, y, color, .. } => {
                 points.push(MirPointItem {
                     key,
@@ -1122,6 +1631,15 @@ pub(crate) fn materialize_mark(
     }
     // Clone only plan fields, never the supplied caches.
     Ok(match mark {
+        ChartMark::Heatmap {
+            id, x, y, color, ..
+        } => ChartMark::Heatmap {
+            id: id.clone(),
+            x: x.clone(),
+            y: y.clone(),
+            color: color.clone(),
+            instances: cells,
+        },
         ChartMark::Symbol {
             id,
             x,
@@ -1292,6 +1810,15 @@ fn same_points(a: &[MirPointItem], b: &[MirPointItem]) -> bool {
 
 fn same_cache(a: &ChartMark, b: &ChartMark) -> bool {
     match (a, b) {
+        (ChartMark::Heatmap { instances: a, .. }, ChartMark::Heatmap { instances: b, .. }) => {
+            a.len() == b.len()
+                && a.iter().zip(b).all(|(a, b)| {
+                    a.key == b.key
+                        && a.x == b.x
+                        && a.y == b.y
+                        && a.value.to_bits() == b.value.to_bits()
+                })
+        }
         (ChartMark::Symbol { instances: a, .. }, ChartMark::Symbol { instances: b, .. }) => {
             same_points(a, b)
         }

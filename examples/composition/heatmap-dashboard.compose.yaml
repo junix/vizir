@@ -1,0 +1,81 @@
+schema: vizir-composition/0.3
+id: heatmap-service-dashboard
+width: 1440
+height: 1100
+background: transparent
+layout: {kind: grid, columns: 2, gap: 28, padding: 28}
+datasets:
+  latency:
+    key: sample_id
+    rows:
+      - {sample_id: api-mon, day: Mon, service: API, ms: 20}
+      - {sample_id: api-tue, day: Tue, service: API, ms: 30}
+      - {sample_id: api-wed, day: Wed, service: API, ms: 45}
+      - {sample_id: api-thu, day: Thu, service: API, ms: 60}
+      - {sample_id: jobs-mon, day: Mon, service: Jobs, ms: 85}
+      - {sample_id: jobs-tue, day: Tue, service: Jobs, ms: 100}
+      - {sample_id: jobs-wed, day: Wed, service: Jobs, ms: 75}
+      - {sample_id: jobs-thu, day: Thu, service: Jobs, ms: 55}
+      - {sample_id: cache-mon, day: Mon, service: Cache, ms: 10}
+      - {sample_id: cache-tue, day: Tue, service: Cache, ms: 15}
+      - {sample_id: cache-wed, day: Wed, service: Cache, ms: 0}
+      - {sample_id: cache-thu, day: Thu, service: Cache, ms: 25}
+  checks:
+    key: sample_id
+    rows:
+      - {sample_id: api-tue, day: Tue, service: API, checks: 10}
+      - {sample_id: jobs-mon, day: Mon, service: Jobs, checks: 0}
+      - {sample_id: api-mon, day: Mon, service: API, checks: 20}
+      - {sample_id: cache-wed, day: Wed, service: Cache, checks: 6}
+      - {sample_id: jobs-wed, day: Wed, service: Jobs, checks: 15}
+  trend:
+    key: sample_id
+    rows:
+      - {sample_id: jobs-3, day: 3, ms: 55, service: Jobs}
+      - {sample_id: api-2, day: 2, ms: 45, service: API}
+      - {sample_id: jobs-0, day: 0, ms: 85, service: Jobs}
+      - {sample_id: api-0, day: 0, ms: 20, service: API}
+      - {sample_id: api-3, day: 3, ms: 60, service: API}
+      - {sample_id: jobs-2, day: 2, ms: 75, service: Jobs}
+      - {sample_id: api-1, day: 1, ms: 30, service: API}
+      - {sample_id: jobs-1, day: 1, ms: 100, service: Jobs}
+panels:
+  - kind: chart.heatmap
+    id: latency
+    title: Latency by service and day
+    dataset: latency
+    x: {field: day, label: day}
+    y: {field: service, label: service}
+    color: {field: ms, label: latency (ms), domain: [0, 100]}
+  - kind: chart.heatmap
+    id: coverage
+    title: Sparse checks with an empty Thursday
+    dataset: checks
+    x: {field: day, label: day, domain: [Mon, Tue, Wed, Thu]}
+    y: {field: service, label: service, domain: [API, Jobs, Cache]}
+    color:
+      field: checks
+      label: checks
+      domain: [0, 20]
+      palette: ["#DFEBF7", "#9DC5E8", "#559CCD", "#2169AC"]
+      number_format: {notation: fixed, precision: 0}
+  - kind: chart.area
+    id: comparison
+    title: Same latency samples as areas
+    dataset: trend
+    x: {field: day, label: day index}
+    y: {field: ms, label: latency (ms)}
+    series: {field: service, palette: ["#2169AC", "#9E4F84"]}
+    baseline: 0
+    order: x-ascending
+  - kind: geometry.scene
+    id: notes
+    title: Read the matrix without inventing data
+    children:
+      - {type: rect, id: panel, x: 0, y: 48, width: 678, height: 418, radius: 8, style: {fill: "#F4F7FC", stroke: "#D5DEEC", stroke_width: 1}}
+      - {type: text, id: observed, x: 24, y: 98, text: "A rectangle means an observed pair", font_size: 22, anchor: start, weight: medium, color: "#222A33"}
+      - {type: text, id: missing, x: 24, y: 158, text: "Blank cells remain missing, never zero", font_size: 21, anchor: start, color: "#222A33"}
+      - {type: text, id: zero, x: 24, y: 218, text: "The zero Jobs / Mon check is preserved", font_size: 21, anchor: start, color: "#222A33"}
+      - {type: text, id: intervals, x: 24, y: 278, text: "Legend intervals disclose every color bin", font_size: 21, anchor: start, color: "#222A33"}
+      - {type: text, id: keys, x: 24, y: 338, text: "Stable row keys survive domain reordering", font_size: 21, anchor: start, color: "#222A33"}
+      - {type: text, id: area, x: 24, y: 398, text: "Area series overlap; they are not stacked", font_size: 21, anchor: start, color: "#222A33"}

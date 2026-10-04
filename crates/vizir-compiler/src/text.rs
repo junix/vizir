@@ -647,6 +647,32 @@ impl TextSession {
                         }
                     }
                 }
+                vizir_core::View::Heatmap(c) => {
+                    self.preflight_title(
+                        &mut strings,
+                        &c.id,
+                        c.title.as_deref(),
+                        &mut found_titles,
+                    )?;
+                    strings.add(c.x.label.as_deref().unwrap_or(&c.x.field))?;
+                    strings.add(c.y.label.as_deref().unwrap_or(&c.y.field))?;
+                    strings.add(c.color.label.as_deref().unwrap_or(&c.color.field))?;
+                    for encoding in [&c.x, &c.y] {
+                        if let Some(domain) = &encoding.domain {
+                            strings.add_all(domain.iter().map(String::as_str))?;
+                        } else if let Some(data) = document.datasets.get(&c.dataset) {
+                            let mut seen = BTreeSet::new();
+                            for row in &data.rows {
+                                if let Some(serde_json::Value::String(value)) =
+                                    row.get(&encoding.field)
+                                    && seen.insert(value.as_str())
+                                {
+                                    strings.add(value)?;
+                                }
+                            }
+                        }
+                    }
+                }
                 vizir_core::View::Bar(c) => {
                     self.preflight_title(
                         &mut strings,
@@ -1635,7 +1661,7 @@ impl TextSession {
         for view in self.title_targets.keys() {
             if !found.contains(view) {
                 return Err(text_layout::error(format!(
-                    "chart.title target {view:?} must name one existing title in a bar, line or scatter source view, or an area source view under HIR/MIR 0.3"
+                    "chart.title target {view:?} must name one existing title in a bar, line or scatter source view, an area source view under HIR/MIR 0.3/0.4, or a heatmap under HIR/MIR 0.4"
                 )));
             }
         }
@@ -1650,6 +1676,25 @@ impl TextSession {
             .ok_or_else(|| error("0003", "whole-call emitted glyph limit exceeded"))?;
         Ok(())
     }
+    /// Reserve bounded heatmap layout comparisons before exact-face layout.
+    pub(crate) fn reserve_heatmap_collisions(&self, labels: usize) -> VizResult<()> {
+        let checks = labels
+            .checked_mul(labels)
+            .ok_or_else(|| error("0003", "heatmap label comparison count overflow"))?;
+        let mut state = self.state.borrow_mut();
+        state.collision_checks = state
+            .collision_checks
+            .checked_add(checks)
+            .filter(|n| *n <= self.limits.max_collision_checks)
+            .ok_or_else(|| {
+                error(
+                    "0003",
+                    "whole-call label collision-check limit exceeded by heatmap layout",
+                )
+            })?;
+        Ok(())
+    }
+
     pub(crate) fn single_line_box(
         &self,
         source: &str,
@@ -1659,7 +1704,7 @@ impl TextSession {
     ) -> VizResult<Rect> {
         self.single_line_box_anchored(source, size, weight, position, TextAnchor::Start)
     }
-    fn single_line_box_anchored(
+    pub(crate) fn single_line_box_anchored(
         &self,
         source: &str,
         size: f64,

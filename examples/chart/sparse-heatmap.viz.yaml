@@ -1,0 +1,28 @@
+version: "0.4"
+id: sparse-service-coverage
+width: 900
+height: 540
+background: transparent
+datasets:
+  checks:
+    key: sample_id
+    rows:
+      - {sample_id: api-tue, day: Tue, service: API, checks: 10}
+      - {sample_id: jobs-mon, day: Mon, service: Jobs, checks: 0}
+      - {sample_id: api-mon, day: Mon, service: API, checks: 20}
+      - {sample_id: cache-wed, day: Wed, service: Cache, checks: 6}
+      - {sample_id: jobs-wed, day: Wed, service: Jobs, checks: 15}
+views:
+  - kind: chart.heatmap
+    id: coverage
+    title: Sparse observations keep absent cells empty
+    frame: {x: 0, y: 0, width: 900, height: 540}
+    dataset: checks
+    x: {field: day, label: day, domain: [Mon, Tue, Wed, Thu]}
+    y: {field: service, label: service, domain: [API, Jobs, Cache]}
+    color:
+      field: checks
+      label: checks
+      domain: [0, 20]
+      palette: ["#DFEBF7", "#9DC5E8", "#559CCD", "#2169AC"]
+      number_format: {notation: fixed, precision: 0}

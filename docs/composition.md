@@ -1,8 +1,9 @@
-# Grid composition sources 0.1 and 0.2
+# Grid composition sources 0.1, 0.2 and 0.3
 
 `CompositionV1` is a small authoring wrapper that allocates equal grid cells to
 frame-free panels. It emits an ordinary, validated VizHIR 0.2 document. The separate
 `vizir-composition/0.2` contract adds area panels and emits VizHIR 0.3.
+`vizir-composition/0.3` adds categorical heatmaps and emits VizHIR 0.4.
 
 The pipeline is explicit:
 
@@ -211,3 +212,35 @@ with `vizir compose`, then pass the emitted HIR to the usual validate,
 normalize, lower, render and explain commands. [Area semantics](area-charts.md)
 apply before target emission. The original composition 0.1 still emits HIR
 0.2 and rejects area panels; no existing source changes version implicitly.
+
+## Heatmap panels in composition 0.3
+
+Set `schema: vizir-composition/0.3` to emit VizHIR 0.4. Heatmap panels use the
+same fields as `chart.heatmap` HIR views, except that author-supplied `frame` is
+forbidden. Existing grid allocation, stable IDs, datasets, and all previous
+panel kinds, including areas, remain available.
+
+```yaml
+schema: vizir-composition/0.3
+# ...dimensions, grid layout, and datasets...
+panels:
+  - kind: chart.heatmap
+    id: coverage
+    title: Observed service checks
+    dataset: checks
+    x: {field: day, label: day, domain: [Mon, Tue, Wed, Thu]}
+    y: {field: service, label: service}
+    color: {field: checks, label: checks, domain: [0, 20]}
+```
+
+Run [the mixed heatmap dashboard](../examples/composition/heatmap-dashboard.compose.yaml)
+through `compose`, then validate, normalize, lower, render, and explain its
+emitted HIR using the [complete workflow](heatmaps.md#compose-a-mixed-dashboard).
+The resulting MIR/source version pair is 0.4; the composition schema version
+is not stored as `source_hir_version`.
+
+Composition 0.1 and 0.2 continue to emit HIR 0.2 and 0.3 respectively and reject
+heatmaps. The V1 adapters remain unchanged. Use `Composition`,
+`parse_versioned_composition`, and `compose_versioned` for 0.3. New `Panel` enum
+variants can affect exhaustive Rust matches. The standalone legacy `Panel`
+schema is unchanged; use the versioned composition root schema for heatmaps.

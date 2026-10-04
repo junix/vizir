@@ -73,6 +73,7 @@ fn cache_only_numeric_edits_are_rejected_at_scene_boundary() {
     for kind in ["chart.scatter", "chart.line", "chart.bar"] {
         let mut input = mir(kind);
         match &mut chart_mut(&mut input).mark {
+            ChartMark::Heatmap { .. } => unreachable!("heatmap caches have a separate test matrix"),
             ChartMark::Symbol { instances, .. } => instances[0].y += 0.25,
             ChartMark::Line { series, .. } | ChartMark::Area { series, .. } => {
                 series[0].points[0].y += 0.25
@@ -94,6 +95,7 @@ fn rows_mut(mir: &mut VizMir) -> &mut Vec<std::collections::BTreeMap<String, ser
 
 fn numeric_expression_id(mir: &VizMir) -> String {
     match &chart(mir).mark {
+        ChartMark::Heatmap { .. } => unreachable!("heatmap caches have a separate test matrix"),
         ChartMark::Symbol { y, .. } | ChartMark::Line { y, .. } | ChartMark::Area { y, .. } => {
             y.expression.clone()
         }
@@ -133,6 +135,7 @@ fn float(value: f64) -> Expression {
 
 fn cached_values(mir: &VizMir) -> Vec<(String, f64)> {
     match &chart(mir).mark {
+        ChartMark::Heatmap { .. } => unreachable!("heatmap caches have a separate test matrix"),
         ChartMark::Symbol { instances, .. } => instances
             .iter()
             .map(|item| (item.key.clone(), item.y))
@@ -150,6 +153,7 @@ fn cached_values(mir: &VizMir) -> Vec<(String, f64)> {
 
 fn mutate_first_cached_value(mir: &mut VizMir, change: impl FnOnce(f64) -> f64) {
     match &mut chart_mut(mir).mark {
+        ChartMark::Heatmap { .. } => unreachable!("heatmap caches have a separate test matrix"),
         ChartMark::Symbol { instances, .. } => instances[0].y = change(instances[0].y),
         ChartMark::Line { series, .. } | ChartMark::Area { series, .. } => {
             series[0].points[0].y = change(series[0].points[0].y)
@@ -229,7 +233,7 @@ fn explicit_numeric_and_categorical_domains_and_ranges_are_never_reinferred() {
                     domain.reverse();
                     *range = [15.0, 95.0];
                 }
-                MirScale::OrdinalColor { .. } => {}
+                MirScale::OrdinalColor { .. } | MirScale::QuantizeColor { .. } => {}
             }
         }
         let scales = chart(&input).scales.clone();
@@ -766,6 +770,9 @@ fn stale_cache_identity_color_cardinality_and_order_are_rejected_then_repaired()
         for mutation in 0..5 {
             let mut input = original.clone();
             match &mut chart_mut(&mut input).mark {
+                ChartMark::Heatmap { .. } => {
+                    unreachable!("heatmap caches have a separate test matrix")
+                }
                 ChartMark::Symbol { instances, .. } => match mutation {
                     0 => instances[0].key = "invented-key".into(),
                     1 => instances[0].color_category = Some("invented-color".into()),

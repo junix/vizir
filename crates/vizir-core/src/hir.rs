@@ -100,6 +100,8 @@ pub enum View {
     Line(LineChart),
     #[serde(rename = "chart.area")]
     Area(AreaChart),
+    #[serde(rename = "chart.heatmap")]
+    Heatmap(HeatmapChart),
     #[serde(rename = "chart.bar")]
     Bar(BarChart),
     #[serde(rename = "diagram.graph")]
@@ -114,6 +116,7 @@ impl View {
             Self::Scatter(view) => &view.id,
             Self::Line(view) => &view.id,
             Self::Area(view) => &view.id,
+            Self::Heatmap(view) => &view.id,
             Self::Bar(view) => &view.id,
             Self::Diagram(view) => &view.id,
             Self::Geometry(view) => &view.id,
@@ -125,6 +128,7 @@ impl View {
             Self::Scatter(view) => &view.frame,
             Self::Line(view) => &view.frame,
             Self::Area(view) => &view.frame,
+            Self::Heatmap(view) => &view.frame,
             Self::Bar(view) => &view.frame,
             Self::Diagram(view) => &view.frame,
             Self::Geometry(view) => &view.frame,
@@ -280,7 +284,7 @@ pub struct LineChart {
     pub show_points: bool,
 }
 
-/// A linear, unstacked area chart, available only in VizHIR 0.3.
+/// A linear, unstacked area chart, available starting in VizHIR 0.3.
 /// Baseline and order are required authored semantics; styling is fixed.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -302,6 +306,76 @@ pub struct AreaChart {
 #[serde(rename_all = "kebab-case")]
 pub enum AreaOrder {
     XAscending,
+}
+
+/// An exact, ordered string-category encoding for heatmap axes.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CategoryEncoding {
+    pub field: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schemars(with = "String")]
+    pub label: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schemars(with = "Vec<String>", length(min = 1, max = 256), extend("uniqueItems" = true))]
+    pub domain: Option<Vec<String>>,
+}
+
+/// A finite numeric encoding with a discrete, equally spaced color palette.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct QuantizeColorEncoding {
+    pub field: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schemars(with = "String")]
+    pub label: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schemars(with = "[f64; 2]")]
+    pub domain: Option<[f64; 2]>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schemars(with = "Vec<Color>", length(min = 2, max = 9))]
+    pub palette: Option<Vec<Color>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schemars(with = "NumberFormat")]
+    pub number_format: Option<NumberFormat>,
+}
+
+/// A sparse rectangular heatmap, available starting in VizHIR 0.4.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HeatmapChart {
+    pub id: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    pub frame: Frame,
+    pub dataset: String,
+    pub x: CategoryEncoding,
+    pub y: CategoryEncoding,
+    pub color: QuantizeColorEncoding,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

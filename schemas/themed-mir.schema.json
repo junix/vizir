@@ -365,6 +365,253 @@
         }
       ]
     },
+    "ChartMarkV04": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "instances": {
+              "items": {
+                "$ref": "#/$defs/MirPointItem"
+              },
+              "type": "array"
+            },
+            "size": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": {
+              "const": "symbol",
+              "type": "string"
+            },
+            "x": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "y": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "size",
+            "instances"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "group_expression": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "line_width": {
+              "format": "double",
+              "type": "number"
+            },
+            "order_expression": {
+              "type": "string"
+            },
+            "series": {
+              "items": {
+                "$ref": "#/$defs/MirSeries"
+              },
+              "type": "array"
+            },
+            "show_points": {
+              "type": "boolean"
+            },
+            "type": {
+              "const": "line",
+              "type": "string"
+            },
+            "x": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "y": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "order_expression",
+            "line_width",
+            "show_points",
+            "series"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "baseline": {
+              "format": "double",
+              "type": "number"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "group_expression": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "order_expression": {
+              "type": "string"
+            },
+            "series": {
+              "items": {
+                "$ref": "#/$defs/MirSeries"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "area",
+              "type": "string"
+            },
+            "x": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "y": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "order_expression",
+            "baseline",
+            "series"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "id": {
+              "type": "string"
+            },
+            "instances": {
+              "items": {
+                "$ref": "#/$defs/MirHeatmapCell"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "heatmap",
+              "type": "string"
+            },
+            "x": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "y": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "color",
+            "instances"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "instances": {
+              "items": {
+                "$ref": "#/$defs/MirBarItem"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "bar",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "category",
+            "value",
+            "instances"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "CoordinateSpace2D": {
       "additionalProperties": false,
       "properties": {
@@ -1459,6 +1706,62 @@
       ],
       "type": "object"
     },
+    "MirGuideV04": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/GuideKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "number_format": {
+          "$ref": "#/$defs/NumberFormat"
+        },
+        "orient": {
+          "$ref": "#/$defs/GuideOrient"
+        },
+        "scale": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "scale",
+        "label",
+        "orient"
+      ],
+      "type": "object"
+    },
+    "MirHeatmapCell": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "format": "double",
+          "type": "number"
+        },
+        "x": {
+          "type": "string"
+        },
+        "y": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "x",
+        "y",
+        "value"
+      ],
+      "type": "object"
+    },
     "MirPointItem": {
       "additionalProperties": false,
       "properties": {
@@ -1604,6 +1907,174 @@
             "type",
             "id",
             "domain",
+            "range"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MirScaleV04": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "range": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "range_space": {
+              "type": "string"
+            },
+            "type": {
+              "const": "linear",
+              "type": "string"
+            },
+            "zero": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "range",
+            "range_space",
+            "zero"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "padding": {
+              "format": "double",
+              "type": "number"
+            },
+            "range": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "range_space": {
+              "type": "string"
+            },
+            "type": {
+              "const": "band",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "range",
+            "range_space",
+            "padding"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "range": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "ordinal-color",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "range"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "range": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 9,
+              "minItems": 2,
+              "type": "array"
+            },
+            "thresholds": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 8,
+              "type": "array"
+            },
+            "type": {
+              "const": "quantize-color",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "thresholds",
             "range"
           ],
           "type": "object"
@@ -1873,6 +2344,179 @@
             "scales": {
               "items": {
                 "$ref": "#/$defs/MirScale"
+              },
+              "type": "array"
+            },
+            "source": {
+              "type": "string"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "source",
+            "row_variable",
+            "key_expression",
+            "scales",
+            "guides",
+            "mark",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dialect": {
+              "const": "diagram",
+              "type": "string"
+            },
+            "edges": {
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "id": {
+              "type": "string"
+            },
+            "layout_request": {
+              "$ref": "#/$defs/LayoutRequest"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "nodes",
+            "edges",
+            "layout_request",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/MirGeometryNode"
+              },
+              "type": "array"
+            },
+            "dialect": {
+              "const": "geometry",
+              "type": "string"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "id": {
+              "type": "string"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "children",
+            "provenance"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MirViewV04": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dialect": {
+              "const": "chart",
+              "type": "string"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "guides": {
+              "items": {
+                "$ref": "#/$defs/MirGuideV04"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "key_expression": {
+              "type": "string"
+            },
+            "mark": {
+              "$ref": "#/$defs/ChartMarkV04"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "row_variable": {
+              "type": "string"
+            },
+            "scales": {
+              "items": {
+                "$ref": "#/$defs/MirScaleV04"
               },
               "type": "array"
             },
@@ -3204,6 +3848,9 @@
         },
         {
           "$ref": "#/$defs/VizMirV03"
+        },
+        {
+          "$ref": "#/$defs/VizMirV04"
         }
       ]
     },
@@ -3255,6 +3902,77 @@
         "views": {
           "items": {
             "$ref": "#/$defs/MirViewV03"
+          },
+          "type": "array"
+        },
+        "width": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "version",
+        "source_hir_version",
+        "document_id",
+        "width",
+        "height",
+        "background",
+        "spaces",
+        "data",
+        "expressions",
+        "views",
+        "losses"
+      ],
+      "type": "object"
+    },
+    "VizMirV04": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MirDataNode"
+          },
+          "type": "object"
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "expressions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TypedExpression"
+          },
+          "type": "object"
+        },
+        "height": {
+          "format": "double",
+          "type": "number"
+        },
+        "losses": {
+          "items": {
+            "$ref": "#/$defs/LossRecord"
+          },
+          "type": "array"
+        },
+        "source_hir_version": {
+          "const": "0.4",
+          "type": "string"
+        },
+        "spaces": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CoordinateSpace2D"
+          },
+          "type": "object"
+        },
+        "version": {
+          "const": "0.4",
+          "type": "string"
+        },
+        "views": {
+          "items": {
+            "$ref": "#/$defs/MirViewV04"
           },
           "type": "array"
         },

@@ -1,0 +1,30 @@
+version: "0.4"
+id: dense-service-latency
+width: 960
+height: 560
+background: transparent
+datasets:
+  latency:
+    key: sample_id
+    rows:
+      - {sample_id: api-mon, day: Mon, service: API, ms: 20}
+      - {sample_id: api-tue, day: Tue, service: API, ms: 30}
+      - {sample_id: api-wed, day: Wed, service: API, ms: 45}
+      - {sample_id: api-thu, day: Thu, service: API, ms: 60}
+      - {sample_id: jobs-mon, day: Mon, service: Jobs, ms: 85}
+      - {sample_id: jobs-tue, day: Tue, service: Jobs, ms: 100}
+      - {sample_id: jobs-wed, day: Wed, service: Jobs, ms: 75}
+      - {sample_id: jobs-thu, day: Thu, service: Jobs, ms: 55}
+      - {sample_id: cache-mon, day: Mon, service: Cache, ms: 10}
+      - {sample_id: cache-tue, day: Tue, service: Cache, ms: 15}
+      - {sample_id: cache-wed, day: Wed, service: Cache, ms: 0}
+      - {sample_id: cache-thu, day: Thu, service: Cache, ms: 25}
+views:
+  - kind: chart.heatmap
+    id: latency
+    title: Daily latency by service
+    frame: {x: 0, y: 0, width: 960, height: 560}
+    dataset: latency
+    x: {field: day, label: day}
+    y: {field: service, label: service}
+    color: {field: ms, label: latency (ms), domain: [0, 100]}

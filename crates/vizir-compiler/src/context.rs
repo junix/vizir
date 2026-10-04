@@ -99,7 +99,7 @@ impl CompiledMir {
                 format!("unsupported compiled MIR format {:?}", self.format),
             ));
         }
-        if !matches!(self.mir.version.as_str(), "0.1" | "0.2" | "0.3")
+        if !matches!(self.mir.version.as_str(), "0.1" | "0.2" | "0.3" | "0.4")
             || self.mir.source_hir_version != self.mir.version
         {
             return Err(context_error(

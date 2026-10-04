@@ -227,7 +227,9 @@ fn round_trip_and_rematerialization_keep_theme_identity_order_and_explicit_scale
                     .collect::<Vec<_>>(),
                 vec![("a", 2.0), ("b", 3.5)]
             ),
-            ChartMark::Area { .. } => unreachable!("this regression covers legacy chart kinds"),
+            ChartMark::Area { .. } | ChartMark::Heatmap { .. } => {
+                unreachable!("this regression covers legacy chart kinds")
+            }
         }
         build_themed_scene(&refreshed).unwrap();
     }

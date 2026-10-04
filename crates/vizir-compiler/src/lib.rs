@@ -1,6 +1,7 @@
 mod chart_layout;
 mod context;
 mod context_wire;
+mod heatmap;
 mod layout;
 mod lower;
 mod materialize;

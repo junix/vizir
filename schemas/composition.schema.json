@@ -16,6 +16,31 @@
       },
       "type": "object"
     },
+    "CategoryEncoding": {
+      "additionalProperties": false,
+      "description": "An exact, ordered string-category encoding for heatmap axes.",
+      "properties": {
+        "domain": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "field": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
     "ColorEncoding": {
       "additionalProperties": false,
       "properties": {
@@ -134,6 +159,65 @@
         },
         "schema": {
           "const": "vizir-composition/0.2",
+          "type": "string"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema",
+        "id",
+        "width",
+        "height",
+        "layout",
+        "panels"
+      ],
+      "type": "object"
+    },
+    "CompositionV3": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "default": "transparent",
+          "type": "string"
+        },
+        "datasets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Dataset"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/PanelLayout"
+        },
+        "panels": {
+          "items": {
+            "$ref": "#/$defs/PanelV03"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "schema": {
+          "const": "vizir-composition/0.3",
           "type": "string"
         },
         "title": {
@@ -1142,6 +1226,334 @@
         }
       ]
     },
+    "PanelV03": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.scatter",
+              "type": "string"
+            },
+            "point_size": {
+              "default": 7.0,
+              "format": "double",
+              "type": "number"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.line",
+              "type": "string"
+            },
+            "line_width": {
+              "default": 2.5,
+              "format": "double",
+              "type": "number"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "show_points": {
+              "default": true,
+              "type": "boolean"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "baseline": {
+              "format": "double",
+              "type": "number"
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.area",
+              "type": "string"
+            },
+            "order": {
+              "$ref": "#/$defs/AreaOrder"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y",
+            "baseline",
+            "order"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/QuantizeColorEncoding"
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.heatmap",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/CategoryEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/CategoryEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y",
+            "color"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.bar",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "category",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edges": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "diagram.graph",
+              "type": "string"
+            },
+            "layout": {
+              "$ref": "#/$defs/DiagramLayout",
+              "default": "layered"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "nodes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/GeometryNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "geometry.scene",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "children"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "PathCommand": {
       "oneOf": [
         {
@@ -1236,6 +1648,42 @@
       ],
       "type": "object"
     },
+    "QuantizeColorEncoding": {
+      "additionalProperties": false,
+      "description": "A finite numeric encoding with a discrete, equally spaced color palette.",
+      "properties": {
+        "domain": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "field": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "number_format": {
+          "$ref": "#/$defs/NumberFormat"
+        },
+        "palette": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 9,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
     "ShapeStyle": {
       "additionalProperties": false,
       "properties": {
@@ -1307,6 +1755,9 @@
     },
     {
       "$ref": "#/$defs/CompositionV2"
+    },
+    {
+      "$ref": "#/$defs/CompositionV3"
     }
   ],
   "title": "Composition"

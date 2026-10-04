@@ -177,19 +177,30 @@ pub enum MirScale {
         domain: Vec<String>,
         range: Vec<Color>,
     },
+    // Preserve the exact pre-0.4 schema dependency closure.
+    #[schemars(skip)]
+    QuantizeColor {
+        id: String,
+        domain: [f64; 2],
+        thresholds: Vec<f64>,
+        range: Vec<Color>,
+    },
 }
 
 impl MirScale {
     pub fn id(&self) -> &str {
         match self {
-            Self::Linear { id, .. } | Self::Band { id, .. } | Self::OrdinalColor { id, .. } => id,
+            Self::Linear { id, .. }
+            | Self::Band { id, .. }
+            | Self::OrdinalColor { id, .. }
+            | Self::QuantizeColor { id, .. } => id,
         }
     }
 
     pub fn range_space(&self) -> Option<&str> {
         match self {
             Self::Linear { range_space, .. } | Self::Band { range_space, .. } => Some(range_space),
-            Self::OrdinalColor { .. } => None,
+            Self::OrdinalColor { .. } | Self::QuantizeColor { .. } => None,
         }
     }
 }
@@ -268,6 +279,14 @@ pub enum ChartMark {
         baseline: f64,
         series: Vec<MirSeries>,
     },
+    #[schemars(skip)]
+    Heatmap {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: ScaleBinding,
+        instances: Vec<MirHeatmapCell>,
+    },
     Bar {
         id: String,
         category: ScaleBinding,
@@ -283,6 +302,7 @@ impl ChartMark {
             Self::Symbol { id, .. }
             | Self::Line { id, .. }
             | Self::Area { id, .. }
+            | Self::Heatmap { id, .. }
             | Self::Bar { id, .. } => id,
         }
     }
@@ -296,6 +316,7 @@ impl ChartMark {
                 bindings.extend(color.iter());
                 bindings
             }
+            Self::Heatmap { x, y, color, .. } => vec![x, y, color],
             Self::Bar {
                 category,
                 value,
@@ -308,6 +329,15 @@ impl ChartMark {
             }
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MirHeatmapCell {
+    pub key: String,
+    pub x: String,
+    pub y: String,
+    pub value: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -564,6 +594,151 @@ enum ChartMarkV03 {
     },
 }
 
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(transform = mir_v04_schema)]
+struct VizMirV04 {
+    pub version: String,
+    pub source_hir_version: String,
+    pub document_id: String,
+    pub width: f64,
+    pub height: f64,
+    pub background: Color,
+    pub spaces: BTreeMap<String, CoordinateSpace2D>,
+    pub data: BTreeMap<String, MirDataNode>,
+    pub expressions: BTreeMap<String, TypedExpression>,
+    pub views: Vec<MirViewV04>,
+    pub losses: Vec<LossRecord>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "dialect", rename_all = "kebab-case", deny_unknown_fields)]
+enum MirViewV04 {
+    Chart(Box<MirChartV04>),
+    Diagram(MirDiagram),
+    Geometry(MirGeometry),
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct MirChartV04 {
+    pub id: String,
+    pub title: Option<String>,
+    pub frame: Frame,
+    pub space: String,
+    pub source: String,
+    pub row_variable: String,
+    pub key_expression: String,
+    pub scales: Vec<MirScaleV04>,
+    pub guides: Vec<MirGuideV04>,
+    pub mark: ChartMarkV04,
+    pub provenance: Vec<String>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
+enum ChartMarkV04 {
+    Symbol {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: Option<ScaleBinding>,
+        size: f64,
+        instances: Vec<MirPointItem>,
+    },
+    Line {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: Option<ScaleBinding>,
+        group_expression: Option<String>,
+        order_expression: String,
+        line_width: f64,
+        show_points: bool,
+        series: Vec<MirSeries>,
+    },
+    Area {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: Option<ScaleBinding>,
+        group_expression: Option<String>,
+        order_expression: String,
+        baseline: f64,
+        series: Vec<MirSeries>,
+    },
+    Heatmap {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: ScaleBinding,
+        instances: Vec<MirHeatmapCell>,
+    },
+    Bar {
+        id: String,
+        category: ScaleBinding,
+        value: ScaleBinding,
+        color: Option<ScaleBinding>,
+        instances: Vec<MirBarItem>,
+    },
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
+enum MirScaleV04 {
+    Linear {
+        id: String,
+        domain: [f64; 2],
+        range: [f64; 2],
+        range_space: String,
+        zero: bool,
+    },
+    Band {
+        id: String,
+        domain: Vec<String>,
+        range: [f64; 2],
+        range_space: String,
+        padding: f64,
+    },
+    OrdinalColor {
+        id: String,
+        domain: Vec<String>,
+        range: Vec<Color>,
+    },
+    // Preserve the exact pre-0.4 schema dependency closure.
+    QuantizeColor {
+        id: String,
+        domain: [f64; 2],
+        #[schemars(length(max = 8))]
+        thresholds: Vec<f64>,
+        #[schemars(length(min = 2, max = 9))]
+        range: Vec<Color>,
+    },
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct MirGuideV04 {
+    pub id: String,
+    pub kind: GuideKind,
+    pub scale: String,
+    pub label: String,
+    pub orient: GuideOrient,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    #[schemars(with = "NumberFormat")]
+    pub number_format: Option<NumberFormat>,
+}
+
 impl JsonSchema for VizMir {
     fn schema_name() -> std::borrow::Cow<'static, str> {
         "VizMir".into()
@@ -572,7 +747,8 @@ impl JsonSchema for VizMir {
     fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
         let legacy = VizMirLegacy::json_schema(generator);
         let current = generator.subschema_for::<VizMirV03>();
-        schemars::json_schema!({ "oneOf": [legacy, current] })
+        let heatmap = generator.subschema_for::<VizMirV04>();
+        schemars::json_schema!({ "oneOf": [legacy, current, heatmap] })
     }
 }
 
@@ -584,6 +760,16 @@ fn mir_v03_schema(schema: &mut schemars::Schema) {
         .expect("MIR schema properties");
     properties["version"]["const"] = "0.3".into();
     properties["source_hir_version"]["const"] = "0.3".into();
+}
+
+fn mir_v04_schema(schema: &mut schemars::Schema) {
+    let properties = schema
+        .as_object_mut()
+        .expect("MIR schema object")
+        .get_mut("properties")
+        .expect("MIR schema properties");
+    properties["version"]["const"] = "0.4".into();
+    properties["source_hir_version"]["const"] = "0.4".into();
 }
 
 fn numeric_guide_schema(schema: &mut schemars::Schema) {
