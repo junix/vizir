@@ -196,7 +196,7 @@ pub fn themed_mir_schema() -> serde_json::Value {
     schema
 }
 
-fn reserve_arrow_work(
+pub(crate) fn reserve_arrow_work(
     mir: &VizMir,
     limits: MaterializationLimits,
 ) -> VizResult<MaterializationLimits> {
@@ -230,7 +230,7 @@ fn reserve_edges(
     })
 }
 
-fn check_document_work(
+pub(crate) fn check_document_work(
     document: &Document,
     limits: MaterializationLimits,
 ) -> VizResult<MaterializationLimits> {

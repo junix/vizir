@@ -11,6 +11,7 @@ use crate::ResolvedThemeDefaults;
 use crate::chart_layout::{ChartLayout, header_text_width, legend_domain};
 use crate::layout::{LayeredLayoutProvider, LayoutProvider};
 use crate::materialize::{MaterializationLimits, materialize_mir_marks};
+use crate::text::TextSession;
 use crate::tick_format::{NumericTickLabels, format_number};
 
 const INK: &str = "#1C2736";
@@ -32,14 +33,28 @@ pub(crate) fn build_scene_with_defaults(
     limits: MaterializationLimits,
     defaults: Option<&ResolvedThemeDefaults>,
 ) -> VizResult<Scene2D> {
+    build_scene_with_context(mir, limits, defaults, None)
+}
+pub(crate) fn build_scene_with_context(
+    mir: &VizMir,
+    limits: MaterializationLimits,
+    defaults: Option<&ResolvedThemeDefaults>,
+    text: Option<&TextSession>,
+) -> VizResult<Scene2D> {
+    if let Some(text) = text {
+        text.preflight_mir(mir)?;
+    }
     let marks = materialize_mir_marks(mir, limits, true)?;
     let mut nodes = Vec::new();
     for (view, mark) in mir.views.iter().zip(&marks) {
         nodes.push(match view {
-            MirView::Chart(chart) => {
-                build_chart(chart, mark.as_ref().expect("chart materialized"), defaults)?
-            }
-            MirView::Diagram(diagram) => build_diagram(diagram, defaults)?,
+            MirView::Chart(chart) => build_chart(
+                chart,
+                mark.as_ref().expect("chart materialized"),
+                defaults,
+                text,
+            )?,
+            MirView::Diagram(diagram) => build_diagram(diagram, defaults, text)?,
             MirView::Geometry(geometry) => build_geometry(geometry, defaults)?,
         });
     }
@@ -52,17 +67,21 @@ pub(crate) fn build_scene_with_defaults(
         losses: mir.losses.clone(),
     };
     vizir_core::validate_scene(&scene).map_err(|diagnostics| VizError::validation(&diagnostics))?;
-    Ok(scene)
+    match text {
+        Some(text) => text.outline_scene(scene),
+        None => Ok(scene),
+    }
 }
 
 fn build_chart(
     chart: &MirChart,
     materialized: &ChartMark,
     defaults: Option<&ResolvedThemeDefaults>,
+    text: Option<&TextSession>,
 ) -> VizResult<SceneNode> {
     let mut children = Vec::new();
     let guides = ChartGuides::resolve(chart)?;
-    let ticks = NumericTickLabels::new(
+    let ticks = NumericTickLabels::new_with_measurement(
         guides.bottom.and_then(|(guide, scale)| match scale {
             MirScale::Linear { domain, .. } => Some((*domain, guide.number_format.as_ref())),
             _ => None,
@@ -71,6 +90,7 @@ fn build_chart(
             MirScale::Linear { domain, .. } => Some((*domain, guide.number_format.as_ref())),
             _ => None,
         }),
+        text.is_some(),
     )
     .map_err(VizError::Diagnostic)?;
     // Static 0.1 line/bar MIR may omit a legend guide. Preserve that legacy
@@ -86,22 +106,31 @@ fn build_chart(
             .iter()
             .find(|scale| scale.id() == binding.scale)
     });
-    let layout = ChartLayout::new(
+    let layout = ChartLayout::new_with_text(
         &chart.id,
         chart.frame,
         chart.title.as_deref(),
         guides.bottom.map(|(guide, _)| guide.label.as_str()),
         guides.left.map(|(guide, _)| guide.label.as_str()),
         legend_domain(legend_scale),
+        text,
     )
     .map_err(VizError::Diagnostic)?
-    .with_numeric_ticks(
+    .with_numeric_ticks_and_text(
         &chart.id,
         chart.frame,
         guides.bottom.map(|(guide, _)| guide.label.as_str()),
         ticks.as_ref(),
+        text,
     )
     .map_err(VizError::Diagnostic)?;
+    let categories = match guides.bottom {
+        Some((_, MirScale::Band { domain, .. })) => domain.as_slice(),
+        _ => &[],
+    };
+    let layout = layout
+        .with_categories(&chart.id, categories, text)
+        .map_err(VizError::Diagnostic)?;
     let plot = layout.plot;
     let (x_range, y_range) = match &chart.mark {
         ChartMark::Symbol { x, y, .. } | ChartMark::Line { x, y, .. } => (
@@ -379,6 +408,9 @@ fn build_chart(
         )));
     }
 
+    if let Some(text) = text {
+        text.check_chart(&children, chart.frame, plot)?;
+    }
     Ok(SceneNode::Group {
         id: chart.id.clone(),
         bounds: frame_rect(chart.frame),
@@ -766,7 +798,27 @@ fn build_legend(
 fn build_diagram(
     diagram: &MirDiagram,
     defaults: Option<&ResolvedThemeDefaults>,
+    text: Option<&TextSession>,
 ) -> VizResult<SceneNode> {
+    if let Some(text) = text {
+        for node in &diagram.nodes {
+            if text.width(
+                &node.label,
+                if node.label.chars().count() > 22 {
+                    10.5
+                } else {
+                    13.0
+                },
+                FontWeight::Medium,
+            )? > 134.0
+            {
+                return Err(VizError::Diagnostic(format!(
+                    "VIZ-TEXT-0006: diagram node {:?} label exceeds its 134px text region; shorten the original label",
+                    node.id
+                )));
+            }
+        }
+    }
     let layout = LayeredLayoutProvider.layout(
         &diagram.layout_request.algorithm,
         diagram.frame,
@@ -965,6 +1017,17 @@ fn build_diagram(
             &node.id,
             "diagram label positioned inside resolved node bounds",
         ));
+        if let Some(text) = text {
+            text.check_text_box(
+                children.last().expect("label just added"),
+                Rect {
+                    x: bounds.x + 8.0,
+                    y: bounds.y + 4.0,
+                    width: bounds.width - 16.0,
+                    height: bounds.height - 8.0,
+                },
+            )?;
+        }
     }
     if let Some(title) = &diagram.title {
         children.push(title_node(&diagram.id, title, diagram.frame, defaults));

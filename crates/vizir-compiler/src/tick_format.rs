@@ -9,11 +9,21 @@ pub(crate) struct NumericTickLabels {
 }
 
 impl NumericTickLabels {
+    #[cfg(test)]
     pub fn new(
         x: Option<([f64; 2], Option<&NumberFormat>)>,
         y: Option<([f64; 2], Option<&NumberFormat>)>,
     ) -> Result<Option<Self>, String> {
-        if !x.is_some_and(|(_, format)| format.is_some())
+        Self::new_with_measurement(x, y, false)
+    }
+
+    pub fn new_with_measurement(
+        x: Option<([f64; 2], Option<&NumberFormat>)>,
+        y: Option<([f64; 2], Option<&NumberFormat>)>,
+        measured: bool,
+    ) -> Result<Option<Self>, String> {
+        if !measured
+            && !x.is_some_and(|(_, format)| format.is_some())
             && !y.is_some_and(|(_, format)| format.is_some())
         {
             return Ok(None);

@@ -1,8 +1,11 @@
 mod chart_layout;
+mod context;
+mod context_wire;
 mod layout;
 mod lower;
 mod materialize;
 mod scene_builder;
+mod text;
 mod theme;
 mod theme_wire;
 mod tick_format;
@@ -33,3 +36,18 @@ pub fn compile(document: &Document) -> VizResult<Compilation> {
 }
 
 pub use theme_wire::{MAX_THEMED_MIR_JSON_BYTES, parse_themed_mir_json};
+
+pub use context::{
+    COMPILED_MIR_FORMAT, CompilationContext, CompiledMir, ContextCompilation, build_compiled_scene,
+    build_compiled_scene_with_limits, compile_compiled_mir, compile_compiled_mir_with_limits,
+    compile_with_context, compile_with_context_with_limits, compiled_mir_schema,
+    lower_to_compiled_mir, lower_to_compiled_mir_with_limits, rematerialize_compiled_mir,
+    rematerialize_compiled_mir_with_limits,
+};
+pub use context_wire::{
+    MAX_COMPILED_MIR_JSON_BYTES, parse_compiled_mir_json, parse_text_context_json,
+};
+pub use text::{
+    FontFace, FontResources, TEXT_ENGINE, TEXT_MAX_FONT_BYTES, TEXT_MAX_FONT_TOTAL_BYTES,
+    TEXT_MAX_OUTPUT_BYTES, TEXT_PROFILE, TextContext, TextFaces, TextLimits,
+};

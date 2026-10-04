@@ -1,25 +1,42 @@
-//! CLI routing for source HIR and its opt-in durable theme compilation context.
+//! CLI routing for HIR and durable, identity-only compilation context.
 use std::fs::{File, OpenOptions};
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use vizir_compiler::{
-    MAX_THEMED_MIR_JSON_BYTES, ThemeContext, ThemedMir, build_themed_scene, compile,
-    compile_with_theme, parse_themed_mir_json, rematerialize_themed_mir,
+    COMPILED_MIR_FORMAT, CompilationContext, CompiledMir, FontResources,
+    MAX_COMPILED_MIR_JSON_BYTES, TEXT_MAX_FONT_BYTES, TextContext, ThemeContext, ThemedMir,
+    build_themed_scene, compile, compile_compiled_mir, compile_with_context, compile_with_theme,
+    parse_compiled_mir_json, parse_text_context_json, parse_themed_mir_json,
+    rematerialize_themed_mir,
 };
 use vizir_core::{
     Document, Scene2D, VizError, VizMir, VizResult, parse_document, validate_document,
 };
 
-// Bound the JSON discriminator read before parsing any nested envelope payload.
-// serde_json retains its built-in recursion bound; the compiler adds its normal
-// typed expression/schema/value/geometry bounds before execution and cloning.
-const MAX_JSON_INPUT_BYTES: u64 = MAX_THEMED_MIR_JSON_BYTES as u64;
+const MAX_JSON_INPUT_BYTES: usize = MAX_COMPILED_MIR_JSON_BYTES;
 
-pub(crate) enum Input {
-    Hir(Document, Option<String>),
+#[derive(Debug, Default, clap::Args)]
+pub(crate) struct TextOptions {
+    /// Opt in from HIR using a strict, identity-only measured-text JSON profile.
+    #[arg(long, value_name = "PATH")]
+    pub text_profile: Option<PathBuf>,
+    /// Exact font bytes for a profile face; repeat for each distinct SHA-256.
+    #[arg(long = "font", value_name = "SHA256=PATH")]
+    pub fonts: Vec<String>,
+}
+
+pub(crate) struct Input {
+    source: Source,
+    resources: FontResources,
+    resource_paths: Vec<PathBuf>,
+}
+
+enum Source {
+    Hir(Document, Option<String>, Option<Box<TextContext>>),
     Themed(Box<ThemedMir>),
+    Compiled(Box<CompiledMir>),
 }
 
 #[derive(Serialize)]
@@ -27,6 +44,7 @@ pub(crate) enum Input {
 pub(crate) enum Normalized {
     Legacy(Box<VizMir>),
     Themed(Box<ThemedMir>),
+    Compiled(Box<CompiledMir>),
 }
 
 pub(crate) struct Compiled {
@@ -39,38 +57,49 @@ impl Normalized {
         match self {
             Self::Legacy(mir) => mir,
             Self::Themed(mir) => &mir.mir,
+            Self::Compiled(mir) => &mir.mir,
         }
     }
     pub fn theme(&self) -> Option<&ThemeContext> {
         match self {
             Self::Legacy(_) => None,
             Self::Themed(mir) => Some(&mir.theme),
+            Self::Compiled(mir) => mir.context.theme.as_ref(),
+        }
+    }
+    pub fn context(&self) -> Option<&CompilationContext> {
+        match self {
+            Self::Compiled(mir) => Some(&mir.context),
+            _ => None,
+        }
+    }
+    pub fn context_format(&self) -> Option<&str> {
+        match self {
+            Self::Legacy(_) => None,
+            Self::Themed(mir) => Some(&mir.format),
+            Self::Compiled(mir) => Some(&mir.format),
         }
     }
 }
 
-pub(crate) fn read(path: &Path, theme: Option<String>) -> VizResult<Input> {
+pub(crate) fn read(path: &Path, theme: Option<String>, options: TextOptions) -> VizResult<Input> {
     if let Some(name) = &theme {
         ThemeContext::resolve(name)?;
     }
-    if path
+    let mut resource_paths = Vec::new();
+    let profile = if let Some(path) = &options.text_profile {
+        let bytes = read_bounded_regular(path, MAX_JSON_INPUT_BYTES, "text profile")?;
+        resource_paths.push(path.clone());
+        Some(parse_text_context_json(&bytes)?)
+    } else {
+        None
+    };
+    let source = if path
         .extension()
         .and_then(|s| s.to_str())
         .is_some_and(|s| s.eq_ignore_ascii_case("json"))
     {
-        let file = open_regular_json(path)?;
-        let mut bytes = Vec::new();
-        file.take(MAX_JSON_INPUT_BYTES + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|source| VizError::Read {
-                path: path.display().to_string(),
-                source,
-            })?;
-        if bytes.len() as u64 > MAX_JSON_INPUT_BYTES {
-            return Err(VizError::Diagnostic(
-                "VIZ-THEME-0004: JSON input exceeds the 32 MiB parsing limit".to_owned(),
-            ));
-        }
+        let bytes = read_bounded_regular(path, MAX_JSON_INPUT_BYTES, "JSON input")?;
         #[derive(Deserialize)]
         struct Header {
             #[serde(default, deserialize_with = "present")]
@@ -82,25 +111,103 @@ pub(crate) fn read(path: &Path, theme: Option<String>) -> VizResult<Input> {
             serde_json::Value::deserialize(d).map(Some)
         }
         let header: Header = serde_json::from_slice(&bytes)?;
-        if header.format.is_some() {
-            let mir = parse_themed_mir_json(&bytes)?;
-            mir.validate_context()?;
-            if let Some(name) = theme
-                && name != mir.theme.name
+        match header.format {
+            Some(format)
+                if format.as_str().is_some_and(|s| {
+                    s == COMPILED_MIR_FORMAT || s.starts_with("vizir-compiled-mir/")
+                }) =>
             {
-                return Err(VizError::Diagnostic("VIZ-THEME-0006: --theme conflicts with persisted context; re-theme from HIR instead".to_owned()));
+                let mir = parse_compiled_mir_json(&bytes)?;
+                if let Some(name) = &theme
+                    && mir.context.theme.as_ref().map(|theme| &theme.name) != Some(name)
+                {
+                    return Err(context_conflict("--theme"));
+                }
+                if let Some(profile) = &profile
+                    && mir.context.text.as_ref() != Some(profile)
+                {
+                    return Err(context_conflict("--text-profile"));
+                }
+                Source::Compiled(Box::new(mir))
             }
-            return Ok(Input::Themed(Box::new(mir)));
+            Some(_) => {
+                let mir = parse_themed_mir_json(&bytes)?;
+                if let Some(name) = &theme
+                    && name != &mir.theme.name
+                {
+                    return Err(VizError::Diagnostic("VIZ-THEME-0006: --theme conflicts with persisted context; re-theme from HIR instead".to_owned()));
+                }
+                if profile.is_some() {
+                    return Err(context_conflict("--text-profile"));
+                }
+                Source::Themed(Box::new(mir))
+            }
+            None => Source::Hir(
+                serde_json::from_slice(&bytes)?,
+                theme,
+                profile.map(Box::new),
+            ),
         }
-        return Ok(Input::Hir(serde_json::from_slice(&bytes)?, theme));
+    } else {
+        Source::Hir(parse_document(path)?, theme, profile.map(Box::new))
+    };
+    let has_text = match &source {
+        Source::Hir(_, _, profile) => profile.is_some(),
+        Source::Themed(_) => false,
+        Source::Compiled(mir) => mir.context.text.is_some(),
+    };
+    if !has_text && !options.fonts.is_empty() {
+        return Err(VizError::Diagnostic("VIZ-CONTEXT-0006: --font requires a measured --text-profile or persisted measured context".to_owned()));
     }
-    Ok(Input::Hir(parse_document(path)?, theme))
+    let mut resources = FontResources::new();
+    let mut hashes = std::collections::BTreeSet::new();
+    for mapping in &options.fonts {
+        let (hash, file) = mapping.split_once('=').ok_or_else(|| {
+            VizError::Diagnostic("VIZ-CONTEXT-0008: --font must be SHA256=PATH".to_owned())
+        })?;
+        if hash.len() != 64
+            || !hash
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            || file.is_empty()
+        {
+            return Err(VizError::Diagnostic("VIZ-CONTEXT-0008: --font requires a lowercase 64-digit SHA-256 and a nonempty path".to_owned()));
+        }
+        if !hashes.insert(hash) {
+            return Err(VizError::Diagnostic(format!(
+                "VIZ-CONTEXT-0008: duplicate --font mapping for {hash}"
+            )));
+        }
+        let file = PathBuf::from(file);
+        let bytes = read_bounded_regular(&file, TEXT_MAX_FONT_BYTES, "font resource")?;
+        resources.insert(hash, bytes)?;
+        resource_paths.push(file);
+    }
+    Ok(Input {
+        source,
+        resources,
+        resource_paths,
+    })
 }
 
 impl Input {
+    pub fn check_destinations(
+        &self,
+        input: &Path,
+        output: Option<&Path>,
+        manifest: Option<&Path>,
+    ) -> VizResult<()> {
+        crate::paths::check_destinations(input, output, manifest)?;
+        // Reuse the canonical/symlink/hard-link checks for every explicit source.
+        for path in &self.resource_paths {
+            crate::paths::check_destinations(path, output, manifest)?;
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> VizResult<String> {
-        match self {
-            Self::Hir(document, None) => {
+        match &self.source {
+            Source::Hir(document, None, None) => {
                 validate_document(document).map_err(|d| VizError::validation(&d))?;
                 Ok(format!(
                     "valid: {} (VizHIR {}, {} views)",
@@ -112,36 +219,56 @@ impl Input {
             _ => {
                 let compiled = self.compile(false)?;
                 let mir = compiled.mir.inner();
-                let theme = compiled.mir.theme().expect("themed input");
+                let mut context = String::new();
+                if let Some(theme) = compiled.mir.theme() {
+                    context.push_str(&format!(", theme {}", theme.name));
+                }
+                if let Some(text) = compiled
+                    .mir
+                    .context()
+                    .and_then(|context| context.text.as_ref())
+                {
+                    context.push_str(&format!(", text {}", text.profile));
+                }
                 Ok(format!(
-                    "valid: {} (VizHIR {}, {} views, theme {})",
+                    "valid: {} (VizHIR {}, {} views{})",
                     mir.document_id,
                     mir.source_hir_version,
                     mir.views.len(),
-                    theme.name
+                    context
                 ))
             }
         }
     }
 
     pub fn compile(&self, refresh: bool) -> VizResult<Compiled> {
-        match self {
-            Self::Hir(document, None) => {
+        match &self.source {
+            Source::Hir(document, None, None) => {
                 let compiled = compile(document)?;
                 Ok(Compiled {
                     mir: Normalized::Legacy(Box::new(compiled.mir)),
                     scene: compiled.scene,
                 })
             }
-            Self::Hir(document, Some(name)) => {
+            Source::Hir(document, Some(name), None) => {
                 let compiled = compile_with_theme(document, name)?;
                 Ok(Compiled {
                     mir: Normalized::Themed(Box::new(compiled.mir)),
                     scene: compiled.scene,
                 })
             }
-            Self::Themed(mir) => {
-                // Preflight in the compiler happens before any large clone.
+            Source::Hir(document, theme, Some(text)) => {
+                let mut context = CompilationContext::new().with_text(text.as_ref().clone());
+                if let Some(theme) = theme {
+                    context = context.with_theme(ThemeContext::resolve(theme)?);
+                }
+                let compiled = compile_with_context(document, &context, &self.resources)?;
+                Ok(Compiled {
+                    mir: Normalized::Compiled(Box::new(compiled.mir)),
+                    scene: compiled.scene,
+                })
+            }
+            Source::Themed(mir) => {
                 let mir = if refresh {
                     rematerialize_themed_mir(mir)?
                 } else {
@@ -157,18 +284,69 @@ impl Input {
                     scene,
                 })
             }
+            Source::Compiled(mir) => {
+                let compiled = compile_compiled_mir(mir, &self.resources, refresh)?;
+                Ok(Compiled {
+                    mir: Normalized::Compiled(Box::new(compiled.mir)),
+                    scene: compiled.scene,
+                })
+            }
         }
     }
 }
 
-fn open_regular_json(path: &Path) -> VizResult<File> {
+fn context_conflict(flag: &str) -> VizError {
+    VizError::Diagnostic(format!(
+        "VIZ-CONTEXT-0006: {flag} cannot add or change persisted layout context; compile the original HIR with the desired profile and theme instead"
+    ))
+}
+
+fn read_bounded_regular(path: &Path, limit: usize, role: &str) -> VizResult<Vec<u8>> {
+    let read_error = |source| VizError::Read {
+        path: path.display().to_string(),
+        source,
+    };
+    // Retain established JSON diagnostics for the legacy themed boundary.
+    let prefix = if role == "JSON input" {
+        "VIZ-THEME"
+    } else {
+        "VIZ-CONTEXT"
+    };
+    let too_large = || {
+        let kind = if role == "font resource" {
+            "byte"
+        } else {
+            "parsing"
+        };
+        VizError::Diagnostic(format!(
+            "{prefix}-0004: {role} exceeds the {} MiB {kind} limit",
+            limit / (1024 * 1024)
+        ))
+    };
+    let file = open_regular(path, role, prefix)?;
+    if file.metadata().map_err(read_error)?.len() > limit as u64 {
+        return Err(too_large());
+    }
+    let mut bytes = Vec::new();
+    file.take(limit as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(read_error)?;
+    if bytes.len() > limit {
+        return Err(too_large());
+    }
+    Ok(bytes)
+}
+
+fn open_regular(path: &Path, role: &str, prefix: &str) -> VizResult<File> {
     let read_error = |source| VizError::Read {
         path: path.display().to_string(),
         source,
     };
     let nonregular =
-        || VizError::Diagnostic("VIZ-THEME-0008: JSON input must be a regular file".to_owned());
-    if !std::fs::metadata(path).map_err(read_error)?.is_file() {
+        || VizError::Diagnostic(format!("{prefix}-0008: {role} must be a regular file"));
+    // Canonicalize the explicit operator mapping, including any symlink target.
+    let resolved = std::fs::canonicalize(path).map_err(read_error)?;
+    if !std::fs::metadata(&resolved).map_err(read_error)?.is_file() {
         return Err(nonregular());
     }
     let mut options = OpenOptions::new();
@@ -179,7 +357,7 @@ fn open_regular_json(path: &Path) -> VizResult<File> {
         // A FIFO swapped in after metadata must not block this open.
         options.custom_flags(rustix::fs::OFlags::NONBLOCK.bits() as i32);
     }
-    let file = options.open(path).map_err(read_error)?;
+    let file = options.open(&resolved).map_err(read_error)?;
     if !file.metadata().map_err(read_error)?.is_file() {
         return Err(nonregular());
     }

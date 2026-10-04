@@ -5,7 +5,7 @@ use std::process::Command;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use tempfile::Builder;
-use vizir_compiler::themed_mir_schema;
+use vizir_compiler::{compiled_mir_schema, themed_mir_schema};
 use vizir_core::{
     BackendCapabilities, Color, LossRecord, LoweringFidelity, UnsupportedPolicy, VizError,
     VizResult, capability_schema, compose, composition_schema, find_scene_node, mir_schema,
@@ -38,6 +38,8 @@ enum Commands {
         /// Opt in to canonical defaults; use a listed family or family-dark.
         #[arg(long)]
         theme: Option<String>,
+        #[command(flatten)]
+        text: input::TextOptions,
     },
     /// Emit canonical normalized VizMIR as JSON.
     Normalize {
@@ -45,6 +47,8 @@ enum Commands {
         /// Canonical defaults for HIR; persisted context cannot be re-themed.
         #[arg(long)]
         theme: Option<String>,
+        #[command(flatten)]
+        text: input::TextOptions,
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
@@ -54,6 +58,8 @@ enum Commands {
         /// Canonical defaults for HIR; persisted context cannot be re-themed.
         #[arg(long)]
         theme: Option<String>,
+        #[command(flatten)]
+        text: input::TextOptions,
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
@@ -63,6 +69,8 @@ enum Commands {
         /// Canonical defaults for HIR; persisted context cannot be re-themed.
         #[arg(long)]
         theme: Option<String>,
+        #[command(flatten)]
+        text: input::TextOptions,
         #[arg(long, value_enum, default_value = "png")]
         format: OutputFormat,
         #[arg(long)]
@@ -79,6 +87,8 @@ enum Commands {
         /// Canonical defaults for HIR; persisted context cannot be re-themed.
         #[arg(long)]
         theme: Option<String>,
+        #[command(flatten)]
+        text: input::TextOptions,
         #[arg(long)]
         node: String,
     },
@@ -112,6 +122,7 @@ enum IrKind {
     Composition,
     Mir,
     ThemedMir,
+    CompiledMir,
     ScenePatch,
     Capability,
 }
@@ -138,39 +149,47 @@ fn run(cli: Cli) -> VizResult<()> {
             let document = compose(&composition)?;
             emit_json(&document, output.as_deref())?;
         }
-        Commands::Validate { input, theme } => {
-            println!("{}", input::read(&input, theme)?.validate()?);
+        Commands::Validate { input, theme, text } => {
+            println!("{}", input::read(&input, theme, text)?.validate()?);
         }
         Commands::Normalize {
             input,
             output,
             theme,
+            text,
         } => {
-            let document = input::read(&input, theme)?;
-            paths::check_destinations(&input, output.as_deref(), None)?;
+            let document = input::read(&input, theme, text)?;
+            document.check_destinations(&input, output.as_deref(), None)?;
             let compilation = document.compile(true)?;
-            emit_json(&compilation.mir, output.as_deref())?;
+            let limit = compilation
+                .mir
+                .context()
+                .and_then(|context| context.text.as_ref())
+                .map(|_| vizir_compiler::TEXT_MAX_OUTPUT_BYTES);
+            emit_json_with_limit(&compilation.mir, output.as_deref(), limit)?;
         }
         Commands::Lower {
             input,
             output,
             theme,
+            text,
         } => {
-            let document = input::read(&input, theme)?;
-            paths::check_destinations(&input, output.as_deref(), None)?;
+            let document = input::read(&input, theme, text)?;
+            document.check_destinations(&input, output.as_deref(), None)?;
             let compilation = document.compile(false)?;
             emit_json(&compilation.scene, output.as_deref())?;
         }
         Commands::Render {
             input,
             theme,
+            text,
             format,
             background,
             output,
             manifest,
         } => {
-            let document = input::read(&input, theme)?;
-            paths::check_destinations(&input, Some(&output), manifest.as_deref())?;
+            let document = input::read(&input, theme, text)?;
+            document.check_destinations(&input, Some(&output), manifest.as_deref())?;
             let mut compilation = document.compile(false)?;
             if let Some(background) = background {
                 validate_cli_color(&background)?;
@@ -183,6 +202,13 @@ fn run(cli: Cli) -> VizResult<()> {
             let capability_report = negotiate_scene(&compilation.scene, &capabilities)?;
             capability_report.require_accepted()?;
             let svg = vizir_backend_svg::render(&compilation.scene)?;
+            if compilation
+                .mir
+                .context()
+                .is_some_and(|context| context.text.is_some())
+            {
+                check_output_size(svg.len(), vizir_compiler::TEXT_MAX_OUTPUT_BYTES)?;
+            }
             let staged_output = publication::StagedFile::new(&output)?;
             let staged_manifest = manifest
                 .as_deref()
@@ -216,11 +242,16 @@ fn run(cli: Cli) -> VizResult<()> {
                     "output": serde_json::to_value(&output)?,
                     "rasterizer": rasterizer,
                     "capability_report": capability_report,
-                    "losses": target_losses,
+                    "losses": compilation.scene.losses.iter().chain(&target_losses).collect::<Vec<_>>(),
                 });
                 if let Some(theme) = compilation.mir.theme() {
                     report["theme"] = serde_json::to_value(theme)?;
-                    report["source_context_format"] = vizir_compiler::THEMED_MIR_FORMAT.into();
+                }
+                if let Some(context) = compilation.mir.context() {
+                    report["compilation_context"] = serde_json::to_value(context)?;
+                }
+                if let Some(format) = compilation.mir.context_format() {
+                    report["source_context_format"] = format.into();
                 }
                 staged_manifest.write(&serde_json::to_vec_pretty(&report)?)?;
             }
@@ -241,8 +272,13 @@ fn run(cli: Cli) -> VizResult<()> {
                 compilation.scene.losses.len() + target_losses.len()
             );
         }
-        Commands::Explain { input, node, theme } => {
-            let document = input::read(&input, theme)?;
+        Commands::Explain {
+            input,
+            node,
+            theme,
+            text,
+        } => {
+            let document = input::read(&input, theme, text)?;
             let compilation = document.compile(false)?;
             let found = find_scene_node(&compilation.scene.nodes, &node).ok_or_else(|| {
                 VizError::Diagnostic(format!("VIZ-EXPLAIN-0001: no Scene2D node named {node:?}"))
@@ -275,6 +311,7 @@ fn run(cli: Cli) -> VizResult<()> {
                 IrKind::Composition => composition_schema(),
                 IrKind::Mir => mir_schema(),
                 IrKind::ThemedMir => themed_mir_schema(),
+                IrKind::CompiledMir => compiled_mir_schema(),
                 IrKind::ScenePatch => scene_patch_schema(),
                 IrKind::Capability => capability_schema(),
             };
@@ -337,7 +374,18 @@ fn png_capabilities() -> BackendCapabilities {
 }
 
 fn emit_json<T: serde::Serialize>(value: &T, output: Option<&Path>) -> VizResult<()> {
+    emit_json_with_limit(value, output, None)
+}
+
+fn emit_json_with_limit<T: serde::Serialize>(
+    value: &T,
+    output: Option<&Path>,
+    limit: Option<usize>,
+) -> VizResult<()> {
     let rendered = serde_json::to_vec_pretty(value)?;
+    if let Some(limit) = limit {
+        check_output_size(rendered.len(), limit)?;
+    }
     if let Some(output) = output {
         let staged = publication::StagedFile::new(output)?;
         staged.write(&rendered)?;
@@ -345,6 +393,16 @@ fn emit_json<T: serde::Serialize>(value: &T, output: Option<&Path>) -> VizResult
         println!("emitted: {}", output.display());
     } else {
         println!("{}", String::from_utf8_lossy(&rendered));
+    }
+    Ok(())
+}
+
+fn check_output_size(bytes: usize, limit: usize) -> VizResult<()> {
+    if bytes > limit {
+        return Err(VizError::Diagnostic(format!(
+            "VIZ-TEXT-0003: measured serialized output exceeds the {} MiB limit",
+            limit / (1024 * 1024)
+        )));
     }
     Ok(())
 }
@@ -642,6 +700,23 @@ mod png_budget_fixtures;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn measured_output_limits_fail_before_publication() {
+        let directory = tempfile::tempdir().unwrap();
+        let output = directory.path().join("artifact.json");
+        fs::write(&output, b"existing artifact").unwrap();
+        let value = serde_json::json!({"payload": "text"});
+        let bytes = serde_json::to_vec_pretty(&value).unwrap();
+        assert!(check_output_size(bytes.len(), bytes.len()).is_ok());
+        assert!(check_output_size(bytes.len() + 1, bytes.len()).is_err());
+        let error = emit_json_with_limit(&value, Some(&output), Some(bytes.len() - 1)).unwrap_err();
+        assert!(error.to_string().contains("VIZ-TEXT-0003"));
+        assert_eq!(fs::read(&output).unwrap(), b"existing artifact");
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+        emit_json_with_limit(&value, Some(&output), Some(bytes.len())).unwrap();
+        assert_eq!(fs::read(&output).unwrap(), bytes);
+    }
 
     fn complete_png() -> Vec<u8> {
         let mut bytes = Vec::new();

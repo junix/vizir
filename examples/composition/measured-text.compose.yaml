@@ -1,0 +1,28 @@
+schema: vizir-composition/0.1
+id: measured-text-dashboard
+width: 1100
+height: 500
+background: transparent
+layout: {kind: grid, columns: 2, gap: 20, padding: 20}
+datasets:
+  cities:
+    key: id
+    rows:
+      - {id: bj, city: 北京, value: 12}
+      - {id: sh, city: 上海, value: 18}
+      - {id: gz, city: 广州, value: 9}
+panels:
+  - kind: chart.bar
+    id: cities
+    title: 中文服务 AV
+    dataset: cities
+    category: {field: city, label: 城市}
+    value: {field: value, label: 均值}
+  - kind: geometry.scene
+    id: text
+    title: Mixed text
+    children:
+      - {type: text, id: latin, x: 20, y: 75, text: "AV office ffi", font_size: 24, anchor: start, weight: regular}
+      - {type: text, id: cjk, x: 20, y: 125, text: "中文字体测量", font_size: 24, anchor: start, weight: medium}
+      - {type: text, id: bold, x: 20, y: 175, text: "Café Å x́ gypq", font_size: 24, anchor: start, weight: bold}
+      - {type: text, id: mixed, x: 20, y: 225, text: "温度 Temperature 23.5", font_size: 20, anchor: start, weight: regular}

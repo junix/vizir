@@ -22,6 +22,7 @@ schemas:
     cargo run -q -p vizir-cli -- schema composition --output schemas/composition.schema.json
     cargo run -q -p vizir-cli -- schema mir --output schemas/viz-mir.schema.json
     cargo run -q -p vizir-cli -- schema themed-mir --output schemas/themed-mir.schema.json
+    cargo run -q -p vizir-cli -- schema compiled-mir --output schemas/compiled-mir.schema.json
     cargo run -q -p vizir-cli -- schema scene-patch --output schemas/scene-patch.schema.json
     cargo run -q -p vizir-cli -- schema capability --output schemas/capability.schema.json
 

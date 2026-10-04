@@ -1,0 +1,2970 @@
+{
+  "$defs": {
+    "ChartMark": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "instances": {
+              "items": {
+                "$ref": "#/$defs/MirPointItem"
+              },
+              "type": "array"
+            },
+            "size": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": {
+              "const": "symbol",
+              "type": "string"
+            },
+            "x": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "y": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "size",
+            "instances"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "group_expression": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "line_width": {
+              "format": "double",
+              "type": "number"
+            },
+            "order_expression": {
+              "type": "string"
+            },
+            "series": {
+              "items": {
+                "$ref": "#/$defs/MirSeries"
+              },
+              "type": "array"
+            },
+            "show_points": {
+              "type": "boolean"
+            },
+            "type": {
+              "const": "line",
+              "type": "string"
+            },
+            "x": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "y": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "order_expression",
+            "line_width",
+            "show_points",
+            "series"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/ScaleBinding"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScaleBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "instances": {
+              "items": {
+                "$ref": "#/$defs/MirBarItem"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "bar",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/ScaleBinding"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "category",
+            "value",
+            "instances"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "CompilationContext": {
+      "additionalProperties": false,
+      "description": "Exact identities needed to reproduce compiler decisions. Resource paths and\nfont bytes are deliberately separate and must be supplied again on replay.",
+      "properties": {
+        "text": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TextContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThemeContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "CoordinateSpace2D": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/CoordinateSpaceKind"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "transform_to_parent": {
+          "$ref": "#/$defs/Transform2D"
+        },
+        "unit": {
+          "$ref": "#/$defs/SpatialUnit"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "unit",
+        "transform_to_parent"
+      ],
+      "type": "object"
+    },
+    "CoordinateSpaceKind": {
+      "enum": [
+        "document",
+        "view-local",
+        "plot"
+      ],
+      "type": "string"
+    },
+    "DiagramEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "label": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ShapeStyle",
+          "default": {
+            "fill": null,
+            "opacity": 1.0,
+            "stroke": null,
+            "stroke_width": 1.5
+          }
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "DiagramLayout": {
+      "enum": [
+        "layered",
+        "manual"
+      ],
+      "type": "string"
+    },
+    "DiagramNode": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Point"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "style": {
+          "$ref": "#/$defs/ShapeStyle",
+          "default": {
+            "fill": null,
+            "opacity": 1.0,
+            "stroke": null,
+            "stroke_width": 1.5
+          }
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "type": "object"
+    },
+    "Expression": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "literal",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/LiteralValue"
+            }
+          },
+          "required": [
+            "op",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "op": {
+              "const": "field",
+              "type": "string"
+            },
+            "row": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "row",
+            "field"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "op": {
+              "const": "parameter",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "op": {
+              "const": "signal",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/$defs/Expression"
+              },
+              "type": "array"
+            },
+            "op": {
+              "const": "array",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "items"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fields": {
+              "additionalProperties": {
+                "$ref": "#/$defs/Expression"
+              },
+              "type": "object"
+            },
+            "op": {
+              "const": "record",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "fields"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "left": {
+              "$ref": "#/$defs/Expression"
+            },
+            "op": {
+              "const": "add",
+              "type": "string"
+            },
+            "right": {
+              "$ref": "#/$defs/Expression"
+            }
+          },
+          "required": [
+            "op",
+            "left",
+            "right"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "left": {
+              "$ref": "#/$defs/Expression"
+            },
+            "op": {
+              "const": "subtract",
+              "type": "string"
+            },
+            "right": {
+              "$ref": "#/$defs/Expression"
+            }
+          },
+          "required": [
+            "op",
+            "left",
+            "right"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "left": {
+              "$ref": "#/$defs/Expression"
+            },
+            "op": {
+              "const": "multiply",
+              "type": "string"
+            },
+            "right": {
+              "$ref": "#/$defs/Expression"
+            }
+          },
+          "required": [
+            "op",
+            "left",
+            "right"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "left": {
+              "$ref": "#/$defs/Expression"
+            },
+            "op": {
+              "const": "divide",
+              "type": "string"
+            },
+            "right": {
+              "$ref": "#/$defs/Expression"
+            }
+          },
+          "required": [
+            "op",
+            "left",
+            "right"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "left": {
+              "$ref": "#/$defs/Expression"
+            },
+            "op": {
+              "const": "equal",
+              "type": "string"
+            },
+            "right": {
+              "$ref": "#/$defs/Expression"
+            }
+          },
+          "required": [
+            "op",
+            "left",
+            "right"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "left": {
+              "$ref": "#/$defs/Expression"
+            },
+            "op": {
+              "const": "less-than",
+              "type": "string"
+            },
+            "right": {
+              "$ref": "#/$defs/Expression"
+            }
+          },
+          "required": [
+            "op",
+            "left",
+            "right"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "args": {
+              "items": {
+                "$ref": "#/$defs/Expression"
+              },
+              "type": "array"
+            },
+            "op": {
+              "const": "and",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "args"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "args": {
+              "items": {
+                "$ref": "#/$defs/Expression"
+              },
+              "type": "array"
+            },
+            "op": {
+              "const": "or",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "args"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "arg": {
+              "$ref": "#/$defs/Expression"
+            },
+            "op": {
+              "const": "not",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "arg"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "arg": {
+              "$ref": "#/$defs/Expression"
+            },
+            "op": {
+              "const": "is-null",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "arg"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "$ref": "#/$defs/Expression"
+            },
+            "else_value": {
+              "$ref": "#/$defs/Expression"
+            },
+            "op": {
+              "const": "if",
+              "type": "string"
+            },
+            "then_value": {
+              "$ref": "#/$defs/Expression"
+            }
+          },
+          "required": [
+            "op",
+            "condition",
+            "then_value",
+            "else_value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "args": {
+              "items": {
+                "$ref": "#/$defs/Expression"
+              },
+              "type": "array"
+            },
+            "function": {
+              "$ref": "#/$defs/PureFunction"
+            },
+            "op": {
+              "const": "call",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "function",
+            "args"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "convert",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/ValueType"
+            },
+            "value": {
+              "$ref": "#/$defs/Expression"
+            }
+          },
+          "required": [
+            "op",
+            "value",
+            "to"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "FontFace": {
+      "additionalProperties": false,
+      "properties": {
+        "face_index": {
+          "format": "uint32",
+          "maximum": 31,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "weight": {
+          "enum": [
+            400,
+            500,
+            700
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sha256",
+        "face_index",
+        "weight"
+      ],
+      "type": "object"
+    },
+    "FontWeight": {
+      "enum": [
+        "regular",
+        "medium",
+        "bold"
+      ],
+      "type": "string"
+    },
+    "Frame": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "format": "double",
+          "type": "number"
+        },
+        "width": {
+          "format": "double",
+          "type": "number"
+        },
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "GuideKind": {
+      "enum": [
+        "axis",
+        "legend"
+      ],
+      "type": "string"
+    },
+    "GuideOrient": {
+      "enum": [
+        "bottom",
+        "left",
+        "right"
+      ],
+      "type": "string"
+    },
+    "LayoutRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "$ref": "#/$defs/DiagramLayout"
+        },
+        "id": {
+          "type": "string"
+        },
+        "node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "seed": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "algorithm",
+        "node_ids",
+        "seed"
+      ],
+      "type": "object"
+    },
+    "LiteralValue": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "null",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "bool",
+              "type": "string"
+            },
+            "value": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "int64",
+              "type": "string"
+            },
+            "value": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "float64",
+              "type": "string"
+            },
+            "value": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "string",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "color",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "LossRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "fidelity": {
+          "$ref": "#/$defs/LoweringFidelity"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "fidelity",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "LoweringFidelity": {
+      "enum": [
+        "lossless",
+        "semantically-equivalent",
+        "visually-approximate",
+        "rasterized",
+        "dropped"
+      ],
+      "type": "string"
+    },
+    "MirBarItem": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "color_category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "key",
+        "category",
+        "value"
+      ],
+      "type": "object"
+    },
+    "MirDataNode": {
+      "additionalProperties": false,
+      "properties": {
+        "deterministic": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "operator": {
+          "$ref": "#/$defs/MirDataOperator"
+        },
+        "schema": {
+          "$ref": "#/$defs/MirDataSchema"
+        },
+        "update_mode": {
+          "$ref": "#/$defs/UpdateMode"
+        }
+      },
+      "required": [
+        "id",
+        "schema",
+        "operator",
+        "update_mode",
+        "deterministic"
+      ],
+      "type": "object"
+    },
+    "MirDataOperator": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "inline",
+              "type": "string"
+            },
+            "rows": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "rows"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MirDataSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ValueType"
+          },
+          "type": "object"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "fields"
+      ],
+      "type": "object"
+    },
+    "MirGeometryNode": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/MirGeometryNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "opacity": {
+              "format": "double",
+              "type": "number"
+            },
+            "transform": {
+              "$ref": "#/$defs/Transform2D"
+            },
+            "type": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "transform",
+            "opacity",
+            "children"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "radius": {
+              "format": "double",
+              "type": "number"
+            },
+            "style": {
+              "$ref": "#/$defs/MirShapeStyle"
+            },
+            "type": {
+              "const": "rect",
+              "type": "string"
+            },
+            "width": {
+              "format": "double",
+              "type": "number"
+            },
+            "x": {
+              "format": "double",
+              "type": "number"
+            },
+            "y": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "width",
+            "height",
+            "radius",
+            "style"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "cx": {
+              "format": "double",
+              "type": "number"
+            },
+            "cy": {
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "radius": {
+              "format": "double",
+              "type": "number"
+            },
+            "style": {
+              "$ref": "#/$defs/MirShapeStyle"
+            },
+            "type": {
+              "const": "circle",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "cx",
+            "cy",
+            "radius",
+            "style"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "$ref": "#/$defs/Point"
+            },
+            "id": {
+              "type": "string"
+            },
+            "style": {
+              "$ref": "#/$defs/MirShapeStyle"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            },
+            "type": {
+              "const": "line",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "from",
+            "to",
+            "style"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "commands": {
+              "items": {
+                "$ref": "#/$defs/PathCommand"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "style": {
+              "$ref": "#/$defs/MirShapeStyle"
+            },
+            "type": {
+              "const": "path",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "commands",
+            "style"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "anchor": {
+              "$ref": "#/$defs/TextAnchor"
+            },
+            "color": {
+              "type": "string"
+            },
+            "font_size": {
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "const": "text",
+              "type": "string"
+            },
+            "weight": {
+              "$ref": "#/$defs/FontWeight"
+            },
+            "x": {
+              "format": "double",
+              "type": "number"
+            },
+            "y": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "text",
+            "font_size",
+            "anchor",
+            "color",
+            "weight"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MirGuide": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "number_format"
+            ]
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "const": "axis"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/GuideKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "number_format": {
+          "$ref": "#/$defs/NumberFormat"
+        },
+        "orient": {
+          "$ref": "#/$defs/GuideOrient"
+        },
+        "scale": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "scale",
+        "label",
+        "orient"
+      ],
+      "type": "object"
+    },
+    "MirPointItem": {
+      "additionalProperties": false,
+      "properties": {
+        "color_category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "key",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "MirScale": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "range": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "range_space": {
+              "type": "string"
+            },
+            "type": {
+              "const": "linear",
+              "type": "string"
+            },
+            "zero": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "range",
+            "range_space",
+            "zero"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "padding": {
+              "format": "double",
+              "type": "number"
+            },
+            "range": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "range_space": {
+              "type": "string"
+            },
+            "type": {
+              "const": "band",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "range",
+            "range_space",
+            "padding"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "range": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "ordinal-color",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "range"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MirSeries": {
+      "additionalProperties": false,
+      "properties": {
+        "color_category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/MirPointItem"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "points"
+      ],
+      "type": "object"
+    },
+    "MirShapeStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "fill": {
+          "type": "string"
+        },
+        "opacity": {
+          "format": "double",
+          "type": "number"
+        },
+        "stroke": {
+          "type": "string"
+        },
+        "stroke_width": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fill",
+        "stroke",
+        "stroke_width",
+        "opacity"
+      ],
+      "type": "object"
+    },
+    "MirView": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dialect": {
+              "const": "chart",
+              "type": "string"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "guides": {
+              "items": {
+                "$ref": "#/$defs/MirGuide"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "key_expression": {
+              "type": "string"
+            },
+            "mark": {
+              "$ref": "#/$defs/ChartMark"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "row_variable": {
+              "type": "string"
+            },
+            "scales": {
+              "items": {
+                "$ref": "#/$defs/MirScale"
+              },
+              "type": "array"
+            },
+            "source": {
+              "type": "string"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "source",
+            "row_variable",
+            "key_expression",
+            "scales",
+            "guides",
+            "mark",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dialect": {
+              "const": "diagram",
+              "type": "string"
+            },
+            "edges": {
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "id": {
+              "type": "string"
+            },
+            "layout_request": {
+              "$ref": "#/$defs/LayoutRequest"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "nodes",
+            "edges",
+            "layout_request",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/MirGeometryNode"
+              },
+              "type": "array"
+            },
+            "dialect": {
+              "const": "geometry",
+              "type": "string"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "id": {
+              "type": "string"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "children",
+            "provenance"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "NumberFormat": {
+      "additionalProperties": false,
+      "description": "Locale-independent numeric tick formatting; precision is decimal places.",
+      "properties": {
+        "notation": {
+          "$ref": "#/$defs/NumberNotation"
+        },
+        "precision": {
+          "format": "uint8",
+          "maximum": 12,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "notation",
+        "precision"
+      ],
+      "type": "object"
+    },
+    "NumberNotation": {
+      "enum": [
+        "scientific",
+        "fixed"
+      ],
+      "type": "string"
+    },
+    "PathCommand": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "move",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "line",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "control1": {
+              "$ref": "#/$defs/Point"
+            },
+            "control2": {
+              "$ref": "#/$defs/Point"
+            },
+            "op": {
+              "const": "cubic",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "control1",
+            "control2",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "close",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Point": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "PureFunction": {
+      "enum": [
+        "abs",
+        "min",
+        "max",
+        "clamp",
+        "length",
+        "lower",
+        "upper"
+      ],
+      "type": "string"
+    },
+    "ResolvedThemeDefaults": {
+      "additionalProperties": false,
+      "description": "Resolved compiler defaults, not a canvas paint instruction or authored styles.",
+      "properties": {
+        "edge": {
+          "type": "string"
+        },
+        "grid": {
+          "type": "string"
+        },
+        "group_fills": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 8,
+          "type": "array"
+        },
+        "ink": {
+          "type": "string"
+        },
+        "mark": {
+          "type": "string"
+        },
+        "muted": {
+          "type": "string"
+        },
+        "node_fill": {
+          "type": "string"
+        },
+        "node_stroke": {
+          "type": "string"
+        },
+        "point_interior": {
+          "type": "string"
+        },
+        "series": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 8,
+          "type": "array"
+        }
+      },
+      "required": [
+        "ink",
+        "muted",
+        "grid",
+        "mark",
+        "series",
+        "point_interior",
+        "node_fill",
+        "node_stroke",
+        "group_fills",
+        "edge"
+      ],
+      "type": "object"
+    },
+    "ScaleBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "scale": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scale",
+        "expression"
+      ],
+      "type": "object"
+    },
+    "ShapeStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "fill": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "stroke": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stroke_width": {
+          "default": 1.5,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "SpatialUnit": {
+      "enum": [
+        "scene-unit",
+        "pixel",
+        "point",
+        "millimeter",
+        "normalized-view-width",
+        "normalized-view-height",
+        "data-unit",
+        "world-meter"
+      ],
+      "type": "string"
+    },
+    "TextAnchor": {
+      "enum": [
+        "start",
+        "middle",
+        "end"
+      ],
+      "type": "string"
+    },
+    "TextContext": {
+      "additionalProperties": false,
+      "properties": {
+        "declared_locale": {
+          "maxLength": 32,
+          "minLength": 2,
+          "pattern": "^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$",
+          "type": "string"
+        },
+        "engine": {
+          "const": "cosmic-text/0.19.0;harfrust/0.5.2;skrifa/0.40.0",
+          "type": "string"
+        },
+        "faces": {
+          "$ref": "#/$defs/TextFaces"
+        },
+        "profile": {
+          "const": "vizir-text-outlines/1",
+          "type": "string"
+        },
+        "shaping_language": {
+          "const": "default",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "declared_locale",
+        "shaping_language",
+        "faces"
+      ],
+      "type": "object"
+    },
+    "TextFaces": {
+      "additionalProperties": false,
+      "properties": {
+        "bold": {
+          "$ref": "#/$defs/FontFace",
+          "properties": {
+            "weight": {
+              "const": 700
+            }
+          }
+        },
+        "medium": {
+          "$ref": "#/$defs/FontFace",
+          "properties": {
+            "weight": {
+              "const": 500
+            }
+          }
+        },
+        "regular": {
+          "$ref": "#/$defs/FontFace",
+          "properties": {
+            "weight": {
+              "const": 400
+            }
+          }
+        }
+      },
+      "required": [
+        "regular",
+        "medium",
+        "bold"
+      ],
+      "type": "object"
+    },
+    "ThemeContext": {
+      "additionalProperties": false,
+      "description": "Identity and exact resolved defaults are checked together before execution.",
+      "oneOf": [
+        {
+          "const": {
+            "defaults": {
+              "edge": "#657383",
+              "grid": "#dbe0e6",
+              "group_fills": [
+                "#e4ecfd",
+                "#e2f0f3",
+                "#e6e9f0",
+                "#ebf5f7",
+                "#f4eee8",
+                "#f2e9eb",
+                "#e7efec",
+                "#f0f2f4"
+              ],
+              "ink": "#192028",
+              "mark": "#2563eb",
+              "muted": "#495460",
+              "node_fill": "#fcfdff",
+              "node_stroke": "#bbc3cd",
+              "point_interior": "#f2f5f8",
+              "series": [
+                "#2563eb",
+                "#138b90",
+                "#304673",
+                "#62b4b8",
+                "#b3782e",
+                "#a34946",
+                "#3c7b50",
+                "#90969d"
+              ]
+            },
+            "name": "azure",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#7f8e9e",
+              "grid": "#2c3136",
+              "group_fills": [
+                "#2e3849",
+                "#2f3c43",
+                "#373e49",
+                "#2b383e",
+                "#3c3b3a",
+                "#3c373d",
+                "#323e3e",
+                "#31363d"
+              ],
+              "ink": "#e5eaf0",
+              "mark": "#5b8def",
+              "muted": "#aeb7c1",
+              "node_fill": "#282d34",
+              "node_stroke": "#404750",
+              "point_interior": "#14191e",
+              "series": [
+                "#5b8def",
+                "#6bb6ba",
+                "#b0c8f4",
+                "#428e92",
+                "#e1ac69",
+                "#db8684",
+                "#82c393",
+                "#7b8187"
+              ]
+            },
+            "name": "azure-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#647480",
+              "grid": "#dae1e5",
+              "group_fills": [
+                "#e6eef2",
+                "#e8f2f0",
+                "#e4eaee",
+                "#edf6f4",
+                "#f4efe7",
+                "#f2eaea",
+                "#e7f0eb",
+                "#f0f3f3"
+              ],
+              "ink": "#182026",
+              "mark": "#336890",
+              "muted": "#48545d",
+              "node_fill": "#fcfefe",
+              "node_stroke": "#bbc4cb",
+              "point_interior": "#f1f5f8",
+              "series": [
+                "#336890",
+                "#48907b",
+                "#234c69",
+                "#78b3a0",
+                "#b3782e",
+                "#a34946",
+                "#3c7b50",
+                "#90969b"
+              ]
+            },
+            "name": "mist-blue",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#7e8f9b",
+              "grid": "#2c3135",
+              "group_fills": [
+                "#313c44",
+                "#2f3c3d",
+                "#353f47",
+                "#2b393a",
+                "#3b3c38",
+                "#3b383b",
+                "#313e3d",
+                "#30373b"
+              ],
+              "ink": "#e4eaef",
+              "mark": "#81b1d7",
+              "muted": "#adb7bf",
+              "node_fill": "#272e32",
+              "node_stroke": "#3f484e",
+              "point_interior": "#14191d",
+              "series": [
+                "#81b1d7",
+                "#6cae99",
+                "#a2cdf0",
+                "#4d8f7b",
+                "#e1ac69",
+                "#db8684",
+                "#82c393",
+                "#7b8186"
+              ]
+            },
+            "name": "mist-blue-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#6a7568",
+              "grid": "#dde1dc",
+              "group_fills": [
+                "#e9eee9",
+                "#eaf0f4",
+                "#e6ebe7",
+                "#f0f5f8",
+                "#f5efe6",
+                "#f3eae9",
+                "#e6f0eb",
+                "#f1f3f1"
+              ],
+              "ink": "#1c211b",
+              "mark": "#446f4b",
+              "muted": "#4d554b",
+              "node_fill": "#fdfefd",
+              "node_stroke": "#bec5bd",
+              "point_interior": "#f3f5f2",
+              "series": [
+                "#446f4b",
+                "#537ea8",
+                "#2c5232",
+                "#83a9ce",
+                "#b3782e",
+                "#a34946",
+                "#307c58",
+                "#929791"
+              ]
+            },
+            "name": "sage",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#859082",
+              "grid": "#2e322d",
+              "group_fills": [
+                "#353e35",
+                "#343c3c",
+                "#384038",
+                "#2f3737",
+                "#3e3c30",
+                "#3d3833",
+                "#333f36",
+                "#333732"
+              ],
+              "ink": "#e7ebe6",
+              "mark": "#90bb95",
+              "muted": "#b1b8b0",
+              "node_fill": "#2a2e29",
+              "node_stroke": "#424841",
+              "point_interior": "#161915",
+              "series": [
+                "#90bb95",
+                "#82acd5",
+                "#aad4af",
+                "#5b84ab",
+                "#e1ac69",
+                "#db8684",
+                "#79c49c",
+                "#7d827c"
+              ]
+            },
+            "name": "sage-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#627675",
+              "grid": "#dae1e1",
+              "group_fills": [
+                "#e4eeee",
+                "#eeeff4",
+                "#e3ebeb",
+                "#f2f3f8",
+                "#f4efe7",
+                "#f2eaea",
+                "#e7f0eb",
+                "#f0f3f3"
+              ],
+              "ink": "#172221",
+              "mark": "#22716b",
+              "muted": "#475655",
+              "node_fill": "#fcfefe",
+              "node_stroke": "#bac5c4",
+              "point_interior": "#f1f5f5",
+              "series": [
+                "#22716b",
+                "#7b73a1",
+                "#17524e",
+                "#a59ec7",
+                "#b3782e",
+                "#a34946",
+                "#3c7b50",
+                "#8f9796"
+              ]
+            },
+            "name": "stone-teal",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#7c918f",
+              "grid": "#2b3231",
+              "group_fills": [
+                "#2f3e3d",
+                "#343b40",
+                "#324040",
+                "#30363c",
+                "#3b3c34",
+                "#3a3837",
+                "#303e39",
+                "#2f3737"
+              ],
+              "ink": "#e4ebeb",
+              "mark": "#78bdb6",
+              "muted": "#acb9b8",
+              "node_fill": "#262e2e",
+              "node_stroke": "#3e4948",
+              "point_interior": "#131a19",
+              "series": [
+                "#78bdb6",
+                "#a8a0d4",
+                "#94d6cf",
+                "#8178aa",
+                "#e1ac69",
+                "#db8684",
+                "#82c393",
+                "#7a8281"
+              ]
+            },
+            "name": "stone-teal-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#756e7d",
+              "grid": "#e1dee4",
+              "group_fills": [
+                "#eeebf1",
+                "#e8f0f1",
+                "#ebe8ed",
+                "#eef5f6",
+                "#f6eee7",
+                "#f4e9ea",
+                "#e9efeb",
+                "#f3f1f3"
+              ],
+              "ink": "#211e25",
+              "mark": "#6a588a",
+              "muted": "#55505b",
+              "node_fill": "#fefdfe",
+              "node_stroke": "#c4c1c9",
+              "point_interior": "#f5f4f7",
+              "series": [
+                "#6a588a",
+                "#358989",
+                "#4d3f67",
+                "#70b2b2",
+                "#b3782e",
+                "#a34946",
+                "#3c7b50",
+                "#96949a"
+              ]
+            },
+            "name": "dusty-violet",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#8f8998",
+              "grid": "#312f34",
+              "group_fills": [
+                "#3d3843",
+                "#353a40",
+                "#403b46",
+                "#30363b",
+                "#423937",
+                "#41353a",
+                "#373c3c",
+                "#37343a"
+              ],
+              "ink": "#ebe8ee",
+              "mark": "#b4a4d4",
+              "muted": "#b8b4bd",
+              "node_fill": "#2e2b31",
+              "node_stroke": "#48444d",
+              "point_interior": "#19171c",
+              "series": [
+                "#b4a4d4",
+                "#6cb7b6",
+                "#cebeed",
+                "#428e8e",
+                "#e1ac69",
+                "#db8684",
+                "#82c393",
+                "#817f85"
+              ]
+            },
+            "name": "dusty-violet-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#7c6f5e",
+              "grid": "#e4dfd8",
+              "group_fills": [
+                "#efebe6",
+                "#eceff2",
+                "#ece9e4",
+                "#f1f4f6",
+                "#f7ede8",
+                "#f3e7e7",
+                "#e9efe9",
+                "#f3f1f0"
+              ],
+              "ink": "#241e16",
+              "mark": "#7a5d38",
+              "muted": "#5b5144",
+              "node_fill": "#fefdfc",
+              "node_stroke": "#c9c1b7",
+              "point_interior": "#f7f4f0",
+              "series": [
+                "#7a5d38",
+                "#597f9f",
+                "#5a4325",
+                "#88a9c5",
+                "#bd7042",
+                "#96353e",
+                "#3c7b50",
+                "#9a948d"
+              ]
+            },
+            "name": "warm-sand",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#978a78",
+              "grid": "#34302a",
+              "group_fills": [
+                "#423a30",
+                "#3a3a38",
+                "#3c3429",
+                "#353634",
+                "#46392e",
+                "#443530",
+                "#3a3d31",
+                "#3a352e"
+              ],
+              "ink": "#ede9e2",
+              "mark": "#cdaf8a",
+              "muted": "#bdb4a9",
+              "node_fill": "#312c25",
+              "node_stroke": "#4c453c",
+              "point_interior": "#1c1812",
+              "series": [
+                "#cdaf8a",
+                "#80add4",
+                "#967347",
+                "#5985aa",
+                "#eea37a",
+                "#da8188",
+                "#82c393",
+                "#847f78"
+              ]
+            },
+            "name": "warm-sand-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#75725e",
+              "grid": "#e1e0d8",
+              "group_fills": [
+                "#edece6",
+                "#eaeff2",
+                "#eae9e3",
+                "#f0f4f7",
+                "#f6eee5",
+                "#f4e9e8",
+                "#e9efe9",
+                "#f3f2f0"
+              ],
+              "ink": "#212016",
+              "mark": "#616434",
+              "muted": "#555344",
+              "node_fill": "#fefdfc",
+              "node_stroke": "#c5c3b7",
+              "point_interior": "#f5f5f0",
+              "series": [
+                "#616434",
+                "#4b81a5",
+                "#494b1c",
+                "#7dabcb",
+                "#b3782e",
+                "#a34946",
+                "#3c7b50",
+                "#97958d"
+              ]
+            },
+            "name": "olive-paper",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#908d78",
+              "grid": "#32312a",
+              "group_fills": [
+                "#3d3c30",
+                "#373b38",
+                "#363629",
+                "#323734",
+                "#423b2c",
+                "#41372f",
+                "#373e31",
+                "#37362e"
+              ],
+              "ink": "#ebeae2",
+              "mark": "#b2b686",
+              "muted": "#b8b6a9",
+              "node_fill": "#2e2d25",
+              "node_stroke": "#48473c",
+              "point_interior": "#191812",
+              "series": [
+                "#b2b686",
+                "#7caed2",
+                "#7b7f49",
+                "#5586a9",
+                "#e1ac69",
+                "#db8684",
+                "#82c393",
+                "#828078"
+              ]
+            },
+            "name": "olive-paper-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        }
+      ],
+      "properties": {
+        "defaults": {
+          "$ref": "#/$defs/ResolvedThemeDefaults"
+        },
+        "name": {
+          "enum": [
+            "azure",
+            "azure-dark",
+            "mist-blue",
+            "mist-blue-dark",
+            "sage",
+            "sage-dark",
+            "stone-teal",
+            "stone-teal-dark",
+            "dusty-violet",
+            "dusty-violet-dark",
+            "warm-sand",
+            "warm-sand-dark",
+            "olive-paper",
+            "olive-paper-dark"
+          ],
+          "type": "string"
+        },
+        "registry_revision": {
+          "const": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+          "type": "string"
+        },
+        "registry_spec": {
+          "const": "diagram-theme/v1",
+          "type": "string"
+        },
+        "registry_version": {
+          "const": "1.0.0",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "registry_spec",
+        "registry_version",
+        "registry_revision",
+        "defaults"
+      ],
+      "type": "object"
+    },
+    "Transform2D": {
+      "additionalProperties": false,
+      "properties": {
+        "rotate_degrees": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/Point",
+          "default": {
+            "x": 1.0,
+            "y": 1.0
+          }
+        },
+        "translate": {
+          "$ref": "#/$defs/Point",
+          "default": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      },
+      "type": "object"
+    },
+    "TypedExpression": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "$ref": "#/$defs/Expression"
+        },
+        "result_type": {
+          "$ref": "#/$defs/ValueType"
+        }
+      },
+      "required": [
+        "result_type",
+        "expression"
+      ],
+      "type": "object"
+    },
+    "UpdateMode": {
+      "enum": [
+        "replace",
+        "incremental"
+      ],
+      "type": "string"
+    },
+    "ValueType": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "null",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "bool",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "int64",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "float64",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "string",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "color",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "type": {
+              "const": "length",
+              "type": "string"
+            },
+            "unit": {
+              "$ref": "#/$defs/SpatialUnit"
+            }
+          },
+          "required": [
+            "type",
+            "space",
+            "unit"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "type": {
+              "const": "position2",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "space"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "$ref": "#/$defs/ValueType"
+            },
+            "type": {
+              "const": "array",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "items"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "item": {
+              "$ref": "#/$defs/ValueType"
+            },
+            "type": {
+              "const": "option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "item"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fields": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ValueType"
+              },
+              "type": "object"
+            },
+            "type": {
+              "const": "record",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "fields"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "VizMir": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "version": {
+                "const": "0.1"
+              }
+            },
+            "required": [
+              "version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "views": {
+                "items": {
+                  "properties": {
+                    "guides": {
+                      "items": {
+                        "not": {
+                          "required": [
+                            "number_format"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "source_hir_version": {
+                  "const": "0.1"
+                },
+                "version": {
+                  "const": "0.1"
+                }
+              }
+            },
+            {
+              "properties": {
+                "source_hir_version": {
+                  "const": "0.2"
+                },
+                "version": {
+                  "const": "0.2"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "background": {
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MirDataNode"
+          },
+          "type": "object"
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "expressions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TypedExpression"
+          },
+          "type": "object"
+        },
+        "height": {
+          "format": "double",
+          "type": "number"
+        },
+        "losses": {
+          "items": {
+            "$ref": "#/$defs/LossRecord"
+          },
+          "type": "array"
+        },
+        "source_hir_version": {
+          "type": "string"
+        },
+        "spaces": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CoordinateSpace2D"
+          },
+          "type": "object"
+        },
+        "version": {
+          "enum": [
+            "0.1",
+            "0.2"
+          ],
+          "type": "string"
+        },
+        "views": {
+          "items": {
+            "$ref": "#/$defs/MirView"
+          },
+          "type": "array"
+        },
+        "width": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "version",
+        "source_hir_version",
+        "document_id",
+        "width",
+        "height",
+        "background",
+        "spaces",
+        "data",
+        "expressions",
+        "views",
+        "losses"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Keep this envelope to retain the context used during HIR layout. Adding or\nchanging layout context requires compiling the original HIR again.",
+  "properties": {
+    "context": {
+      "$ref": "#/$defs/CompilationContext"
+    },
+    "format": {
+      "const": "vizir-compiled-mir/1",
+      "type": "string"
+    },
+    "mir": {
+      "$ref": "#/$defs/VizMir"
+    }
+  },
+  "required": [
+    "format",
+    "context",
+    "mir"
+  ],
+  "title": "CompiledMir",
+  "type": "object"
+}

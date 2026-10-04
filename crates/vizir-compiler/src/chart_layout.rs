@@ -1,4 +1,16 @@
-use vizir_core::{Frame, MirScale, Point};
+use crate::text::TextSession;
+use vizir_core::{FontWeight, Frame, MirScale, Point};
+fn text_width(
+    text: &str,
+    size: f64,
+    weight: FontWeight,
+    session: Option<&TextSession>,
+) -> Result<f64, String> {
+    session.map_or_else(
+        || Ok(header_text_width(text, size)),
+        |s| s.width(text, size, weight).map_err(|e| e.to_string()),
+    )
+}
 
 use crate::tick_format::NumericTickLabels;
 
@@ -38,12 +50,13 @@ pub(crate) struct ChartLayout {
 impl ChartLayout {
     /// Reserve the same conservative envelopes used for emitted numeric text.
     /// Keep legacy 0.1/absent-format charts byte-identical by opting in explicitly.
-    pub fn with_numeric_ticks(
+    pub fn with_numeric_ticks_and_text(
         mut self,
         id: &str,
         frame: Frame,
         x_title: Option<&str>,
         ticks: Option<&NumericTickLabels>,
+        text: Option<&TextSession>,
     ) -> Result<Self, String> {
         let Some(ticks) = ticks else {
             return Ok(self);
@@ -56,12 +69,14 @@ impl ChartLayout {
         let x_widths = ticks
             .x
             .iter()
-            .map(|text| header_text_width(text, 11.0))
-            .collect::<Vec<_>>();
+            .map(|label| text_width(label, 11.0, FontWeight::Regular, text))
+            .collect::<Result<Vec<_>, _>>()?;
         let y_width = ticks
             .y
             .iter()
-            .map(|text| header_text_width(text, 11.0))
+            .map(|label| text_width(label, 11.0, FontWeight::Regular, text))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
             .fold(0.0, f64::max);
         let left = 64.0_f64
             .max(if ticks.y.is_empty() {
@@ -92,7 +107,7 @@ impl ChartLayout {
         if let Some(title) = x_title {
             let center = (self.plot[0] + self.plot[2]) / 2.0 - frame.x;
             let available = 2.0 * center.min(frame.width - center) - 16.0;
-            let needed = header_text_width(title, 12.5);
+            let needed = text_width(title, 12.5, FontWeight::Medium, text)?;
             if needed > available {
                 return Err(fail(format!(
                     "x-axis title needs {needed:.1}px after numeric tick allocation, but only {available:.1}px is available"
@@ -102,6 +117,30 @@ impl ChartLayout {
         Ok(self)
     }
 
+    pub fn with_categories(
+        self,
+        id: &str,
+        labels: &[String],
+        text: Option<&TextSession>,
+    ) -> Result<Self, String> {
+        if let Some(text) = text {
+            let step = (self.plot[2] - self.plot[0]) / labels.len().max(1) as f64;
+            let size = if labels.len() > 8 { 8.2 } else { 10.0 };
+            for (i, label) in labels.iter().enumerate() {
+                let needed = text
+                    .width(label, size, FontWeight::Regular)
+                    .map_err(|e| e.to_string())?;
+                if needed + 8.0 > step {
+                    return Err(format!(
+                        "VIZ-TEXT-0006: chart {id:?} category label {i} requires {needed:.1}px plus 8px separation, but its band is {step:.1}px; enlarge the frame or shorten the original label"
+                    ));
+                }
+            }
+        }
+        Ok(self)
+    }
+
+    #[cfg(test)]
     pub fn new(
         id: &str,
         frame: Frame,
@@ -110,18 +149,32 @@ impl ChartLayout {
         y_title: Option<&str>,
         labels: &[String],
     ) -> Result<Self, String> {
+        Self::new_with_text(id, frame, title, x_title, y_title, labels, None)
+    }
+    pub fn new_with_text(
+        id: &str,
+        frame: Frame,
+        title: Option<&str>,
+        x_title: Option<&str>,
+        y_title: Option<&str>,
+        labels: &[String],
+        text: Option<&TextSession>,
+    ) -> Result<Self, String> {
         let fail = |detail: String| {
             format!(
                 "VIZ-LAYOUT-0004: chart {id:?} {detail}; enlarge its frame or shorten the header text"
             )
         };
         let available = frame.width - 36.0;
-        let title_width = title.map(|text| header_text_width(text, 18.0));
-        for (kind, width) in title_width
-            .map(|width| ("title", width))
-            .into_iter()
-            .chain(y_title.map(|text| ("y-axis title", header_text_width(text, 12.5))))
-        {
+        let title_width = title
+            .map(|label| text_width(label, 18.0, FontWeight::Bold, text))
+            .transpose()?;
+        for (kind, width) in title_width.map(|width| ("title", width)).into_iter().chain(
+            y_title
+                .map(|label| text_width(label, 12.5, FontWeight::Medium, text))
+                .transpose()?
+                .map(|w| ("y-axis title", w)),
+        ) {
             if width > available {
                 return Err(fail(format!(
                     "{kind} needs {width:.1}px, but only {available:.1}px is available"
@@ -129,8 +182,8 @@ impl ChartLayout {
             }
         }
         // The x-axis title is centered on the asymmetrically inset plot.
-        if let Some(text) = x_title {
-            let width = header_text_width(text, 12.5);
+        if let Some(label) = x_title {
+            let width = text_width(label, 12.5, FontWeight::Medium, text)?;
             let available = frame.width - 70.0;
             if width > available {
                 return Err(fail(format!(
@@ -140,8 +193,8 @@ impl ChartLayout {
         }
         let widths = labels
             .iter()
-            .map(|label| 13.0 + header_text_width(label, 10.5))
-            .collect::<Vec<_>>();
+            .map(|label| text_width(label, 10.5, FontWeight::Regular, text).map(|w| 13.0 + w))
+            .collect::<Result<Vec<_>, _>>()?;
         for (index, width) in widths.iter().enumerate() {
             if *width > available {
                 return Err(fail(format!(

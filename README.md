@@ -325,3 +325,7 @@ persists a versioned theme compilation context that existing validate, lower,
 render and explain commands can reload. `normalize themed.mir.json` refreshes
 intentionally edited MIR data while preserving the pinned theme and styles.
 Omitting the selector retains legacy output bytes. See [theme context and defaults](docs/themes.md).
+
+### Measured single-line text (opt-in)
+
+Use exact supplied font bytes with the durable compilation context for font-independent outlines. See [the complete CLI/composition example and limits](docs/measured-text.md). Legacy native text and themed-mir/1 remain unchanged. Rust 1.89 or newer is required; no font installation is performed.

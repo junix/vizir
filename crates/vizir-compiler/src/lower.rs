@@ -14,6 +14,7 @@ use crate::chart_layout::{ChartLayout, legend_domain};
 use crate::materialize::{
     Budget, MaterializationLimits, materialize_mark, preflight_document, preflight_hir_bindings,
 };
+use crate::text::TextSession;
 use crate::tick_format::NumericTickLabels;
 
 const DEFAULT_PALETTE: [&str; 8] = [
@@ -31,8 +32,20 @@ pub(crate) fn lower_to_mir_with_defaults(
     defaults: Option<&ResolvedThemeDefaults>,
     limits: MaterializationLimits,
 ) -> VizResult<VizMir> {
+    lower_to_mir_with_context(document, defaults, limits, None)
+}
+
+pub(crate) fn lower_to_mir_with_context(
+    document: &Document,
+    defaults: Option<&ResolvedThemeDefaults>,
+    limits: MaterializationLimits,
+    text: Option<&TextSession>,
+) -> VizResult<VizMir> {
     let mut budget = Budget::new(limits);
     preflight_document(document, &mut budget)?;
+    if let Some(text) = text {
+        text.preflight_document(document)?;
+    }
     vizir_core::validate_document(document)
         .map_err(|diagnostics| VizError::validation(&diagnostics))?;
     let data = lower_data(document).map_err(lowering_error)?;
@@ -58,6 +71,7 @@ pub(crate) fn lower_to_mir_with_defaults(
                     &mut expressions,
                     &mut budget,
                     defaults,
+                    text,
                 )
                 .map_err(lowering_error)?,
             )),
@@ -69,6 +83,7 @@ pub(crate) fn lower_to_mir_with_defaults(
                     &mut expressions,
                     &mut budget,
                     defaults,
+                    text,
                 )
                 .map_err(lowering_error)?,
             )),
@@ -80,6 +95,7 @@ pub(crate) fn lower_to_mir_with_defaults(
                     &mut expressions,
                     &mut budget,
                     defaults,
+                    text,
                 )
                 .map_err(lowering_error)?,
             )),
@@ -161,6 +177,7 @@ fn lower_scatter(
     expressions: &mut BTreeMap<String, TypedExpression>,
     budget: &mut Budget,
     defaults: Option<&ResolvedThemeDefaults>,
+    text: Option<&TextSession>,
 ) -> Result<MirChart, String> {
     let dataset = dataset(document, &chart.dataset)?;
     let source = data_id(&chart.dataset);
@@ -240,23 +257,26 @@ fn lower_scatter(
         instances.iter().filter_map(|p| p.color_category.as_ref()),
         defaults,
     );
-    let ticks = NumericTickLabels::new(
+    let ticks = NumericTickLabels::new_with_measurement(
         Some((x_domain, chart.x.number_format())),
         Some((y_domain, chart.y.number_format())),
+        text.is_some(),
     )?;
-    let plot = ChartLayout::new(
+    let plot = ChartLayout::new_with_text(
         &chart.id,
         chart.frame,
         chart.title.as_deref(),
         Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
         Some(chart.y.label.as_deref().unwrap_or(&chart.y.field)),
         legend_domain(color_scale.as_ref()),
+        text,
     )?
-    .with_numeric_ticks(
+    .with_numeric_ticks_and_text(
         &chart.id,
         chart.frame,
         Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
         ticks.as_ref(),
+        text,
     )?
     .plot;
     let mut scales = vec![
@@ -306,6 +326,7 @@ fn lower_line(
     expressions: &mut BTreeMap<String, TypedExpression>,
     budget: &mut Budget,
     defaults: Option<&ResolvedThemeDefaults>,
+    text: Option<&TextSession>,
 ) -> Result<MirChart, String> {
     let dataset = dataset(document, &chart.dataset)?;
     let source = data_id(&chart.dataset);
@@ -395,23 +416,26 @@ fn lower_line(
         series.iter().filter_map(|s| s.color_category.as_ref()),
         defaults,
     );
-    let ticks = NumericTickLabels::new(
+    let ticks = NumericTickLabels::new_with_measurement(
         Some((x_domain, chart.x.number_format())),
         Some((y_domain, chart.y.number_format())),
+        text.is_some(),
     )?;
-    let plot = ChartLayout::new(
+    let plot = ChartLayout::new_with_text(
         &chart.id,
         chart.frame,
         chart.title.as_deref(),
         Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
         Some(chart.y.label.as_deref().unwrap_or(&chart.y.field)),
         legend_domain(color_scale.as_ref()),
+        text,
     )?
-    .with_numeric_ticks(
+    .with_numeric_ticks_and_text(
         &chart.id,
         chart.frame,
         Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
         ticks.as_ref(),
+        text,
     )?
     .plot;
     let mut scales = vec![
@@ -485,6 +509,7 @@ fn lower_bar(
     expressions: &mut BTreeMap<String, TypedExpression>,
     budget: &mut Budget,
     defaults: Option<&ResolvedThemeDefaults>,
+    text: Option<&TextSession>,
 ) -> Result<MirChart, String> {
     let dataset = dataset(document, &chart.dataset)?;
     let source = data_id(&chart.dataset);
@@ -554,17 +579,21 @@ fn lower_bar(
         unreachable!()
     };
     let values = instances.iter().map(|p| p.value).collect::<Vec<_>>();
-    let categories = instances.iter().map(|p| p.category.clone()).collect();
+    let categories: Vec<String> = instances.iter().map(|p| p.category.clone()).collect();
     let raw = extent(&values);
     let domain = nice_domain([raw[0].min(0.0), raw[1].max(0.0)], true);
-    let ticks = NumericTickLabels::new(None, Some((domain, chart.value.number_format())))?;
+    let ticks = NumericTickLabels::new_with_measurement(
+        None,
+        Some((domain, chart.value.number_format())),
+        text.is_some(),
+    )?;
     let color_scale = materialized_color_scale(
         &chart.id,
         chart.color.as_ref(),
         instances.iter().filter_map(|p| p.color_category.as_ref()),
         defaults,
     );
-    let plot = ChartLayout::new(
+    let plot = ChartLayout::new_with_text(
         &chart.id,
         chart.frame,
         chart.title.as_deref(),
@@ -577,8 +606,9 @@ fn lower_bar(
         ),
         Some(chart.value.label.as_deref().unwrap_or(&chart.value.field)),
         legend_domain(color_scale.as_ref()),
+        text,
     )?
-    .with_numeric_ticks(
+    .with_numeric_ticks_and_text(
         &chart.id,
         chart.frame,
         Some(
@@ -589,7 +619,9 @@ fn lower_bar(
                 .unwrap_or(&chart.category.field),
         ),
         ticks.as_ref(),
+        text,
     )?
+    .with_categories(&chart.id, &categories, text)?
     .plot;
     let mut scales = vec![
         MirScale::Band {
