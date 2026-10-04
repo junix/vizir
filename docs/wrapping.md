@@ -465,3 +465,70 @@ vizir render /tmp/vizir-bar-categories/compiled.json --format png --background t
   --font "$REGULAR" --font "$MEDIUM" --font "$BOLD" \
   -o /tmp/vizir-bar-categories/categories.png
 ```
+
+## Selected diagram node labels (`vizir-text-wrap/4`)
+
+V4 adds `diagram_targets`, a nonempty list of exact source
+`{view_id,node_id,max_width,max_lines,line_height}` objects. Use
+`DiagramTextLayoutTarget::new` and the explicit `with_diagram_targets` builder.
+The same policy can retain geometry targets and optional chart-title/category
+semantic targets. The combined maximum is still 256 targets. Profiles v1–v3
+reject any `diagram_targets` field, including empty arrays and null; their wire
+schemas and existing output remain unchanged.
+
+Only the exact selected diagram node's label may contain wrapped text. The same
+node ID in another view is independent, and slash-containing IDs are ordinary
+source strings. Missing or duplicate targets fail. Diagram labels are required
+source strings: an absent label fails the existing source schema; an explicit
+empty string is one logical blank line. Diagram titles, edge labels and
+untargeted node labels retain their existing single-line behavior.
+
+Selected labels use 13px Medium throughout, including labels longer than 22
+characters. Current manual/layered graph placement, node rectangles (150×62),
+edge routing, groups, styles and source text are retained. No graph relayout,
+node resizing, font shrinking or truncation is used to obtain a fit.
+
+Each line's advance is Middle-anchored at the existing resolved node center x.
+Actual negative/asymmetric ink bearings are included in width checks; ink is
+not independently centered. `max_width` is an authored upper bound. Legal
+breakpoints must fit both that bound and the actual 134px interior between the
+node rectangle's 8px side insets. This can choose shorter lines when
+`max_width` is larger than the available interior, without rewriting the
+stored constraint. An unbreakable segment that cannot fit both constraints fails.
+
+For raw baseline-zero lines, let T and B be the top and bottom of their union
+of exact-face ascent/descent logical boxes and actual ink, including all blank
+and terminal lines. The first baseline is `center.y - (T+B)/2`; successive
+baselines add the explicit `line_height`. This centers the full allocation
+vertically rather than just the visible ink. The selected exact face's minimum
+line-height rule still applies. All-empty labels reserve this complete logical
+height. With the supplied fixture fonts, two lines at line_height 20 fit;
+three such lines exceed the fixed 54px interior and fail.
+
+Candidate shaping and retained raw runs use the existing whole-call budgets.
+The final plan is projected once at its actual baseline; cache hits charge
+lookup work but do not repeat shaping or count emitted glyphs twice. The
+source ranges reconstruct the original UTF-8 byte sequence. One Path keeps the
+existing label's Scene ID and provenance. Final exact checks cover the authored
+width, emitted node rectangle's 134×54 interior, line collisions, view and
+canvas. The interior derives from the SVG-serialized rectangle x/y and width/
+height. Each path coordinate rounds by at most 0.00005px; that can slightly
+move the raw centered envelope. There is no corrective shift, iterative
+reshaping or fit epsilon after projection. The earlier integer-font-unit CFF
+extraction boundary still applies.
+
+A fitting edit to a selected label in compiled MIR can replay and refresh
+successfully because diagram layout depends on graph topology/manual
+positions rather than label dimensions. Node shapes, routes and layout
+requests remain identical; Scene diff/apply matches full recomputation.
+An edit that exceeds width, height, glyph or work limits fails before output
+publication. Adding or changing the persisted layout policy still requires
+original HIR, as for the other explicit policies.
+
+The executable composition `examples/composition/wrapped-diagram-nodes.compose.yaml`
+combines two diagrams (manual and layered, sharing node IDs), geometry wrapping,
+a wrapped chart title and category labels using
+`examples/text/diagram-node-layout.json`. Compose it to HIR, then use the same
+`--text-profile examples/text/wrapping-font-profile.json`, explicit three
+`--font SHA256=PATH` mappings and `--text-layout` workflow shown above. No font
+installation or network access is required for the checked-in fixture workflow.

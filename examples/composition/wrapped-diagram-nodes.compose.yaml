@@ -1,0 +1,52 @@
+schema: vizir-composition/0.1
+id: wrapped-diagram-nodes
+width: 1280
+height: 920
+background: transparent
+layout: {kind: grid, columns: 2, gap: 24, padding: 24}
+datasets:
+  services:
+    key: id
+    rows:
+      - {id: alpha, category: "中文\nAPI", value: 8}
+      - {id: beta, category: "Café Å\nData", value: 12}
+      - {id: gamma, category: "AV office\nffi", value: 6}
+      - {id: delta, category: "保留\n标点。", value: 10}
+panels:
+  - kind: diagram.graph
+    id: manual-graph
+    title: Manual nodes + mixed text
+    layout: manual
+    nodes:
+      - {id: source, label: "中文（字体测量），\n保留标点。", group: source, position: {x: 130.123456, y: 125.654321}}
+      - {id: output, label: "AV office ffi,\nCafé Å Å", group: output, position: {x: 460.123456, y: 250.654321}}
+    edges:
+      - {from: source, to: output, label: Data}
+  - kind: diagram.graph
+    id: layered-graph
+    title: Layered nodes + blank line
+    layout: layered
+    nodes:
+      - {id: source, label: "Alpha Beta Gamma Delta", group: source}
+      - {id: output, label: "\n中文测试", group: output}
+    edges:
+      - {from: source, to: output, label: Data}
+  - kind: chart.bar
+    id: bars
+    title: "Explicit wrapped title\nand category labels"
+    dataset: services
+    category: {field: category, label: service}
+    value: {field: value, label: value}
+  - kind: geometry.scene
+    id: notes
+    title: Mixed text roles
+    children:
+      - {type: rect, id: panel, x: 0, y: 48, width: 604, height: 340, radius: 8, style: {fill: "#eef2ff", stroke: "#c7d2fe", stroke_width: 1}}
+      - type: text
+        id: body
+        x: 24
+        y: 94
+        text: "中文（字体测量），保留「标点」。\nAV office ffi, Café Å Å gypq\n\nSame source text, explicit layout."
+        font_size: 22
+        anchor: start
+        weight: regular

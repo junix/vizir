@@ -30,9 +30,12 @@ actual output includes both. Theme and text are optional. The additional optiona
 `text_layout` entry requires `text` and enables explicit source-targeted
 wrapping: v1 names geometry text nodes; v2 adds the `chart.title` semantic
 role on bar, line, and scatter charts; v3 adds `bar.category_labels` on bar
-charts. V3 requires a category target and may combine title and geometry
-targets. See [wrapping.md](wrapping.md) for the pinned profiles, unchanged
-source-byte contract, and title/category allocation rules. `schema compiled-mir` emits the complete schema. Every
+charts; v4 adds exact diagram node-label targets. V3 requires a category target
+and may combine title and geometry targets. V4 requires a nonempty
+`diagram_targets` array and may combine geometry, title, and category targets.
+All target arrays share the existing aggregate limit of 256.
+See [wrapping.md](wrapping.md) for the pinned profiles, unchanged
+source-byte contract, and allocation rules. `schema compiled-mir` emits the complete schema. Every
 persisted
 theme is checked against the canonical pinned registry, including its defaults.
 `schema themed-mir` and `schema mir` retain their previous contracts.
@@ -74,11 +77,19 @@ font, missing glyph or exceeded budget is an error. `--font` without measured
 context is also an error. The first unit requires static normal-width upright
 faces with exact 400/500/700 weights. Without `text_layout`, single-line shaping
 rejects line breaks, tabs and control characters. The separate opt-in wrapping policy permits supported hard breaks
-only on its explicit geometry, chart-title, or v3 bar-category targets.
+only on its explicit geometry, chart-title, v3 bar-category, or v4 diagram-node targets.
 Category targeting does not grant multiline permission to a same-field color
 legend or unrelated view. Overflow/colliding labels are
 diagnosed; edit the original HIR frame or strings to fix them. Automatic
 fallback and font synthesis remain unsupported.
+
+Diagram targets name exact source `view_id` and `node_id` values in
+`diagram_targets`; they do not address generated Scene2D IDs or edge labels.
+Their labels use the existing fixed 13-unit Medium face inside the existing
+150 × 62 nodes, with a 134 × 54 interior. Each line is centered by its measured
+advance at the node center, and the complete logical-plus-ink envelope is
+vertically centered. Nodes and edges keep their existing layout. Overflow is
+a diagnostic rather than node growth, clipping, truncation, or font shrinking.
 
 A persisted envelope has already made its layout decisions. A repeated
 `--text-profile` is accepted only if it exactly matches the persisted identity.
@@ -130,8 +141,11 @@ canonical serialization omits absent entries. This does not make nested layout
 fields nullable: v1 rejects any `semantic_targets` field, including null or an
 empty array. V2 requires a non-null, nonempty chart-title target array and
 rejects the new category role. V3 requires a non-null, nonempty semantic array
-containing at least one `bar.category_labels` target. The published closed
-v1/v2 schema branches remain unchanged. JSON's recursion limit stays
+containing at least one `bar.category_labels` target. V1–v3 reject every
+`diagram_targets` spelling, including null and an empty array. V4 requires a
+non-null, nonempty diagram array; its optional semantic array is non-null when
+present and may contain either existing role. The published closed v1/v2/v3
+schema branches and their referenced definitions remain unchanged. JSON's recursion limit stays
 enabled, and compiler materialization/text work budgets remain independent.
 
 ## Rust APIs
@@ -144,7 +158,13 @@ explicitly selects v2 while retaining existing geometry targets.
 `SemanticTextLayoutTarget::bar_category_labels(...)` and
 `.with_category_labels(...)` explicitly select v3; the latter retains geometry
 targets and requires at least one category role. The existing semantic builder
-always selects v2 and cannot accept the new role. `FontResources::new()` and `insert(hash, bytes)` supply
+always selects v2 and cannot accept the new role.
+`DiagramTextLayoutTarget::new(view_id, node_id, max_width, max_lines, line_height)`
+constructs a dedicated diagram target, and `.with_diagram_targets(...)`
+explicitly selects v4 while retaining geometry and semantic targets. Older
+builders still select their original profiles; retaining diagram targets while
+downgrading the profile fails validation. Absent diagram fields do not change
+the serialized bytes of existing policies. `FontResources::new()` and `insert(hash, bytes)` supply
 verified resources separately. `compile_with_context`,
 `lower_to_compiled_mir`, `build_compiled_scene`, and
 `rematerialize_compiled_mir` are additive APIs; their `_with_limits` variants

@@ -823,6 +823,9 @@ fn build_diagram(
 ) -> VizResult<SceneNode> {
     if let Some(text) = text {
         for node in &diagram.nodes {
+            if text.has_diagram_layout(&diagram.id, &node.id) {
+                continue;
+            }
             if text.width(
                 &node.label,
                 if node.label.chars().count() > 22 {
@@ -1018,14 +1021,28 @@ fn build_diagram(
                     .unwrap_or_else(|| Color::hex("#B8C3D3")),
             ),
         });
+        let label_id = format!("{}/node/{}/label", diagram.id, node.id);
+        let wrapped_position = text
+            .map(|text| {
+                text.register_diagram_label(
+                    &diagram.id,
+                    &node.id,
+                    &node.label,
+                    center,
+                    bounds,
+                    &label_id,
+                )
+            })
+            .transpose()?
+            .flatten();
         children.push(text_node(
-            format!("{}/node/{}/label", diagram.id, node.id),
-            Point {
+            label_id,
+            wrapped_position.unwrap_or(Point {
                 x: center.x,
                 y: center.y + 5.0,
-            },
+            }),
             node.label.clone(),
-            if node.label.chars().count() > 22 {
+            if wrapped_position.is_none() && node.label.chars().count() > 22 {
                 10.5
             } else {
                 13.0
@@ -1038,7 +1055,9 @@ fn build_diagram(
             &node.id,
             "diagram label positioned inside resolved node bounds",
         ));
-        if let Some(text) = text {
+        if let Some(text) = text
+            && wrapped_position.is_none()
+        {
             text.check_text_box(
                 children.last().expect("label just added"),
                 Rect {

@@ -1,0 +1,17 @@
+{
+  "profile": "vizir-text-wrap/4",
+  "engine": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+  "targets": [
+    {"view_id":"notes","node_id":"body","max_width":550,"max_lines":8,"line_height":32}
+  ],
+  "semantic_targets": [
+    {"view_id":"bars","role":"chart.title","max_width":530,"max_lines":3,"line_height":27},
+    {"view_id":"bars","role":"bar.category_labels","max_width":110,"max_lines":3,"line_height":16}
+  ],
+  "diagram_targets": [
+    {"view_id":"manual-graph","node_id":"source","max_width":132,"max_lines":2,"line_height":20},
+    {"view_id":"manual-graph","node_id":"output","max_width":132,"max_lines":2,"line_height":20},
+    {"view_id":"layered-graph","node_id":"source","max_width":10000,"max_lines":2,"line_height":20},
+    {"view_id":"layered-graph","node_id":"output","max_width":132,"max_lines":2,"line_height":20}
+  ]
+}

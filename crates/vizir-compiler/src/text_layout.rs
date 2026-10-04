@@ -8,6 +8,7 @@ use vizir_core::{VizError, VizResult};
 pub const TEXT_LAYOUT_PROFILE: &str = "vizir-text-wrap/1";
 pub const TEXT_LAYOUT_SEMANTIC_PROFILE: &str = "vizir-text-wrap/2";
 pub const TEXT_LAYOUT_CATEGORY_PROFILE: &str = "vizir-text-wrap/3";
+pub const TEXT_LAYOUT_DIAGRAM_PROFILE: &str = "vizir-text-wrap/4";
 pub const TEXT_LAYOUT_ENGINE: &str =
     "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)";
 pub(crate) const MAX_LINES: usize = 256;
@@ -29,6 +30,36 @@ pub struct TextLayoutTarget {
     pub line_height: f64,
 }
 impl TextLayoutTarget {
+    pub fn new(
+        view_id: impl Into<String>,
+        node_id: impl Into<String>,
+        max_width: f64,
+        max_lines: u32,
+        line_height: f64,
+    ) -> Self {
+        Self {
+            view_id: view_id.into(),
+            node_id: node_id.into(),
+            max_width,
+            max_lines,
+            line_height,
+        }
+    }
+}
+
+/// A diagram node label, selected by exact source view and node identities.
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DiagramTextLayoutTarget {
+    pub view_id: String,
+    pub node_id: String,
+    pub max_width: f64,
+    #[serde(deserialize_with = "crate::text::deserialize_u32_number")]
+    pub max_lines: u32,
+    pub line_height: f64,
+}
+impl DiagramTextLayoutTarget {
     pub fn new(
         view_id: impl Into<String>,
         node_id: impl Into<String>,
@@ -109,6 +140,12 @@ fn deserialize_present_semantic_targets<'de, D: serde::Deserializer<'de>>(
     Vec::<SemanticTextLayoutTarget>::deserialize(deserializer).map(Some)
 }
 
+fn deserialize_present_diagram_targets<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Vec<DiagramTextLayoutTarget>>, D::Error> {
+    Vec::<DiagramTextLayoutTarget>::deserialize(deserializer).map(Some)
+}
+
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -118,6 +155,8 @@ pub struct TextLayoutContext {
     pub targets: Vec<TextLayoutTarget>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub semantic_targets: Option<Vec<SemanticTextLayoutTarget>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagram_targets: Option<Vec<DiagramTextLayoutTarget>>,
 }
 impl<'de> Deserialize<'de> for TextLayoutContext {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -129,6 +168,8 @@ impl<'de> Deserialize<'de> for TextLayoutContext {
             targets: Vec<TextLayoutTarget>,
             #[serde(default, deserialize_with = "deserialize_present_semantic_targets")]
             semantic_targets: Option<Vec<SemanticTextLayoutTarget>>,
+            #[serde(default, deserialize_with = "deserialize_present_diagram_targets")]
+            diagram_targets: Option<Vec<DiagramTextLayoutTarget>>,
         }
         let fields = Fields::deserialize(deserializer)?;
         let result = Self {
@@ -136,6 +177,7 @@ impl<'de> Deserialize<'de> for TextLayoutContext {
             engine: fields.engine,
             targets: fields.targets,
             semantic_targets: fields.semantic_targets,
+            diagram_targets: fields.diagram_targets,
         };
         result
             .validate_profile_shape()
@@ -152,6 +194,7 @@ impl TextLayoutContext {
             engine: TEXT_LAYOUT_ENGINE.into(),
             targets,
             semantic_targets: None,
+            diagram_targets: None,
         }
     }
 
@@ -170,10 +213,21 @@ impl TextLayoutContext {
         self
     }
 
+    /// Opt into v4 explicitly, retaining geometry and semantic targets.
+    /// The supplied diagram targets must be nonempty.
+    pub fn with_diagram_targets(mut self, targets: Vec<DiagramTextLayoutTarget>) -> Self {
+        self.profile = TEXT_LAYOUT_DIAGRAM_PROFILE.into();
+        self.diagram_targets = Some(targets);
+        self
+    }
+
     pub fn validate(&self) -> VizResult<()> {
         if !matches!(
             self.profile.as_str(),
-            TEXT_LAYOUT_PROFILE | TEXT_LAYOUT_SEMANTIC_PROFILE | TEXT_LAYOUT_CATEGORY_PROFILE
+            TEXT_LAYOUT_PROFILE
+                | TEXT_LAYOUT_SEMANTIC_PROFILE
+                | TEXT_LAYOUT_CATEGORY_PROFILE
+                | TEXT_LAYOUT_DIAGRAM_PROFILE
         ) || self.engine != TEXT_LAYOUT_ENGINE
         {
             return Err(error(
@@ -182,9 +236,9 @@ impl TextLayoutContext {
         }
         self.validate_profile_shape()?;
         let semantic_targets = self.semantic_targets.as_deref().unwrap_or_default();
-        if self.targets.len() + semantic_targets.len() == 0
-            || self.targets.len() + semantic_targets.len() > MAX_TARGETS
-        {
+        let diagram_targets = self.diagram_targets.as_deref().unwrap_or_default();
+        let target_count = self.targets.len() + semantic_targets.len() + diagram_targets.len();
+        if target_count == 0 || target_count > MAX_TARGETS {
             return Err(error(
                 "wrapping requires between 1 and 256 explicit source targets in total",
             ));
@@ -206,11 +260,37 @@ impl TextLayoutContext {
             }
             validate_dimensions(t.max_width, t.max_lines, t.line_height)?;
         }
+        let mut diagram_seen = BTreeSet::new();
+        for t in diagram_targets {
+            validate_id(&t.view_id)?;
+            validate_id(&t.node_id)?;
+            if !diagram_seen.insert((&t.view_id, &t.node_id)) {
+                return Err(error(
+                    "duplicate wrapping diagram source (view_id, node_id) target",
+                ));
+            }
+            validate_dimensions(t.max_width, t.max_lines, t.line_height)?;
+        }
         Ok(())
     }
 
     fn validate_profile_shape(&self) -> VizResult<()> {
+        if matches!(
+            self.profile.as_str(),
+            TEXT_LAYOUT_PROFILE | TEXT_LAYOUT_SEMANTIC_PROFILE | TEXT_LAYOUT_CATEGORY_PROFILE
+        ) && self.diagram_targets.is_some()
+        {
+            return Err(error(format!(
+                "{} does not permit diagram_targets",
+                self.profile
+            )));
+        }
         match self.profile.as_str() {
+            TEXT_LAYOUT_DIAGRAM_PROFILE
+                if self.diagram_targets.as_ref().is_none_or(Vec::is_empty) =>
+            {
+                return Err(error("vizir-text-wrap/4 requires nonempty diagram_targets"));
+            }
             TEXT_LAYOUT_PROFILE if self.semantic_targets.is_some() => {
                 return Err(error("vizir-text-wrap/1 does not permit semantic_targets"));
             }

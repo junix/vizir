@@ -432,6 +432,95 @@
       ],
       "type": "object"
     },
+    "DiagramTextLayoutContext": {
+      "additionalProperties": false,
+      "properties": {
+        "diagram_targets": {
+          "items": {
+            "$ref": "#/$defs/DiagramTextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "engine": {
+          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+          "type": "string"
+        },
+        "profile": {
+          "const": "vizir-text-wrap/4",
+          "type": "string"
+        },
+        "semantic_targets": {
+          "items": {
+            "$ref": "#/$defs/CategorySemanticTextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "targets",
+        "diagram_targets"
+      ],
+      "type": "object"
+    },
+    "DiagramTextLayoutTarget": {
+      "additionalProperties": false,
+      "description": "A diagram node label, selected by exact source view and node identities.",
+      "properties": {
+        "line_height": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "max_lines": {
+          "format": "uint32",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_width": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "node_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "view_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_id",
+        "node_id",
+        "max_width",
+        "max_lines",
+        "line_height"
+      ],
+      "type": "object"
+    },
     "Expression": {
       "oneOf": [
         {
@@ -2256,6 +2345,9 @@
         },
         {
           "$ref": "#/$defs/CategoryTextLayoutContext"
+        },
+        {
+          "$ref": "#/$defs/DiagramTextLayoutContext"
         }
       ]
     },

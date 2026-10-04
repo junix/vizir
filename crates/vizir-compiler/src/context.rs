@@ -341,6 +341,10 @@ pub fn compiled_mir_schema() -> serde_json::Value {
         .as_object_mut()
         .expect("properties object")
         .remove("semantic_targets");
+    geometry_layout["properties"]
+        .as_object_mut()
+        .expect("properties object")
+        .remove("diagram_targets");
     geometry_layout["properties"]["profile"]["const"] =
         crate::text_layout::TEXT_LAYOUT_PROFILE.into();
     geometry_layout["properties"]["engine"]["const"] =
@@ -375,19 +379,44 @@ pub fn compiled_mir_schema() -> serde_json::Value {
         "required": ["role"],
         "additionalProperties": true
     });
+    let mut diagram_layout = geometry_layout.clone();
+    diagram_layout["properties"]["profile"]["const"] =
+        crate::text_layout::TEXT_LAYOUT_DIAGRAM_PROFILE.into();
+    diagram_layout["properties"]["targets"]["minItems"] = 0.into();
+    diagram_layout["properties"]["semantic_targets"] = serde_json::json!({
+        "type": "array",
+        "items": {"$ref": "#/$defs/CategorySemanticTextLayoutTarget"},
+        "minItems": 0,
+        "maxItems": crate::text_layout::MAX_TARGETS,
+        "uniqueItems": true
+    });
+    diagram_layout["properties"]["diagram_targets"] = serde_json::json!({
+        "type": "array",
+        "items": {"$ref": "#/$defs/DiagramTextLayoutTarget"},
+        "minItems": 1,
+        "maxItems": crate::text_layout::MAX_TARGETS,
+        "uniqueItems": true
+    });
+    diagram_layout["required"]
+        .as_array_mut()
+        .expect("required array")
+        .push("diagram_targets".into());
     // The combined array length, source identity duplicates and UTF-8 byte ID
     // limits are executable checks; the schema bounds each array independently.
     schema["$defs"]["TextLayoutContext"] = serde_json::json!({"oneOf": [
         {"$ref": "#/$defs/GeometryTextLayoutContext"},
         {"$ref": "#/$defs/SemanticTextLayoutContext"},
-        {"$ref": "#/$defs/CategoryTextLayoutContext"}
+        {"$ref": "#/$defs/CategoryTextLayoutContext"},
+        {"$ref": "#/$defs/DiagramTextLayoutContext"}
     ]});
     schema["$defs"]["GeometryTextLayoutContext"] = geometry_layout;
     schema["$defs"]["SemanticTextLayoutContext"] = semantic_layout;
     schema["$defs"]["CategoryTextLayoutContext"] = category_layout;
+    schema["$defs"]["DiagramTextLayoutContext"] = diagram_layout;
     for (definition, ids) in [
         ("TextLayoutTarget", &["view_id", "node_id"][..]),
         ("SemanticTextLayoutTarget", &["view_id"][..]),
+        ("DiagramTextLayoutTarget", &["view_id", "node_id"][..]),
     ] {
         for id in ids {
             schema["$defs"][definition]["properties"][*id]["minLength"] = 1.into();

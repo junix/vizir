@@ -23,7 +23,8 @@ use vizir_core::{
 };
 
 use crate::text_layout::{
-    self, SemanticTextLayoutTarget, TextLayoutContext, TextLayoutRole, TextLayoutTarget,
+    self, DiagramTextLayoutTarget, SemanticTextLayoutTarget, TextLayoutContext, TextLayoutRole,
+    TextLayoutTarget,
 };
 
 pub const TEXT_PROFILE: &str = "vizir-text-outlines/1";
@@ -359,6 +360,24 @@ struct CategoryPlan {
 pub(crate) struct CategoryAllocation {
     pub plot_bottom: f64,
 }
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct DiagramPlanKey {
+    view: String,
+    node: String,
+    source: String,
+    text_identity: String,
+    layout_profile: String,
+    dimensions: [u64; 8],
+    max_lines: u32,
+}
+struct DiagramPlan {
+    source: String,
+    raw_lines: Vec<RawWrappedLine>,
+    block: WrappedOutline,
+    position: Point,
+    interior: Rect,
+    losses: Vec<LossRecord>,
+}
 struct State {
     system: FontSystem,
     selected: BTreeMap<u16, (fontdb::ID, String, u16)>,
@@ -381,6 +400,9 @@ struct State {
     category_views: BTreeMap<String, Arc<CategoryPlan>>,
     category_nodes: BTreeMap<String, (String, usize, Arc<CategoryPlan>)>,
     used_categories: BTreeMap<String, BTreeSet<usize>>,
+    diagram_plans: BTreeMap<DiagramPlanKey, Arc<DiagramPlan>>,
+    diagram_nodes: BTreeMap<String, (String, String, Arc<DiagramPlan>)>,
+    used_diagram_targets: BTreeSet<(String, String)>,
 }
 pub(crate) struct TextSession {
     limits: TextLimits,
@@ -389,6 +411,7 @@ pub(crate) struct TextSession {
     face_metrics: BTreeMap<u16, (f64, f64)>,
     title_targets: BTreeMap<String, SemanticTextLayoutTarget>,
     category_targets: BTreeMap<String, SemanticTextLayoutTarget>,
+    diagram_targets: BTreeMap<String, BTreeMap<String, DiagramTextLayoutTarget>>,
     text_identity: String,
     layout_profile: String,
 }
@@ -400,6 +423,8 @@ impl TextSession {
         layout: Option<&TextLayoutContext>,
     ) -> VizResult<Self> {
         context.validate()?;
+        let mut diagram_targets: BTreeMap<String, BTreeMap<String, DiagramTextLayoutTarget>> =
+            BTreeMap::new();
         let mut title_targets = BTreeMap::new();
         let mut category_targets = BTreeMap::new();
         let mut targets: BTreeMap<String, BTreeMap<String, TextLayoutTarget>> = BTreeMap::new();
@@ -416,6 +441,12 @@ impl TextSession {
                         }
                     }
                 }
+            }
+            for t in layout.diagram_targets.as_deref().unwrap_or_default() {
+                diagram_targets
+                    .entry(t.view_id.clone())
+                    .or_default()
+                    .insert(t.node_id.clone(), t.clone());
             }
             for t in &layout.targets {
                 targets
@@ -517,6 +548,7 @@ impl TextSession {
             face_metrics,
             title_targets,
             category_targets,
+            diagram_targets,
             text_identity: digest(&serde_json::to_vec(context)?),
             layout_profile: layout.map(|l| l.profile.clone()).unwrap_or_default(),
             state: RefCell::new(State {
@@ -541,6 +573,9 @@ impl TextSession {
                 category_views: BTreeMap::new(),
                 category_nodes: BTreeMap::new(),
                 used_categories: BTreeMap::new(),
+                diagram_plans: BTreeMap::new(),
+                diagram_nodes: BTreeMap::new(),
+                used_diagram_targets: BTreeSet::new(),
             }),
         })
     }
@@ -550,6 +585,7 @@ impl TextSession {
         let mut found_targets = BTreeSet::new();
         let mut found_titles = BTreeSet::new();
         let mut found_categories = BTreeSet::new();
+        let mut found_diagrams = BTreeSet::new();
         for view in &document.views {
             match view {
                 vizir_core::View::Scatter(c) => {
@@ -623,7 +659,12 @@ impl TextSession {
                 vizir_core::View::Diagram(c) => {
                     strings.add_all(c.title.as_deref())?;
                     for n in &c.nodes {
-                        strings.add(&n.label)?;
+                        let target = self.diagram_target(&c.id, &n.id);
+                        if target.is_some() && !found_diagrams.insert((c.id.clone(), n.id.clone()))
+                        {
+                            return Err(text_layout::error("ambiguous diagram node source target"));
+                        }
+                        strings.add_scoped(&n.label, target.map(|t| t.max_lines))?;
                     }
                     for e in &c.edges {
                         strings.add_all(e.label.as_deref())?;
@@ -669,6 +710,7 @@ impl TextSession {
         self.check_targets(&found_targets)?;
         self.check_title_targets(&found_titles)?;
         self.check_category_targets(&found_categories)?;
+        self.check_diagram_targets(&found_diagrams)?;
         Ok(())
     }
     pub(crate) fn preflight_mir(&self, mir: &vizir_core::VizMir) -> VizResult<()> {
@@ -677,6 +719,7 @@ impl TextSession {
         let mut found_targets = BTreeSet::new();
         let mut found_titles = BTreeSet::new();
         let mut found_categories = BTreeSet::new();
+        let mut found_diagrams = BTreeSet::new();
         for view in &mir.views {
             match view {
                 vizir_core::MirView::Chart(c) => {
@@ -719,7 +762,12 @@ impl TextSession {
                 vizir_core::MirView::Diagram(c) => {
                     strings.add_all(c.title.as_deref())?;
                     for n in &c.nodes {
-                        strings.add(&n.label)?;
+                        let target = self.diagram_target(&c.id, &n.id);
+                        if target.is_some() && !found_diagrams.insert((c.id.clone(), n.id.clone()))
+                        {
+                            return Err(text_layout::error("ambiguous diagram node source target"));
+                        }
+                        strings.add_scoped(&n.label, target.map(|t| t.max_lines))?;
                     }
                     for e in &c.edges {
                         strings.add_all(e.label.as_deref())?;
@@ -765,7 +813,236 @@ impl TextSession {
         self.check_targets(&found_targets)?;
         self.check_title_targets(&found_titles)?;
         self.check_category_targets(&found_categories)?;
+        self.check_diagram_targets(&found_diagrams)?;
         Ok(())
+    }
+    pub(crate) fn has_diagram_layout(&self, view: &str, node: &str) -> bool {
+        self.diagram_target(view, node).is_some()
+    }
+    fn diagram_target(&self, view: &str, node: &str) -> Option<&DiagramTextLayoutTarget> {
+        self.diagram_targets
+            .get(view)
+            .and_then(|targets| targets.get(node))
+    }
+    fn check_diagram_targets(&self, found: &BTreeSet<(String, String)>) -> VizResult<()> {
+        for (view, nodes) in &self.diagram_targets {
+            for node in nodes.keys() {
+                if !found.contains(&(view.clone(), node.clone())) {
+                    return Err(text_layout::error(format!(
+                        "diagram target ({view:?}, {node:?}) must name one existing source diagram node"
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+    fn diagram_plan(
+        &self,
+        view: &str,
+        node: &str,
+        source: &str,
+        center: Point,
+        bounds: Rect,
+    ) -> VizResult<Option<Arc<DiagramPlan>>> {
+        let Some(target) = self.diagram_target(view, node) else {
+            return Ok(None);
+        };
+        if source.len() > self.limits.max_label_bytes {
+            return Err(error("0003", "label byte limit exceeded"));
+        }
+        // Repeated plan lookups are charged even if all shaping is cached.
+        {
+            let mut state = self.state.borrow_mut();
+            state.labels = state
+                .labels
+                .checked_add(1)
+                .filter(|n| *n <= self.limits.max_labels)
+                .ok_or_else(|| {
+                    error(
+                        "0003",
+                        "whole-call label operation limit exceeded by diagram lookup",
+                    )
+                })?;
+            state.text_bytes = state
+                .text_bytes
+                .checked_add(source.len())
+                .filter(|n| *n <= self.limits.max_text_bytes)
+                .ok_or_else(|| {
+                    error(
+                        "0003",
+                        "whole-call text byte limit exceeded by diagram lookup",
+                    )
+                })?;
+        }
+        coordinate(center.x)?;
+        coordinate(center.y)?;
+        // The interior derives from the actual emitted node rectangle, whose x/y
+        // and width/height are serialized independently by SVG.
+        let rect = serialized_rect(bounds);
+        let interior = Rect {
+            x: rect.x + 8.,
+            y: rect.y + 4.,
+            width: rect.width - 16.,
+            height: rect.height - 8.,
+        };
+        let key = DiagramPlanKey {
+            view: view.into(),
+            node: node.into(),
+            source: source.into(),
+            text_identity: self.text_identity.clone(),
+            layout_profile: self.layout_profile.clone(),
+            dimensions: [
+                center.x.to_bits(),
+                center.y.to_bits(),
+                interior.x.to_bits(),
+                interior.y.to_bits(),
+                interior.width.to_bits(),
+                interior.height.to_bits(),
+                target.max_width.to_bits(),
+                target.line_height.to_bits(),
+            ],
+            max_lines: target.max_lines,
+        };
+        if let Some(plan) = self.state.borrow().diagram_plans.get(&key) {
+            return Ok(Some(plan.clone()));
+        }
+        let layout = TextLayoutTarget::new(
+            view,
+            node,
+            target.max_width,
+            target.max_lines,
+            target.line_height,
+        );
+        let mut raw = Vec::new();
+        self.wrapped_outline(
+            &layout,
+            source,
+            13.,
+            FontWeight::Medium,
+            Point { x: center.x, y: 0. },
+            TextAnchor::Middle,
+            node,
+            &mut Vec::new(),
+            Some([interior.x, interior.x + interior.width]),
+            Some(&mut raw),
+        )?;
+        let (ascent, descent) = self.face_metrics[&500];
+        let mut top = f64::INFINITY;
+        let mut bottom = f64::NEG_INFINITY;
+        for line in &raw {
+            let mut t = line.offset - ascent * 13.;
+            let mut b = line.offset - descent * 13.;
+            if !line.run.commands.is_empty() {
+                t = t.min(line.offset + line.run.bounds.y);
+                b = b.max(line.offset + line.run.bounds.y + line.run.bounds.height);
+            }
+            top = top.min(t);
+            bottom = bottom.max(b);
+        }
+        // Center the complete unrounded allocation envelope, including empty
+        // lines. Each line keeps its own advance centered horizontally.
+        let position = Point {
+            x: center.x,
+            y: center.y - (top + bottom) / 2.,
+        };
+        coordinate(position.y)?;
+        let (block, losses) = self.project_centered_lines(
+            &raw,
+            source,
+            position,
+            [interior.x, interior.x + interior.width],
+            target.max_width,
+            node,
+            13.,
+            FontWeight::Medium,
+            "diagram",
+        )?;
+        contain_exact(block.logical, interior, node)?;
+        let retained = block
+            .commands
+            .len()
+            .checked_mul(std::mem::size_of::<PathCommand>())
+            .and_then(|n| n.checked_add(raw.len() * std::mem::size_of::<RawWrappedLine>()))
+            .and_then(|n| {
+                n.checked_add(
+                    block.details.len()
+                        + source.len() * 2
+                        + view.len()
+                        + node.len()
+                        + key.text_identity.len()
+                        + key.layout_profile.len()
+                        + std::mem::size_of::<DiagramPlanKey>()
+                        + std::mem::size_of::<DiagramPlan>()
+                        + 128,
+                )
+            })
+            .and_then(|n| {
+                n.checked_add(
+                    losses
+                        .iter()
+                        .map(|l| {
+                            l.source.len()
+                                + l.target.len()
+                                + l.reason.len()
+                                + std::mem::size_of::<LossRecord>()
+                        })
+                        .sum::<usize>(),
+                )
+            })
+            .ok_or_else(|| error("0003", "diagram plan cache size overflow"))?;
+        let mut state = self.state.borrow_mut();
+        state.cache_bytes = state
+            .cache_bytes
+            .checked_add(retained)
+            .filter(|n| *n <= self.limits.max_cache_bytes)
+            .ok_or_else(|| {
+                error(
+                    "0003",
+                    "whole-call text cache limit exceeded by diagram plan",
+                )
+            })?;
+        let plan = Arc::new(DiagramPlan {
+            source: source.into(),
+            raw_lines: raw,
+            block,
+            position,
+            interior,
+            losses,
+        });
+        state.diagram_plans.insert(key, plan.clone());
+        Ok(Some(plan))
+    }
+    pub(crate) fn register_diagram_label(
+        &self,
+        view: &str,
+        node: &str,
+        source: &str,
+        center: Point,
+        bounds: Rect,
+        scene_id: &str,
+    ) -> VizResult<Option<Point>> {
+        let Some(plan) = self.diagram_plan(view, node, source, center, bounds)? else {
+            return Ok(None);
+        };
+        let mut state = self.state.borrow_mut();
+        if state.diagram_nodes.contains_key(scene_id) {
+            return Err(text_layout::error("ambiguous diagram label scene identity"));
+        }
+        state.cache_bytes = state
+            .cache_bytes
+            .checked_add(scene_id.len() + view.len() + node.len() + 128)
+            .filter(|n| *n <= self.limits.max_cache_bytes)
+            .ok_or_else(|| {
+                error(
+                    "0003",
+                    "whole-call text cache limit exceeded by diagram registration",
+                )
+            })?;
+        let position = plan.position;
+        state
+            .diagram_nodes
+            .insert(scene_id.into(), (view.into(), node.into(), plan));
+        Ok(Some(position))
     }
     pub(crate) fn has_category_layout(&self, view: &str) -> bool {
         self.category_targets.contains_key(view)
@@ -945,7 +1222,7 @@ impl TextSession {
                 TextAnchor::Middle,
                 view,
                 &mut ignored_losses,
-                Some(cell),
+                Some([cell[0] + 4., cell[1] - 4.]),
                 Some(&mut raw),
             )?;
             for line in &raw {
@@ -1073,9 +1350,34 @@ impl TextSession {
         max_width: f64,
         view: &str,
     ) -> VizResult<(WrappedOutline, Vec<LossRecord>)> {
-        let (ascent, descent) = self.face_metrics[&400];
-        let ascent = ascent * 10.;
-        let descent = descent * 10.;
+        self.project_centered_lines(
+            lines,
+            source,
+            position,
+            [cell[0] + 4., cell[1] - 4.],
+            max_width,
+            view,
+            10.,
+            FontWeight::Regular,
+            "category",
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn project_centered_lines(
+        &self,
+        lines: &[RawWrappedLine],
+        source: &str,
+        position: Point,
+        horizontal: [f64; 2],
+        max_width: f64,
+        owner: &str,
+        size: f64,
+        weight: FontWeight,
+        role: &str,
+    ) -> VizResult<(WrappedOutline, Vec<LossRecord>)> {
+        let (ascent, descent) = self.face_metrics[&crate::text::weight(weight)];
+        let ascent = ascent * size;
+        let descent = descent * size;
         let mut logical = None;
         let mut commands = Vec::new();
         let mut details = Vec::new();
@@ -1085,9 +1387,9 @@ impl TextSession {
         let mut cursor = 0;
         for line in lines {
             if line.source.start != cursor || line.source.end != line.separator.start {
-                return Err(text_layout::error(
-                    "category source coverage is not contiguous",
-                ));
+                return Err(text_layout::error(format!(
+                    "{role} source coverage is not contiguous"
+                )));
             }
             cursor = line.separator.end;
             let baseline = position.y + line.offset;
@@ -1110,26 +1412,26 @@ impl TextSession {
                 top = top.min(ink.y);
                 bottom = bottom.max(ink.y + ink.height);
             }
-            if right - left > max_width || left < cell[0] + 4. || right > cell[1] - 4. {
-                return Err(text_layout::error(
-                    "serialized category advance/ink exceeds explicit width or its 4px-inset Band cell",
-                ));
+            if right - left > max_width || left < horizontal[0] || right > horizontal[1] {
+                return Err(text_layout::error(format!(
+                    "serialized {role} advance/ink exceeds explicit width or its available interior"
+                )));
             }
             let before = dimensional_contours(&line.run.commands);
             let after = dimensional_contours_grid(&path);
             if before > 0 && after == 0 {
                 return Err(error(
                     "0004",
-                    "category line contours collapse at SVG four-decimal precision",
+                    format!("{role} line contours collapse at SVG four-decimal precision"),
                 ));
             }
             if after < before {
                 losses.push(LossRecord {
-                    source: view.into(),
+                    source: owner.into(),
                     target: "scene2d".into(),
                     fidelity: LoweringFidelity::VisuallyApproximate,
                     reason: format!(
-                        "{} category line sub-contours collapse at four-decimal precision",
+                        "{} {role} line sub-contours collapse at four-decimal precision",
                         before - after
                     ),
                 });
@@ -1138,9 +1440,9 @@ impl TextSession {
                 if let Some(previous) = previous
                     && previous.y + previous.height > ink.y
                 {
-                    return Err(text_layout::error(
-                        "category line ink overlaps; increase explicit line_height",
-                    ));
+                    return Err(text_layout::error(format!(
+                        "{role} line ink overlaps; increase explicit line_height"
+                    )));
                 }
                 previous = Some(ink);
             }
@@ -1166,7 +1468,9 @@ impl TextSession {
             commands.extend(path);
         }
         if cursor != source.len() {
-            return Err(text_layout::error("category source coverage is incomplete"));
+            return Err(text_layout::error(format!(
+                "{role} source coverage is incomplete"
+            )));
         }
         let bounds = path_bounds(&commands);
         Ok((
@@ -1174,7 +1478,7 @@ impl TextSession {
                 commands,
                 bounds,
                 logical: logical.ok_or_else(|| {
-                    text_layout::error("category requires at least one logical line")
+                    text_layout::error(format!("{role} requires at least one logical line"))
                 })?,
                 details: details.join("; "),
                 glyphs,
@@ -1959,7 +2263,7 @@ impl TextSession {
                     }
                     // Bounds include actual cubic extrema of serialized coordinates.
                     if right - left > target.max_width
-                        || cell.is_some_and(|cell| left < cell[0] + 4. || right > cell[1] - 4.)
+                        || cell.is_some_and(|cell| left < cell[0] || right > cell[1])
                     {
                         // Explicit first-overflow greedy policy, not an assumption
                         // that arbitrary shaped prefix widths are monotone.
@@ -2128,6 +2432,7 @@ impl TextSession {
         self.check_targets(&self.state.borrow().used_targets)?;
         self.check_title_targets(&self.state.borrow().used_title_targets)?;
         self.check_category_emission()?;
+        self.check_diagram_targets(&self.state.borrow().used_diagram_targets)?;
         scene.losses.extend(contour_losses);
         scene.losses.push(LossRecord{source:"text".into(),target:"scene2d".into(),fidelity:LoweringFidelity::VisuallyApproximate,reason:"Opt-in measured text was converted to font-independent outlines at SVG four-decimal precision (path coordinates and group-transform scalars round by at most 0.00005; transformed error depends on the transform). Original strings remain in source/MIR; SVG text selection, search and text editing are unavailable.".into()});
         vizir_core::validate_scene(&scene).map_err(|d| VizError::validation(&d))?;
@@ -2191,9 +2496,49 @@ impl TextSession {
         };
         coordinate(position.x)?;
         coordinate(position.y)?;
-        let (commands, bounds, explanation) = if let Some((owner, index, plan)) =
-            self.registered_category(id)
+        let diagram_plan = { self.state.borrow().diagram_nodes.get(id).cloned() };
+        let (commands, bounds, explanation) = if let Some((owner, source_node, plan)) = diagram_plan
         {
+            if owner != view_id
+                || !self
+                    .state
+                    .borrow_mut()
+                    .used_diagram_targets
+                    .insert((owner, source_node))
+            {
+                return Err(text_layout::error(
+                    "diagram label emitted with wrong or repeated semantic owner",
+                ));
+            }
+            if text != &plan.source
+                || *position != plan.position
+                || *font_size != 13.
+                || *weight != FontWeight::Medium
+                || *anchor != TextAnchor::Middle
+                || plan
+                    .raw_lines
+                    .last()
+                    .is_none_or(|line| line.separator.end != text.len())
+            {
+                return Err(text_layout::error(
+                    "diagram emission differs from its measured source node",
+                ));
+            }
+            self.emit_glyphs(plan.block.glyphs)?;
+            contain_exact(plan.block.logical, plan.interior, id)?;
+            let logical = parent.bounds(plan.block.logical)?;
+            contain_exact(logical, frame, id)?;
+            contain_exact(logical, canvas, id)?;
+            contour_losses.extend(plan.losses.clone());
+            (
+                plan.block.commands.clone(),
+                plan.block.bounds,
+                format!(
+                    "exact-face bounded diagram node wrapping {}; fixed 13px Medium; per-line advance centered; full logical/ink block centered before four-decimal projection; source byte coverage [{}]; original text: {text}",
+                    self.layout_profile, plan.block.details
+                ),
+            )
+        } else if let Some((owner, index, plan)) = self.registered_category(id) {
             if owner != view_id
                 || !self
                     .state
@@ -2361,7 +2706,7 @@ fn contain_exact(b: Rect, frame: Rect, id: &str) -> VizResult<()> {
         || b.y + b.height > frame.y + frame.height
     {
         return Err(text_layout::error(format!(
-            "category block {id:?} overflows its serialized view/canvas"
+            "text block {id:?} overflows its serialized container/view/canvas"
         )));
     }
     Ok(())
@@ -3288,5 +3633,125 @@ mod precision_tests {
             }
         }
         panic!("unbounded category cache lookups");
+    }
+    #[test]
+    fn diagram_plan_reuse_is_bounded_and_emission_is_deferred() {
+        let context: TextContext = serde_json::from_str(include_str!(
+            "../../../examples/text/wrapping-font-profile.json"
+        ))
+        .unwrap();
+        let mut resources = FontResources::new();
+        for (face, bytes) in [
+            (
+                &context.faces.regular,
+                include_bytes!(
+                    "../tests/fixtures/wrapping-fonts/VizIRWrappingFixtureSC-Regular.otf"
+                )
+                .as_slice(),
+            ),
+            (
+                &context.faces.medium,
+                include_bytes!(
+                    "../tests/fixtures/wrapping-fonts/VizIRWrappingFixtureSC-Medium.otf"
+                )
+                .as_slice(),
+            ),
+            (
+                &context.faces.bold,
+                include_bytes!("../tests/fixtures/wrapping-fonts/VizIRWrappingFixtureSC-Bold.otf")
+                    .as_slice(),
+            ),
+        ] {
+            resources.insert(&face.sha256, bytes.to_vec()).unwrap();
+        }
+        let layout = TextLayoutContext::new(vec![])
+            .with_diagram_targets(vec![DiagramTextLayoutTarget::new("d", "n", 134., 2, 20.)]);
+        let mut limits = TextLimits::new();
+        limits.max_wrap_candidates = 2;
+        limits.max_layout_lines = 2;
+        let session =
+            TextSession::new_with_layout(&context, &resources, limits, Some(&layout)).unwrap();
+        let center = Point {
+            x: 200.123456,
+            y: 180.654321,
+        };
+        let bounds = Rect {
+            x: center.x - 75.,
+            y: center.y - 31.,
+            width: 150.,
+            height: 62.,
+        };
+        let first = session
+            .diagram_plan("d", "n", "A\nB", center, bounds)
+            .unwrap()
+            .unwrap();
+        let commands = session.state.borrow().emitted_commands;
+        let second = session
+            .diagram_plan("d", "n", "A\nB", center, bounds)
+            .unwrap()
+            .unwrap();
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(session.state.borrow().layout_lines, 2);
+        assert_eq!(session.state.borrow().wrap_candidates, 2);
+        assert_eq!(session.state.borrow().emitted_glyphs, 0);
+        assert_eq!(session.state.borrow().emitted_commands, commands);
+        let position = session
+            .register_diagram_label("d", "n", "A\nB", center, bounds, "opaque-label")
+            .unwrap()
+            .unwrap();
+        let origin = vizir_core::Origin {
+            hir_node: "n".into(),
+            mir_node: "n".into(),
+            data_key: None,
+            data_lineage: vec![],
+            generated_by: "test".into(),
+            explanation: "semantic role test".into(),
+        };
+        let label = SceneNode::Text {
+            id: "opaque-label".into(),
+            bounds: Rect::default(),
+            origin: origin.clone(),
+            position,
+            text: "A\nB".into(),
+            font_size: 13.,
+            anchor: TextAnchor::Middle,
+            color: Color::hex("#000000"),
+            weight: FontWeight::Medium,
+        };
+        let scene = Scene2D {
+            document_id: "test".into(),
+            width: 600.,
+            height: 400.,
+            background: Color::transparent(),
+            nodes: vec![SceneNode::Group {
+                id: "d".into(),
+                bounds: Rect {
+                    x: 0.,
+                    y: 0.,
+                    width: 600.,
+                    height: 400.,
+                },
+                origin,
+                transform: Transform2D::default(),
+                opacity: 1.,
+                children: vec![label],
+            }],
+            losses: vec![],
+        };
+        let scene = session.outline_scene(scene).unwrap();
+        assert!(
+            matches!(&scene.nodes[0], SceneNode::Group { children, .. } if matches!(&children[0], SceneNode::Path { id, .. } if id == "opaque-label"))
+        );
+        assert_eq!(session.state.borrow().emitted_glyphs, 2);
+        assert_eq!(session.state.borrow().emitted_commands, commands);
+        for _ in 0..4096 {
+            if session
+                .diagram_plan("d", "n", "A\nB", center, bounds)
+                .is_err()
+            {
+                return;
+            }
+        }
+        panic!("unbounded diagram cache lookups");
     }
 }

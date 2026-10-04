@@ -347,3 +347,11 @@ and [versioned policy/CLI instructions](docs/wrapping.md#semantic-chart-titles-v
 fixed10px text, measured per-cell wrapping and bottom allocation before ranges.
 Values and domain order remain unchanged. See [the two-panel category example](examples/composition/wrapped-bar-categories.compose.yaml)
 and [the versioned policy contract](docs/wrapping.md#bar-category-labels-vizir-text-wrap3).
+
+### Selected diagram node labels
+
+`vizir-text-wrap/4` selects exact source diagram nodes. Fixed 13px Medium labels
+wrap and center their complete measured blocks inside the existing nodes.
+See [the mixed-role composition](examples/composition/wrapped-diagram-nodes.compose.yaml),
+[explicit policy](examples/text/diagram-node-layout.json), and
+[wrapping contract](docs/wrapping.md#selected-diagram-node-labels-vizir-text-wrap4).
