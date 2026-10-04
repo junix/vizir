@@ -97,8 +97,29 @@ pub fn diff_scene(
             losses: next.losses.clone(),
         });
     }
+    let mut previous_parents = BTreeMap::new();
+    let mut next_parents = BTreeMap::new();
+    collect_parents(&previous.nodes, None, &mut previous_parents);
+    collect_parents(&next.nodes, None, &mut next_parents);
+    let moved = previous_parents
+        .iter()
+        .filter(|(id, parent)| next_parents.get(*id).is_some_and(|next| next != *parent))
+        .map(|(id, _)| *id)
+        .collect::<BTreeSet<_>>();
+
+    // Release cross-parent IDs before any insert or whole-subtree replacement.
+    // Diff against the pruned tree so moved descendants are not removed twice,
+    // and insertion indices and sibling reorders describe the actual state.
+    let mut detached;
+    let previous_nodes = if moved.is_empty() {
+        &previous.nodes
+    } else {
+        detached = previous.nodes.clone();
+        detach_moved_nodes(&mut detached, &moved, &mut operations);
+        &detached
+    };
     diff_children(
-        &previous.nodes,
+        previous_nodes,
         &next.nodes,
         SceneParent::Root,
         &mut operations,
@@ -163,6 +184,37 @@ pub fn scene_patch_schema() -> serde_json::Value {
             serde_json::Value::String("https://json-schema.org/draft/2020-12/schema".to_owned()),
         );
     schema
+}
+
+fn collect_parents<'a>(
+    nodes: &'a [SceneNode],
+    parent: Option<&'a str>,
+    parents: &mut BTreeMap<&'a str, Option<&'a str>>,
+) {
+    for node in nodes {
+        parents.insert(node.id(), parent);
+        collect_parents(node.children(), Some(node.id()), parents);
+    }
+}
+
+fn detach_moved_nodes(
+    nodes: &mut Vec<SceneNode>,
+    moved: &BTreeSet<&str>,
+    operations: &mut Vec<SceneOp>,
+) {
+    nodes.retain_mut(|node| {
+        if moved.contains(node.id()) {
+            operations.push(SceneOp::RemoveNode {
+                id: node.id().to_owned(),
+            });
+            // Removing an ancestor already releases all of its descendants.
+            return false;
+        }
+        if let SceneNode::Group { children, .. } = node {
+            detach_moved_nodes(children, moved, operations);
+        }
+        true
+    });
 }
 
 fn diff_children(
