@@ -6,8 +6,9 @@ including text nested in geometry groups. It does not change HIR, MIR, Scene2D,
 the legacy themed envelope, or output from compilation without this policy.
 Under v1, charts, chart titles, axes, legends, diagram labels, and generated
 labels retain the existing measured single-line behavior. The separate v2
-profile below opts supported chart titles into wrapping; it does not reinterpret
-or add fields to the frozen v1 wire shape.
+profile below opts supported chart titles into wrapping. V3 adds bar category
+labels. Neither extension reinterprets or adds fields to the frozen v1 wire
+shape, and v3 does not widen the published v2 chart-title contract.
 
 ## Policy and exact identities
 
@@ -122,10 +123,103 @@ lines and separators. SVG and PNG consume that same outline. There are no new
 line IDs or renderer-native multiline text nodes.
 
 The CLI flag, measured-text profile, and replay commands below are shared by
-both versions. An equal repeated policy is accepted on replay; adding or
+all versions. An equal repeated policy is accepted on replay; adding or
 changing semantic targets, widths, line counts, or line heights requires
 compiling the original HIR again. Refresh retains the persisted policy and
 layout allocation.
+
+## Bar category labels: `vizir-text-wrap/3`
+
+V3 adds `bar.category_labels`, selected by the original `chart.bar` view ID:
+
+```json
+{
+  "profile": "vizir-text-wrap/3",
+  "engine": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+  "targets": [],
+  "semantic_targets": [
+    {
+      "view_id": "sales",
+      "role": "bar.category_labels",
+      "max_width": 90,
+      "max_lines": 12,
+      "line_height": 16
+    }
+  ]
+}
+```
+
+V3 requires a present, non-null, nonempty `semantic_targets` array containing
+at least one `bar.category_labels` target. It can also include `chart.title`
+targets and v1 geometry targets. V2 continues to accept only `chart.title`;
+putting the new role into v2 fails in generic deserialization, validation, and
+the compiled schema. Neither an existing constructor nor a role's contents
+implicitly upgrades a policy. The published closed v1/v2 schema branches and
+their referenced role/target definitions remain unchanged. V3 has a separate
+closed branch with independently capped arrays; executable validation enforces
+the combined 256-target cap without generating 256 schema branches.
+
+One category target covers the complete, nonempty actual `Band` domain of its
+source bar category binding, in its preserved order. It includes valid domain
+values that currently have no rows. The unique bottom axis must reference that
+same category binding. Missing/duplicate axes, mismatched bindings, invalid or
+empty domains, wrong view kinds, and unresolved targets fail. Resolution uses
+source semantics; generated IDs and string matching do not select labels.
+The source field, domain order, row keys, and existing category node IDs remain
+unchanged. Line breaks become legal only at that selected category use. The
+same field used as a color legend or in another untargeted view retains the
+single-line contract and rejects hard breaks.
+
+Every targeted label retains a middle anchor at its existing band-cell center,
+with the exact Regular face at 10px regardless of category count. Every line's
+actual advance-plus-ink envelope must fit both the explicit `max_width` and its
+own cell with 4px clearance on each side. The compiler does not silently clamp
+width, shrink fonts, drop labels, rotate them, or iteratively retry layout.
+
+
+For `bar.category_labels`, `max_width` is a maximum, not a promised line width.
+Legal breakpoints are selected within both the authored maximum and the usable
+Band cell after its 4px side gaps. Thus a maximum larger than the cell still
+permits ordinary available-space wrapping; a smaller maximum wraps earlier.
+The persisted authored number is never clamped or rewritten. Actual projected
+advance-plus-ink intervals must also fit both sides of each cell, including
+asymmetric bearings under the Middle anchor. An unbreakable segment that cannot
+fit either constraint fails; the compiler never shrinks, truncates, or splits
+it at an emergency glyph boundary.
+
+Header and numeric-axis allocation establish the horizontal plot range first.
+The full category blocks then reserve bottom space before final vertical
+ranges are selected. Blank and terminal lines count in this reservation.
+Category blocks have an 8px gap below the plot and an 8px gap above the actual
+logical/ink top of the existing x-axis title envelope, including an empty
+logical title. The first category baseline uses measured maximum ascent, and
+the existing 62px bottom allocation remains a floor. Font metrics and complete
+emitted ink participate in allocation;
+`line_height` must cover the Regular face's scaled ascent and descent. At least
+64px of plot width and height must remain, and existing numeric tick, frame,
+and canvas checks still apply.
+
+Let `T` and `B` be the minimum top and maximum bottom of the complete raw
+category blocks relative to their first baseline, and let `H = B - T`.
+Let `A` be the x-axis title's actual logical/ink top at its unchanged baseline
+`frame.y + frame.height - 16`, and let `C = 0.0001`.
+The final plot bottom is
+`min(frame.y + frame.height - 62, A - 8 - H - 8 - 2*C)`.
+The first category baseline is `plot_bottom + 8 - T + C`.
+
+Final lines are reprojected from their original shaped runs into the allocated
+coordinates. The 0.0001px vertical serialized-coordinate clearance protects
+each boundary projection, followed by exact final fit and collision checks.
+This is not a fitting tolerance or permission for overlap. SVG and PNG consume the
+same complete outline under each existing category ID; provenance retains the
+original UTF-8 source, visual-line and separator byte ranges, and baselines.
+The first-overflow greedy rule, grapheme boundaries, engine identity, and all
+other wrapping limits below are shared with v1/v2.
+
+Replay and materialization refresh retain the persisted category policy and
+scale ranges. A refreshed complete domain must still fit those ranges; refresh
+cannot reflow or enlarge the plot. Adding targets, changing the policy or
+requesting new layout allocation requires the original HIR.
 
 ## CLI and durable replay
 
@@ -230,7 +324,7 @@ existing loss of selectable/searchable/editable SVG text.
 
 A policy must contain 1–256 targets in total across geometry and semantic
 arrays. V1 requires at least one geometry target; v2 requires at least one
-semantic target. Each source ID contains 1–256 UTF-8 bytes.
+semantic target, while v3 requires at least one bar-category target. Each source ID contains 1–256 UTF-8 bytes.
 `max_width` and `line_height` must be finite values in 0.25–1,000,000;
 `max_lines` is an integer in 1–256. JSON Schema can bound ID character length,
 and independently bound each target array; executable validation additionally
@@ -268,6 +362,14 @@ geometry policy retains its geometry targets. `semantic_targets` is
 `Option<Vec<SemanticTextLayoutTarget>>`; only `None` is omitted, and a present
 JSON null is rejected. The public structs and role enum are non-exhaustive and
 retain `PartialEq`; the existing `TextContext` keeps its `Eq` contract.
+
+`SemanticTextLayoutTarget::bar_category_labels(view_id, max_width, max_lines, line_height)`
+constructs a target with `TextLayoutRole::BarCategoryLabels` (wire spelling
+`bar.category_labels`). `TextLayoutContext::new(vec![]).with_category_labels(targets)`
+explicitly selects `TEXT_LAYOUT_CATEGORY_PROFILE` (`vizir-text-wrap/3`) and
+retains any geometry targets. The supplied vector can mix category and title
+roles but must contain a category role. `with_semantic_targets` always selects
+v2, even when called on a v3 context, and category roles then fail validation.
 
 Add the policy with
 `CompilationContext::new().with_text(text).with_text_layout(layout)`, then use
@@ -336,4 +438,30 @@ vizir render /tmp/vizir-chart-titles/compiled.json --format svg \
 vizir render /tmp/vizir-chart-titles/compiled.json --format png --background transparent \
   --font "$REGULAR" --font "$MEDIUM" --font "$BOLD" \
   -o /tmp/vizir-chart-titles/titles.png
+```
+
+## Executable category dashboard
+
+[wrapped-bar-categories.compose.yaml](../examples/composition/wrapped-bar-categories.compose.yaml)
+uses [bar-category-layout.json](../examples/text/bar-category-layout.json) and the
+same supplied wrapping font profile as the examples above. It shows ten
+categories at fixed10px, separate title blocks, Chinese punctuation, Latin
+ligatures/accents, retained whitespace and blank/terminal category lines.
+With the REGULAR, MEDIUM and BOLD explicit font mappings defined above:
+
+```sh
+mkdir -p /tmp/vizir-bar-categories
+vizir compose examples/composition/wrapped-bar-categories.compose.yaml \
+  -o /tmp/vizir-bar-categories/source.json
+vizir normalize /tmp/vizir-bar-categories/source.json --theme azure \
+  --text-profile examples/text/wrapping-font-profile.json \
+  --text-layout examples/text/bar-category-layout.json \
+  --font "$REGULAR" --font "$MEDIUM" --font "$BOLD" \
+  -o /tmp/vizir-bar-categories/compiled.json
+vizir render /tmp/vizir-bar-categories/compiled.json --format svg \
+  --font "$REGULAR" --font "$MEDIUM" --font "$BOLD" \
+  -o /tmp/vizir-bar-categories/categories.svg
+vizir render /tmp/vizir-bar-categories/compiled.json --format png --background transparent \
+  --font "$REGULAR" --font "$MEDIUM" --font "$BOLD" \
+  -o /tmp/vizir-bar-categories/categories.png
 ```

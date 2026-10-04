@@ -7,6 +7,7 @@ use vizir_core::{VizError, VizResult};
 
 pub const TEXT_LAYOUT_PROFILE: &str = "vizir-text-wrap/1";
 pub const TEXT_LAYOUT_SEMANTIC_PROFILE: &str = "vizir-text-wrap/2";
+pub const TEXT_LAYOUT_CATEGORY_PROFILE: &str = "vizir-text-wrap/3";
 pub const TEXT_LAYOUT_ENGINE: &str =
     "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)";
 pub(crate) const MAX_LINES: usize = 256;
@@ -53,6 +54,8 @@ impl TextLayoutTarget {
 pub enum TextLayoutRole {
     #[serde(rename = "chart.title")]
     ChartTitle,
+    #[serde(rename = "bar.category_labels")]
+    BarCategoryLabels,
 }
 
 #[non_exhaustive]
@@ -76,6 +79,21 @@ impl SemanticTextLayoutTarget {
         Self {
             view_id: view_id.into(),
             role: TextLayoutRole::ChartTitle,
+            max_width,
+            max_lines,
+            line_height,
+        }
+    }
+
+    pub fn bar_category_labels(
+        view_id: impl Into<String>,
+        max_width: f64,
+        max_lines: u32,
+        line_height: f64,
+    ) -> Self {
+        Self {
+            view_id: view_id.into(),
+            role: TextLayoutRole::BarCategoryLabels,
             max_width,
             max_lines,
             line_height,
@@ -144,10 +162,18 @@ impl TextLayoutContext {
         self
     }
 
+    /// Opt into v3 explicitly, retaining any geometry targets already supplied.
+    /// The supplied semantic targets must include at least one category role.
+    pub fn with_category_labels(mut self, targets: Vec<SemanticTextLayoutTarget>) -> Self {
+        self.profile = TEXT_LAYOUT_CATEGORY_PROFILE.into();
+        self.semantic_targets = Some(targets);
+        self
+    }
+
     pub fn validate(&self) -> VizResult<()> {
         if !matches!(
             self.profile.as_str(),
-            TEXT_LAYOUT_PROFILE | TEXT_LAYOUT_SEMANTIC_PROFILE
+            TEXT_LAYOUT_PROFILE | TEXT_LAYOUT_SEMANTIC_PROFILE | TEXT_LAYOUT_CATEGORY_PROFILE
         ) || self.engine != TEXT_LAYOUT_ENGINE
         {
             return Err(error(
@@ -193,6 +219,33 @@ impl TextLayoutContext {
             {
                 return Err(error(
                     "vizir-text-wrap/2 requires nonempty semantic_targets",
+                ));
+            }
+            TEXT_LAYOUT_SEMANTIC_PROFILE
+                if self.semantic_targets.as_ref().is_some_and(|targets| {
+                    targets
+                        .iter()
+                        .any(|target| target.role != TextLayoutRole::ChartTitle)
+                }) =>
+            {
+                return Err(error("vizir-text-wrap/2 supports only chart.title targets"));
+            }
+            TEXT_LAYOUT_CATEGORY_PROFILE
+                if self.semantic_targets.as_ref().is_none_or(Vec::is_empty) =>
+            {
+                return Err(error(
+                    "vizir-text-wrap/3 requires nonempty semantic_targets",
+                ));
+            }
+            TEXT_LAYOUT_CATEGORY_PROFILE
+                if !self.semantic_targets.as_ref().is_some_and(|targets| {
+                    targets
+                        .iter()
+                        .any(|target| target.role == TextLayoutRole::BarCategoryLabels)
+                }) =>
+            {
+                return Err(error(
+                    "vizir-text-wrap/3 requires a bar.category_labels target",
                 ));
             }
             _ => {}

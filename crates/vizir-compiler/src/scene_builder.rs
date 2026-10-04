@@ -128,8 +128,20 @@ fn build_chart(
         Some((_, MirScale::Band { domain, .. })) => domain.as_slice(),
         _ => &[],
     };
+    let category_range = text
+        .map(|text| text.category_band_range(chart))
+        .transpose()?
+        .flatten();
     let layout = layout
-        .with_categories(&chart.id, categories, text)
+        .with_categories(
+            &chart.id,
+            chart.frame,
+            categories,
+            guides.bottom.map(|(guide, _)| guide.label.as_str()),
+            ticks.as_ref(),
+            text,
+            category_range,
+        )
         .map_err(VizError::Diagnostic)?;
     let plot = layout.plot;
     let (x_range, y_range) = match &chart.mark {
@@ -171,7 +183,8 @@ fn build_chart(
         &guides,
         ticks.as_ref(),
         defaults,
-    ));
+        text,
+    )?);
     match materialized {
         ChartMark::Symbol {
             id: mark_id,
@@ -537,7 +550,8 @@ fn build_grid_and_axes(
     guides: &ChartGuides<'_>,
     ticks: Option<&NumericTickLabels>,
     defaults: Option<&ResolvedThemeDefaults>,
-) -> Vec<SceneNode> {
+    text: Option<&TextSession>,
+) -> VizResult<Vec<SceneNode>> {
     let mut nodes = Vec::new();
     let x_scale = guides.bottom.map(|(_, scale)| scale);
     let y_scale = guides.left.map(|(_, scale)| scale);
@@ -588,14 +602,18 @@ fn build_grid_and_axes(
         let step = (range[1] - range[0]) / domain.len().max(1) as f64;
         let font_size = if domain.len() > 8 { 8.2 } else { 10.0 };
         for (index, category) in domain.iter().enumerate() {
-            nodes.push(text_node(
+            let placement = text
+                .map(|text| text.category_position(&chart.id, index))
+                .transpose()?
+                .flatten();
+            let node = text_node(
                 format!("{}/axis/x/category/{index}", chart.id),
-                Point {
+                placement.unwrap_or(Point {
                     x: range[0] + step * (index as f64 + 0.5),
                     y: plot[3] + 20.0,
-                },
+                }),
                 category.clone(),
-                font_size,
+                if placement.is_some() { 10.0 } else { font_size },
                 TextAnchor::Middle,
                 defaults
                     .map(|d| d.muted.clone())
@@ -603,7 +621,11 @@ fn build_grid_and_axes(
                 FontWeight::Regular,
                 &chart.id,
                 "category label generated from band scale domain",
-            ));
+            );
+            if let Some(text) = text {
+                text.register_category_node(&chart.id, index, &node)?;
+            }
+            nodes.push(node);
         }
     }
     if x_scale.is_some() {
@@ -731,7 +753,7 @@ fn build_grid_and_axes(
         }
     }
 
-    nodes
+    Ok(nodes)
 }
 
 fn build_legend(

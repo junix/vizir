@@ -117,12 +117,39 @@ impl ChartLayout {
         Ok(self)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn with_categories(
-        self,
+        mut self,
         id: &str,
+        frame: Frame,
         labels: &[String],
+        x_title: Option<&str>,
+        ticks: Option<&NumericTickLabels>,
         text: Option<&TextSession>,
+        actual_range: Option<[f64; 2]>,
     ) -> Result<Self, String> {
+        if let Some(text) = text
+            && text.has_category_layout(id)
+        {
+            let mut anchors = self.plot;
+            if let Some(range) = actual_range {
+                anchors[0] = range[0];
+                anchors[2] = range[1];
+            }
+            let allocation = text
+                .category_allocation(id, frame, anchors, labels, x_title.unwrap_or_default())
+                .map_err(|e| e.to_string())?
+                .expect("selected category role");
+            self.plot[3] = allocation.plot_bottom;
+            // The reduced vertical plot must still fit every unchanged numeric tick.
+            self = self.with_numeric_ticks_and_text(id, frame, x_title, ticks, Some(text))?;
+            if self.plot[3] - self.plot[1] < 64. {
+                return Err(format!(
+                    "VIZ-LAYOUT-0006: chart {id:?} cannot fit wrapped categories and a 64px plot; compile original HIR with a larger frame"
+                ));
+            }
+            return Ok(self);
+        }
         if let Some(text) = text {
             let step = (self.plot[2] - self.plot[0]) / labels.len().max(1) as f64;
             let size = if labels.len() > 8 { 8.2 } else { 10.0 };

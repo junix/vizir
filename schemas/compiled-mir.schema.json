@@ -1,5 +1,102 @@
 {
   "$defs": {
+    "CategorySemanticTextLayoutTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "line_height": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "max_lines": {
+          "format": "uint32",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_width": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "role": {
+          "$ref": "#/$defs/CategoryTextLayoutRole"
+        },
+        "view_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_id",
+        "role",
+        "max_width",
+        "max_lines",
+        "line_height"
+      ],
+      "type": "object"
+    },
+    "CategoryTextLayoutContext": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+          "type": "string"
+        },
+        "profile": {
+          "const": "vizir-text-wrap/3",
+          "type": "string"
+        },
+        "semantic_targets": {
+          "contains": {
+            "additionalProperties": true,
+            "properties": {
+              "role": {
+                "const": "bar.category_labels"
+              }
+            },
+            "required": [
+              "role"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "$ref": "#/$defs/CategorySemanticTextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "targets",
+        "semantic_targets"
+      ],
+      "type": "object"
+    },
+    "CategoryTextLayoutRole": {
+      "description": "A supported semantic text slot, resolved against original source fields.",
+      "enum": [
+        "chart.title",
+        "bar.category_labels"
+      ],
+      "type": "string"
+    },
     "ChartMark": {
       "oneOf": [
         {
@@ -2156,6 +2253,9 @@
         },
         {
           "$ref": "#/$defs/SemanticTextLayoutContext"
+        },
+        {
+          "$ref": "#/$defs/CategoryTextLayoutContext"
         }
       ]
     },

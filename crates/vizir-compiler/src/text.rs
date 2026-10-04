@@ -22,7 +22,9 @@ use vizir_core::{
     Scene2D, SceneNode, TextAnchor, Transform2D, VizError, VizResult,
 };
 
-use crate::text_layout::{self, SemanticTextLayoutTarget, TextLayoutContext, TextLayoutTarget};
+use crate::text_layout::{
+    self, SemanticTextLayoutTarget, TextLayoutContext, TextLayoutRole, TextLayoutTarget,
+};
 
 pub const TEXT_PROFILE: &str = "vizir-text-outlines/1";
 pub const TEXT_ENGINE: &str = "cosmic-text/0.19.0;harfrust/0.5.2;skrifa/0.40.0";
@@ -282,6 +284,12 @@ impl Run {
             .max(self.bounds.x + self.bounds.width - center)
     }
 }
+struct RawWrappedLine {
+    source: std::ops::Range<usize>,
+    separator: std::ops::Range<usize>,
+    offset: f64,
+    run: Arc<Run>,
+}
 struct WrappedLine {
     source: std::ops::Range<usize>,
     separator: std::ops::Range<usize>,
@@ -326,6 +334,31 @@ struct TitlePlan {
     block: WrappedOutline,
     losses: Vec<LossRecord>,
 }
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct CategoryPlanKey {
+    view: String,
+    sources: Vec<String>,
+    axis_title: String,
+    text_identity: String,
+    layout_profile: String,
+    dimensions: [u64; 10],
+    max_lines: u32,
+}
+struct CategoryBlock {
+    source: String,
+    raw_lines: Vec<RawWrappedLine>,
+    outline: WrappedOutline,
+    position: Point,
+    cell: [f64; 2],
+    losses: Vec<LossRecord>,
+}
+struct CategoryPlan {
+    blocks: Vec<CategoryBlock>,
+    plot_bottom: f64,
+}
+pub(crate) struct CategoryAllocation {
+    pub plot_bottom: f64,
+}
 struct State {
     system: FontSystem,
     selected: BTreeMap<u16, (fontdb::ID, String, u16)>,
@@ -344,6 +377,10 @@ struct State {
     title_plans: BTreeMap<TitlePlanKey, Arc<TitlePlan>>,
     title_nodes: BTreeMap<String, (String, Arc<TitlePlan>)>,
     used_title_targets: BTreeSet<String>,
+    category_plans: BTreeMap<CategoryPlanKey, Arc<CategoryPlan>>,
+    category_views: BTreeMap<String, Arc<CategoryPlan>>,
+    category_nodes: BTreeMap<String, (String, usize, Arc<CategoryPlan>)>,
+    used_categories: BTreeMap<String, BTreeSet<usize>>,
 }
 pub(crate) struct TextSession {
     limits: TextLimits,
@@ -351,6 +388,7 @@ pub(crate) struct TextSession {
     targets: BTreeMap<String, BTreeMap<String, TextLayoutTarget>>,
     face_metrics: BTreeMap<u16, (f64, f64)>,
     title_targets: BTreeMap<String, SemanticTextLayoutTarget>,
+    category_targets: BTreeMap<String, SemanticTextLayoutTarget>,
     text_identity: String,
     layout_profile: String,
 }
@@ -363,12 +401,20 @@ impl TextSession {
     ) -> VizResult<Self> {
         context.validate()?;
         let mut title_targets = BTreeMap::new();
+        let mut category_targets = BTreeMap::new();
         let mut targets: BTreeMap<String, BTreeMap<String, TextLayoutTarget>> = BTreeMap::new();
         if let Some(layout) = layout {
             layout.validate()?;
             if let Some(semantic) = &layout.semantic_targets {
                 for t in semantic {
-                    title_targets.insert(t.view_id.clone(), t.clone());
+                    match t.role {
+                        TextLayoutRole::ChartTitle => {
+                            title_targets.insert(t.view_id.clone(), t.clone());
+                        }
+                        TextLayoutRole::BarCategoryLabels => {
+                            category_targets.insert(t.view_id.clone(), t.clone());
+                        }
+                    }
                 }
             }
             for t in &layout.targets {
@@ -470,6 +516,7 @@ impl TextSession {
             targets,
             face_metrics,
             title_targets,
+            category_targets,
             text_identity: digest(&serde_json::to_vec(context)?),
             layout_profile: layout.map(|l| l.profile.clone()).unwrap_or_default(),
             state: RefCell::new(State {
@@ -490,6 +537,10 @@ impl TextSession {
                 title_plans: BTreeMap::new(),
                 title_nodes: BTreeMap::new(),
                 used_title_targets: BTreeSet::new(),
+                category_plans: BTreeMap::new(),
+                category_views: BTreeMap::new(),
+                category_nodes: BTreeMap::new(),
+                used_categories: BTreeMap::new(),
             }),
         })
     }
@@ -498,6 +549,7 @@ impl TextSession {
         let mut geometry = Vec::new();
         let mut found_targets = BTreeSet::new();
         let mut found_titles = BTreeSet::new();
+        let mut found_categories = BTreeSet::new();
         for view in &document.views {
             match view {
                 vizir_core::View::Scatter(c) => {
@@ -547,14 +599,23 @@ impl TextSession {
                     )?;
                     strings.add(c.category.label.as_deref().unwrap_or(&c.category.field))?;
                     strings.add(c.value.label.as_deref().unwrap_or(&c.value.field))?;
+                    let category_target = self.category_targets.get(&c.id);
+                    if category_target.is_some() && !found_categories.insert(c.id.clone()) {
+                        return Err(text_layout::error(
+                            "ambiguous bar.category_labels source view",
+                        ));
+                    }
                     if let Some(data) = document.datasets.get(&c.dataset) {
                         for row in &data.rows {
-                            for field in std::iter::once(&c.category.field)
-                                .chain(c.color.as_ref().map(|c| &c.field))
+                            if let Some(serde_json::Value::String(s)) = row.get(&c.category.field) {
+                                strings.add_scoped(s, category_target.map(|t| t.max_lines))?;
+                            }
+                            // A shared category/color field still has an independent
+                            // untargeted legend use; wrapping permission is not global.
+                            if let Some(color) = &c.color
+                                && let Some(serde_json::Value::String(s)) = row.get(&color.field)
                             {
-                                if let Some(serde_json::Value::String(s)) = row.get(field) {
-                                    strings.add(s)?;
-                                }
+                                strings.add(s)?;
                             }
                         }
                     }
@@ -607,6 +668,7 @@ impl TextSession {
         }
         self.check_targets(&found_targets)?;
         self.check_title_targets(&found_titles)?;
+        self.check_category_targets(&found_categories)?;
         Ok(())
     }
     pub(crate) fn preflight_mir(&self, mir: &vizir_core::VizMir) -> VizResult<()> {
@@ -614,6 +676,7 @@ impl TextSession {
         let mut geometry = Vec::new();
         let mut found_targets = BTreeSet::new();
         let mut found_titles = BTreeSet::new();
+        let mut found_categories = BTreeSet::new();
         for view in &mir.views {
             match view {
                 vizir_core::MirView::Chart(c) => {
@@ -626,8 +689,25 @@ impl TextSession {
                     for guide in &c.guides {
                         strings.add(&guide.label)?;
                     }
+                    let category_scale = self.category_scale(c)?;
+                    if category_scale.is_some() && !found_categories.insert(c.id.clone()) {
+                        return Err(text_layout::error(
+                            "ambiguous bar.category_labels source view",
+                        ));
+                    }
                     for scale in &c.scales {
                         match scale {
+                            vizir_core::MirScale::Band { domain, .. }
+                                if category_scale
+                                    .is_some_and(|selected| selected.id() == scale.id()) =>
+                            {
+                                for label in domain {
+                                    strings.add_scoped(
+                                        label,
+                                        self.category_targets.get(&c.id).map(|t| t.max_lines),
+                                    )?;
+                                }
+                            }
                             vizir_core::MirScale::Band { domain, .. }
                             | vizir_core::MirScale::OrdinalColor { domain, .. } => {
                                 strings.add_all(domain.iter().map(String::as_str))?
@@ -684,8 +764,525 @@ impl TextSession {
         }
         self.check_targets(&found_targets)?;
         self.check_title_targets(&found_titles)?;
+        self.check_category_targets(&found_categories)?;
         Ok(())
     }
+    pub(crate) fn has_category_layout(&self, view: &str) -> bool {
+        self.category_targets.contains_key(view)
+    }
+    fn check_category_targets(&self, found: &BTreeSet<String>) -> VizResult<()> {
+        for view in self.category_targets.keys() {
+            if !found.contains(view) {
+                return Err(text_layout::error(format!(
+                    "bar.category_labels target {view:?} must resolve to one bar source view"
+                )));
+            }
+        }
+        Ok(())
+    }
+    fn category_scale<'a>(
+        &self,
+        chart: &'a vizir_core::MirChart,
+    ) -> VizResult<Option<&'a vizir_core::MirScale>> {
+        if !self.has_category_layout(&chart.id) {
+            return Ok(None);
+        }
+        let vizir_core::ChartMark::Bar { category, .. } = &chart.mark else {
+            return Err(text_layout::error(
+                "bar.category_labels requires a bar mark",
+            ));
+        };
+        let bottom: Vec<_> = chart
+            .guides
+            .iter()
+            .filter(|g| {
+                g.kind == vizir_core::GuideKind::Axis && g.orient == vizir_core::GuideOrient::Bottom
+            })
+            .collect();
+        if bottom.len() != 1 || bottom[0].scale != category.scale {
+            return Err(text_layout::error(
+                "bar.category_labels requires the unique bottom Axis to reference the bar category binding",
+            ));
+        }
+        let scale = chart
+            .scales
+            .iter()
+            .find(|s| s.id() == category.scale)
+            .ok_or_else(|| text_layout::error("bar category scale is missing"))?;
+        if !matches!(scale, vizir_core::MirScale::Band {domain,..} if !domain.is_empty()) {
+            return Err(text_layout::error(
+                "bar.category_labels requires a nonempty actual Band domain",
+            ));
+        }
+        Ok(Some(scale))
+    }
+    pub(crate) fn category_band_range(
+        &self,
+        chart: &vizir_core::MirChart,
+    ) -> VizResult<Option<[f64; 2]>> {
+        Ok(self.category_scale(chart)?.and_then(|s| match s {
+            vizir_core::MirScale::Band { range, .. } => Some(*range),
+            _ => None,
+        }))
+    }
+    pub(crate) fn category_allocation(
+        &self,
+        view: &str,
+        frame: vizir_core::Frame,
+        plot: [f64; 4],
+        labels: &[String],
+        axis_title: &str,
+    ) -> VizResult<Option<CategoryAllocation>> {
+        let Some(target) = self.category_targets.get(view) else {
+            return Ok(None);
+        };
+        if labels.is_empty() {
+            return Err(text_layout::error(
+                "bar.category_labels requires a nonempty actual Band domain",
+            ));
+        }
+        if labels.len() > self.limits.max_layout_lines || labels.len() > self.limits.max_labels {
+            return Err(error(
+                "0003",
+                "category domain exceeds whole-call line/label budget before allocation",
+            ));
+        }
+        let bytes = labels
+            .iter()
+            .try_fold(0usize, |n, s| n.checked_add(s.len()))
+            .ok_or_else(|| error("0003", "category source byte overflow"))?;
+        {
+            let mut state = self.state.borrow_mut();
+            state.labels = state
+                .labels
+                .checked_add(1)
+                .filter(|n| *n <= self.limits.max_labels)
+                .ok_or_else(|| {
+                    error(
+                        "0003",
+                        "whole-call label operation limit exceeded by category lookup",
+                    )
+                })?;
+            state.text_bytes = state
+                .text_bytes
+                .checked_add(bytes)
+                .filter(|n| *n <= self.limits.max_text_bytes)
+                .ok_or_else(|| {
+                    error(
+                        "0003",
+                        "whole-call text byte limit exceeded by category lookup",
+                    )
+                })?;
+        }
+        let key = CategoryPlanKey {
+            view: view.into(),
+            sources: labels.to_vec(),
+            axis_title: axis_title.into(),
+            text_identity: self.text_identity.clone(),
+            layout_profile: self.layout_profile.clone(),
+            dimensions: [
+                frame.x.to_bits(),
+                frame.y.to_bits(),
+                frame.width.to_bits(),
+                frame.height.to_bits(),
+                plot[0].to_bits(),
+                plot[1].to_bits(),
+                plot[2].to_bits(),
+                plot[3].to_bits(),
+                target.max_width.to_bits(),
+                target.line_height.to_bits(),
+            ],
+            max_lines: target.max_lines,
+        };
+        let cached = { self.state.borrow().category_plans.get(&key).cloned() };
+        if let Some(plan) = cached {
+            let result = CategoryAllocation {
+                plot_bottom: plan.plot_bottom,
+            };
+            // Same source view is checked again in Scene construction; preserve the
+            // exact stored Band endpoints used by that lookup.
+            self.state
+                .borrow_mut()
+                .category_views
+                .insert(view.into(), plan);
+            return Ok(Some(result));
+        }
+        let step = (plot[2] - plot[0]) / labels.len() as f64;
+        if !step.is_finite() || step <= 8. {
+            return Err(text_layout::error(
+                "category bands must leave a positive interior after two 4px side gaps",
+            ));
+        }
+        let target = TextLayoutTarget::new(
+            view,
+            "bar.category_labels",
+            target.max_width,
+            target.max_lines,
+            target.line_height,
+        );
+        let (ascent, descent) = self.face_metrics[&400];
+        let ascent = ascent * 10.;
+        let descent = descent * 10.;
+        let mut raw_blocks = Vec::with_capacity(labels.len());
+        let mut minimum = f64::INFINITY;
+        let mut maximum = f64::NEG_INFINITY;
+        for (i, source) in labels.iter().enumerate() {
+            let x = plot[0] + step * (i as f64 + 0.5);
+            let cell = [
+                svg_number(plot[0] + step * i as f64),
+                svg_number(plot[0] + step * (i + 1) as f64),
+            ];
+            let mut raw = Vec::new();
+            let mut ignored_losses = Vec::new();
+            // Width selection uses the final x anchor; raw runs retain y geometry
+            // so final placement never translates an already-rounded path.
+            self.wrapped_outline(
+                &target,
+                source,
+                10.,
+                FontWeight::Regular,
+                Point { x, y: 0. },
+                TextAnchor::Middle,
+                view,
+                &mut ignored_losses,
+                Some(cell),
+                Some(&mut raw),
+            )?;
+            for line in &raw {
+                let mut top = line.offset - ascent;
+                let mut bottom = line.offset - descent;
+                if !line.run.commands.is_empty() {
+                    top = top.min(line.offset + line.run.bounds.y);
+                    bottom = bottom.max(line.offset + line.run.bounds.y + line.run.bounds.height);
+                }
+                minimum = minimum.min(top);
+                maximum = maximum.max(bottom);
+            }
+            raw_blocks.push((x, cell, raw));
+        }
+        let axis = self.single_line_box_anchored(
+            axis_title,
+            12.5,
+            FontWeight::Medium,
+            Point {
+                x: (plot[0] + plot[2]) / 2.,
+                y: frame.y + frame.height - 16.,
+            },
+            TextAnchor::Middle,
+        )?;
+        // Each rounded Bezier y coordinate perturbs its curve by <=0.00005.
+        // 0.0001 is the sum for two independently serialized envelopes, reserved
+        // at each vertical gap. It is clearance, not a post-hoc fit tolerance.
+        const CLEARANCE: f64 = 0.0001;
+        let height = maximum - minimum;
+        let bottom = plot[3].min(axis.y - 8. - height - 8. - 2. * CLEARANCE);
+        let baseline = bottom + 8. - minimum + CLEARANCE;
+        coordinate(bottom)?;
+        coordinate(baseline)?;
+        let mut blocks = Vec::with_capacity(labels.len());
+        let frame = serialized_rect(Rect {
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: frame.height,
+        });
+        for ((x, cell, raw), source) in raw_blocks.into_iter().zip(labels) {
+            let (outline, losses) = self.project_category(
+                &raw,
+                source,
+                Point { x, y: baseline },
+                cell,
+                target.max_width,
+                view,
+            )?;
+            if outline.logical.y < svg_number(bottom) + 8.
+                || outline.logical.y + outline.logical.height > axis.y - 8.
+            {
+                return Err(text_layout::error(
+                    "serialized category block cannot preserve its exact 8px plot/axis-title gaps",
+                ));
+            }
+            contain_exact(outline.logical, frame, view)?;
+            blocks.push(CategoryBlock {
+                source: source.clone(),
+                raw_lines: raw,
+                outline,
+                position: Point { x, y: baseline },
+                cell,
+                losses,
+            });
+        }
+        let metadata = key.view.len()
+            + key.axis_title.len()
+            + key.text_identity.len()
+            + key.layout_profile.len()
+            + bytes
+            + std::mem::size_of_val(labels)
+            + std::mem::size_of::<CategoryPlanKey>()
+            + std::mem::size_of::<CategoryPlan>()
+            + 128;
+        let retained = blocks
+            .iter()
+            .try_fold(metadata, |n, b| {
+                n.checked_add(
+                    b.outline.commands.len() * std::mem::size_of::<PathCommand>()
+                        + b.raw_lines.len() * std::mem::size_of::<RawWrappedLine>()
+                        + b.source.len()
+                        + b.outline.details.len()
+                        + std::mem::size_of::<CategoryBlock>()
+                        + b.losses
+                            .iter()
+                            .map(|l| {
+                                l.source.len()
+                                    + l.target.len()
+                                    + l.reason.len()
+                                    + std::mem::size_of::<LossRecord>()
+                            })
+                            .sum::<usize>(),
+                )
+            })
+            .ok_or_else(|| error("0003", "category plan cache size overflow"))?;
+        let mut state = self.state.borrow_mut();
+        state.cache_bytes = state
+            .cache_bytes
+            .checked_add(retained)
+            .filter(|n| *n <= self.limits.max_cache_bytes)
+            .ok_or_else(|| {
+                error(
+                    "0003",
+                    "whole-call text cache limit exceeded by category plan",
+                )
+            })?;
+        let plan = Arc::new(CategoryPlan {
+            blocks,
+            plot_bottom: bottom,
+        });
+        state.category_plans.insert(key, plan.clone());
+        state.category_views.insert(view.into(), plan);
+        Ok(Some(CategoryAllocation {
+            plot_bottom: bottom,
+        }))
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn project_category(
+        &self,
+        lines: &[RawWrappedLine],
+        source: &str,
+        position: Point,
+        cell: [f64; 2],
+        max_width: f64,
+        view: &str,
+    ) -> VizResult<(WrappedOutline, Vec<LossRecord>)> {
+        let (ascent, descent) = self.face_metrics[&400];
+        let ascent = ascent * 10.;
+        let descent = descent * 10.;
+        let mut logical = None;
+        let mut commands = Vec::new();
+        let mut details = Vec::new();
+        let mut glyphs = 0;
+        let mut losses = Vec::new();
+        let mut previous: Option<Rect> = None;
+        let mut cursor = 0;
+        for line in lines {
+            if line.source.start != cursor || line.source.end != line.separator.start {
+                return Err(text_layout::error(
+                    "category source coverage is not contiguous",
+                ));
+            }
+            cursor = line.separator.end;
+            let baseline = position.y + line.offset;
+            let (path, ink) = self.project(
+                &line.run,
+                Point {
+                    x: position.x,
+                    y: baseline,
+                },
+                TextAnchor::Middle,
+            )?;
+            let origin = position.x - line.run.advance / 2.;
+            let mut left = svg_number(origin);
+            let mut right = svg_number(origin + line.run.advance);
+            let mut top = svg_number(baseline - ascent);
+            let mut bottom = svg_number(baseline - descent);
+            if !path.is_empty() {
+                left = left.min(ink.x);
+                right = right.max(ink.x + ink.width);
+                top = top.min(ink.y);
+                bottom = bottom.max(ink.y + ink.height);
+            }
+            if right - left > max_width || left < cell[0] + 4. || right > cell[1] - 4. {
+                return Err(text_layout::error(
+                    "serialized category advance/ink exceeds explicit width or its 4px-inset Band cell",
+                ));
+            }
+            let before = dimensional_contours(&line.run.commands);
+            let after = dimensional_contours_grid(&path);
+            if before > 0 && after == 0 {
+                return Err(error(
+                    "0004",
+                    "category line contours collapse at SVG four-decimal precision",
+                ));
+            }
+            if after < before {
+                losses.push(LossRecord {
+                    source: view.into(),
+                    target: "scene2d".into(),
+                    fidelity: LoweringFidelity::VisuallyApproximate,
+                    reason: format!(
+                        "{} category line sub-contours collapse at four-decimal precision",
+                        before - after
+                    ),
+                });
+            }
+            if !path.is_empty() {
+                if let Some(previous) = previous
+                    && previous.y + previous.height > ink.y
+                {
+                    return Err(text_layout::error(
+                        "category line ink overlaps; increase explicit line_height",
+                    ));
+                }
+                previous = Some(ink);
+            }
+            logical = Some(union_rect(
+                logical,
+                Rect {
+                    x: left,
+                    y: top,
+                    width: right - left,
+                    height: bottom - top,
+                },
+            ));
+            glyphs += line.run.glyphs;
+            details.push(format!(
+                "{}..{} separator {}..{} baseline {} advance {}",
+                line.source.start,
+                line.source.end,
+                line.separator.start,
+                line.separator.end,
+                svg_number(baseline),
+                line.run.advance
+            ));
+            commands.extend(path);
+        }
+        if cursor != source.len() {
+            return Err(text_layout::error("category source coverage is incomplete"));
+        }
+        let bounds = path_bounds(&commands);
+        Ok((
+            WrappedOutline {
+                commands,
+                bounds,
+                logical: logical.ok_or_else(|| {
+                    text_layout::error("category requires at least one logical line")
+                })?,
+                details: details.join("; "),
+                glyphs,
+            },
+            losses,
+        ))
+    }
+    pub(crate) fn category_position(&self, view: &str, index: usize) -> VizResult<Option<Point>> {
+        if !self.has_category_layout(view) {
+            return Ok(None);
+        }
+        self.state
+            .borrow()
+            .category_views
+            .get(view)
+            .and_then(|p| p.blocks.get(index))
+            .map(|b| Some(b.position))
+            .ok_or_else(|| text_layout::error("missing measured category domain item"))
+    }
+    pub(crate) fn register_category_node(
+        &self,
+        view: &str,
+        index: usize,
+        node: &SceneNode,
+    ) -> VizResult<()> {
+        if !self.has_category_layout(view) {
+            return Ok(());
+        }
+        let SceneNode::Text {
+            id,
+            text,
+            position,
+            font_size,
+            anchor,
+            weight,
+            ..
+        } = node
+        else {
+            return Err(text_layout::error("category registration requires text"));
+        };
+        let plan = self
+            .state
+            .borrow()
+            .category_views
+            .get(view)
+            .cloned()
+            .ok_or_else(|| text_layout::error("missing measured category domain"))?;
+        let block = plan
+            .blocks
+            .get(index)
+            .ok_or_else(|| text_layout::error("extra category emission outside complete domain"))?;
+        if text != &block.source
+            || *position != block.position
+            || *font_size != 10.
+            || *weight != FontWeight::Regular
+            || *anchor != TextAnchor::Middle
+            || block
+                .raw_lines
+                .last()
+                .is_none_or(|l| l.separator.end != text.len())
+        {
+            return Err(text_layout::error(
+                "category emission differs from its measured domain item",
+            ));
+        }
+        let mut state = self.state.borrow_mut();
+        if state.category_nodes.contains_key(id) {
+            return Err(text_layout::error("ambiguous category scene identity"));
+        }
+        state.cache_bytes = state
+            .cache_bytes
+            .checked_add(id.len() + view.len() + 128)
+            .filter(|n| *n <= self.limits.max_cache_bytes)
+            .ok_or_else(|| {
+                error(
+                    "0003",
+                    "whole-call text cache limit exceeded by category registration",
+                )
+            })?;
+        state
+            .category_nodes
+            .insert(id.clone(), (view.into(), index, plan));
+        Ok(())
+    }
+    fn registered_category(&self, id: &str) -> Option<(String, usize, Arc<CategoryPlan>)> {
+        self.state.borrow().category_nodes.get(id).cloned()
+    }
+    fn check_category_emission(&self) -> VizResult<()> {
+        let state = self.state.borrow();
+        for view in self.category_targets.keys() {
+            let plan = state
+                .category_views
+                .get(view)
+                .ok_or_else(|| text_layout::error("unused category target"))?;
+            let used = state
+                .used_categories
+                .get(view)
+                .ok_or_else(|| text_layout::error("category target emitted no domain items"))?;
+            if used.len() != plan.blocks.len() || !(0..plan.blocks.len()).all(|i| used.contains(&i))
+            {
+                return Err(text_layout::error(
+                    "category emission did not cover every domain item exactly once",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     fn preflight_title(
         &self,
         strings: &mut SourceText,
@@ -733,13 +1330,29 @@ impl TextSession {
         weight: FontWeight,
         position: Point,
     ) -> VizResult<Rect> {
+        self.single_line_box_anchored(source, size, weight, position, TextAnchor::Start)
+    }
+    fn single_line_box_anchored(
+        &self,
+        source: &str,
+        size: f64,
+        weight: FontWeight,
+        position: Point,
+        anchor: TextAnchor,
+    ) -> VizResult<Rect> {
         let run = self.shape(source, size, weight)?;
-        let (commands, ink) = self.project(&run, position, TextAnchor::Start)?;
+        let (commands, ink) = self.project(&run, position, anchor)?;
+        let origin = position.x
+            + match anchor {
+                TextAnchor::Start => 0.,
+                TextAnchor::Middle => -run.advance / 2.,
+                TextAnchor::End => -run.advance,
+            };
         let (ascent, descent) = self.face_metrics[&crate::text::weight(weight)];
         let mut logical = Rect {
-            x: svg_number(position.x),
+            x: svg_number(origin),
             y: svg_number(position.y - ascent * size),
-            width: svg_number(position.x + run.advance) - svg_number(position.x),
+            width: svg_number(origin + run.advance) - svg_number(origin),
             height: svg_number(position.y - descent * size)
                 - svg_number(position.y - ascent * size),
         };
@@ -827,6 +1440,8 @@ impl TextSession {
             TextAnchor::Start,
             view,
             &mut losses,
+            None,
+            None,
         )?;
         contain(
             block.logical,
@@ -1193,7 +1808,9 @@ impl TextSession {
                     anchor,
                     ..
                 } => {
-                    let b = if let Some((_, plan)) = self.registered_title(id) {
+                    let b = if let Some((_, index, plan)) = self.registered_category(id) {
+                        plan.blocks[index].outline.logical
+                    } else if let Some((_, plan)) = self.registered_title(id) {
                         plan.block.logical
                     } else {
                         let r = self.shape(text, *font_size, *weight)?;
@@ -1258,6 +1875,8 @@ impl TextSession {
         anchor: TextAnchor,
         id: &str,
         losses: &mut Vec<LossRecord>,
+        cell: Option<[f64; 2]>,
+        mut raw_lines: Option<&mut Vec<RawWrappedLine>>,
     ) -> VizResult<WrappedOutline> {
         let paragraphs = text_layout::paragraphs(source)?;
         if paragraphs.len() > target.max_lines as usize {
@@ -1339,7 +1958,9 @@ impl TextSession {
                         right = right.max(bounds.x + bounds.width);
                     }
                     // Bounds include actual cubic extrema of serialized coordinates.
-                    if right - left > target.max_width {
+                    if right - left > target.max_width
+                        || cell.is_some_and(|cell| left < cell[0] + 4. || right > cell[1] - 4.)
+                    {
                         // Explicit first-overflow greedy policy, not an assumption
                         // that arbitrary shaped prefix widths are monotone.
                         break;
@@ -1376,16 +1997,18 @@ impl TextSession {
                 }
                 let before = dimensional_contours(&selected.run.commands);
                 let after = dimensional_contours_grid(&selected.commands);
-                if before > 0 && after == 0 {
+                if raw_lines.is_none() && before > 0 && after == 0 {
                     return Err(error(
                         "0004",
                         "nonempty wrapped line contours collapse at SVG four-decimal precision",
                     ));
                 }
-                if after < before {
+                if raw_lines.is_none() && after < before {
                     losses.push(LossRecord { source: id.into(), target: "scene2d".into(), fidelity: LoweringFidelity::VisuallyApproximate, reason: format!("{} wrapped-line sub-contours collapse at four-decimal outline precision", before-after) });
                 }
-                if let Some(previous) = lines.iter().rev().find(|line| !line.commands.is_empty())
+                if raw_lines.is_none()
+                    && let Some(previous) =
+                        lines.iter().rev().find(|line| !line.commands.is_empty())
                     && !selected.commands.is_empty()
                     && previous.bounds.y + previous.bounds.height > selected.bounds.y
                 {
@@ -1405,7 +2028,15 @@ impl TextSession {
         let mut commands = Vec::new();
         let mut details = Vec::new();
         let mut glyphs = 0;
-        for line in lines {
+        for (i, line) in lines.into_iter().enumerate() {
+            if let Some(raw) = raw_lines.as_deref_mut() {
+                raw.push(RawWrappedLine {
+                    source: line.source.clone(),
+                    separator: line.separator.clone(),
+                    offset: i as f64 * target.line_height,
+                    run: line.run.clone(),
+                });
+            }
             glyphs += line.run.glyphs;
             if line.source.start != cursor || line.source.end != line.separator.start {
                 return Err(text_layout::error(
@@ -1496,6 +2127,7 @@ impl TextSession {
         }
         self.check_targets(&self.state.borrow().used_targets)?;
         self.check_title_targets(&self.state.borrow().used_title_targets)?;
+        self.check_category_emission()?;
         scene.losses.extend(contour_losses);
         scene.losses.push(LossRecord{source:"text".into(),target:"scene2d".into(),fidelity:LoweringFidelity::VisuallyApproximate,reason:"Opt-in measured text was converted to font-independent outlines at SVG four-decimal precision (path coordinates and group-transform scalars round by at most 0.00005; transformed error depends on the transform). Original strings remain in source/MIR; SVG text selection, search and text editing are unavailable.".into()});
         vizir_core::validate_scene(&scene).map_err(|d| VizError::validation(&d))?;
@@ -1559,8 +2191,44 @@ impl TextSession {
         };
         coordinate(position.x)?;
         coordinate(position.y)?;
-        let (commands, bounds, explanation) = if let Some((owner, plan)) = self.registered_title(id)
+        let (commands, bounds, explanation) = if let Some((owner, index, plan)) =
+            self.registered_category(id)
         {
+            if owner != view_id
+                || !self
+                    .state
+                    .borrow_mut()
+                    .used_categories
+                    .entry(owner)
+                    .or_default()
+                    .insert(index)
+            {
+                return Err(text_layout::error(
+                    "category item has wrong or repeated semantic owner",
+                ));
+            }
+            let block = &plan.blocks[index];
+            self.emit_glyphs(block.outline.glyphs)?;
+            let logical = parent.bounds(block.outline.logical)?;
+            contain_exact(logical, frame, id)?;
+            contain_exact(logical, canvas, id)?;
+            if block.outline.logical.x < block.cell[0] + 4.
+                || block.outline.logical.x + block.outline.logical.width > block.cell[1] - 4.
+            {
+                return Err(text_layout::error(
+                    "category lost its explicit Band-cell containment",
+                ));
+            }
+            contour_losses.extend(block.losses.clone());
+            (
+                block.outline.commands.clone(),
+                block.outline.bounds,
+                format!(
+                    "exact-face bounded bar.category_labels wrapping {}; domain index {index}; source byte coverage [{}]; original text: {text}",
+                    self.layout_profile, block.outline.details
+                ),
+            )
+        } else if let Some((owner, plan)) = self.registered_title(id) {
             if owner != view_id || !self.state.borrow_mut().used_title_targets.insert(owner) {
                 return Err(text_layout::error(
                     "chart title emitted with wrong or repeated semantic owner",
@@ -1601,6 +2269,8 @@ impl TextSession {
                 *anchor,
                 id,
                 contour_losses,
+                None,
+                None,
             )?;
             self.emit_glyphs(wrapped.glyphs)?;
             let logical = parent.bounds(wrapped.logical)?;
@@ -1683,6 +2353,18 @@ fn coordinate(value: f64) -> VizResult<()> {
     } else {
         Ok(())
     }
+}
+fn contain_exact(b: Rect, frame: Rect, id: &str) -> VizResult<()> {
+    if b.x < frame.x
+        || b.y < frame.y
+        || b.x + b.width > frame.x + frame.width
+        || b.y + b.height > frame.y + frame.height
+    {
+        return Err(text_layout::error(format!(
+            "category block {id:?} overflows its serialized view/canvas"
+        )));
+    }
+    Ok(())
 }
 fn contain(b: Rect, frame: Rect, id: &str) -> VizResult<()> {
     if b.width == 0. && b.height == 0. {
@@ -2491,5 +3173,120 @@ mod precision_tests {
             }
         }
         panic!("unbounded title cache hits");
+    }
+    #[test]
+    fn category_plan_reuse_is_bounded_and_emission_is_deferred() {
+        let context: TextContext = serde_json::from_str(include_str!(
+            "../../../examples/text/wrapping-font-profile.json"
+        ))
+        .unwrap();
+        let mut resources = FontResources::new();
+        for (face, bytes) in [
+            (
+                &context.faces.regular,
+                include_bytes!(
+                    "../tests/fixtures/wrapping-fonts/VizIRWrappingFixtureSC-Regular.otf"
+                )
+                .as_slice(),
+            ),
+            (
+                &context.faces.medium,
+                include_bytes!(
+                    "../tests/fixtures/wrapping-fonts/VizIRWrappingFixtureSC-Medium.otf"
+                )
+                .as_slice(),
+            ),
+            (
+                &context.faces.bold,
+                include_bytes!("../tests/fixtures/wrapping-fonts/VizIRWrappingFixtureSC-Bold.otf")
+                    .as_slice(),
+            ),
+        ] {
+            resources.insert(&face.sha256, bytes.to_vec()).unwrap();
+        }
+        let layout = TextLayoutContext::new(vec![]).with_category_labels(vec![
+            SemanticTextLayoutTarget::bar_category_labels("c", 100., 4, 16.),
+        ]);
+        let mut limits = TextLimits::new();
+        limits.max_wrap_candidates = 2;
+        limits.max_layout_lines = 2;
+        let session =
+            TextSession::new_with_layout(&context, &resources, limits, Some(&layout)).unwrap();
+        let frame = vizir_core::Frame {
+            x: 0.,
+            y: 0.,
+            width: 600.,
+            height: 400.,
+        };
+        let plot = [64., 50., 570., 338.];
+        let labels = vec!["A".into(), "B".into()];
+        session
+            .category_allocation("c", frame, plot, &labels, "category")
+            .unwrap();
+        let first = session.state.borrow().category_views["c"].clone();
+        session
+            .category_allocation("c", frame, plot, &labels, "category")
+            .unwrap();
+        let second = session.state.borrow().category_views["c"].clone();
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(session.state.borrow().layout_lines, 2);
+        assert_eq!(session.state.borrow().wrap_candidates, 2);
+        assert_eq!(session.state.borrow().emitted_glyphs, 0);
+        let origin = vizir_core::Origin {
+            hir_node: "c".into(),
+            mir_node: "c".into(),
+            data_key: None,
+            data_lineage: vec![],
+            generated_by: "test".into(),
+            explanation: "semantic role test".into(),
+        };
+        let mut children = Vec::new();
+        for (i, block) in first.blocks.iter().enumerate() {
+            let node = SceneNode::Text {
+                id: format!("opaque-label-{i}"),
+                bounds: Rect::default(),
+                origin: origin.clone(),
+                position: block.position,
+                text: block.source.clone(),
+                font_size: 10.,
+                anchor: TextAnchor::Middle,
+                color: Color::hex("#000000"),
+                weight: FontWeight::Regular,
+            };
+            session.register_category_node("c", i, &node).unwrap();
+            children.push(node);
+        }
+        let scene = Scene2D {
+            document_id: "test".into(),
+            width: 600.,
+            height: 400.,
+            background: Color::transparent(),
+            nodes: vec![SceneNode::Group {
+                id: "c".into(),
+                bounds: Rect {
+                    x: 0.,
+                    y: 0.,
+                    width: 600.,
+                    height: 400.,
+                },
+                origin,
+                transform: Transform2D::default(),
+                opacity: 1.,
+                children,
+            }],
+            losses: vec![],
+        };
+        session.outline_scene(scene).unwrap();
+        assert_eq!(session.state.borrow().emitted_glyphs, 2);
+        // Every cached whole-domain lookup remains a metered operation.
+        for _ in 0..4096 {
+            if session
+                .category_allocation("c", frame, plot, &labels, "category")
+                .is_err()
+            {
+                return;
+            }
+        }
+        panic!("unbounded category cache lookups");
     }
 }

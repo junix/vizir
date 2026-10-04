@@ -1,0 +1,11 @@
+{
+  "profile": "vizir-text-wrap/3",
+  "engine": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+  "targets": [],
+  "semantic_targets": [
+    {"view_id": "services", "role": "bar.category_labels", "max_width": 90, "max_lines": 8, "line_height": 16},
+    {"view_id": "services", "role": "chart.title", "max_width": 300, "max_lines": 6, "line_height": 30},
+    {"view_id": "text-cases", "role": "bar.category_labels", "max_width": 90, "max_lines": 8, "line_height": 16},
+    {"view_id": "text-cases", "role": "chart.title", "max_width": 300, "max_lines": 6, "line_height": 30}
+  ]
+}

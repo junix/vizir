@@ -621,7 +621,21 @@ fn lower_bar(
         ticks.as_ref(),
         text,
     )?
-    .with_categories(&chart.id, &categories, text)?
+    .with_categories(
+        &chart.id,
+        chart.frame,
+        &categories,
+        Some(
+            chart
+                .category
+                .label
+                .as_deref()
+                .unwrap_or(&chart.category.field),
+        ),
+        ticks.as_ref(),
+        text,
+        None,
+    )?
     .plot;
     let mut scales = vec![
         MirScale::Band {

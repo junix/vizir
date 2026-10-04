@@ -340,3 +340,10 @@ Add a source-targeted `--text-layout` policy to measured text for bounded Latin/
 charts. Titles reserve their full measured height before plot ranges and legend
 positions are fixed. See [the narrow three-chart composition](examples/composition/wrapped-chart-titles.compose.yaml)
 and [versioned policy/CLI instructions](docs/wrapping.md#semantic-chart-titles-vizir-text-wrap2).
+
+### Complete bar-category labels (explicit role)
+
+`vizir-text-wrap/3` selects the entire bar category domain by source role, with
+fixed10px text, measured per-cell wrapping and bottom allocation before ranges.
+Values and domain order remain unchanged. See [the two-panel category example](examples/composition/wrapped-bar-categories.compose.yaml)
+and [the versioned policy contract](docs/wrapping.md#bar-category-labels-vizir-text-wrap3).

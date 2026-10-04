@@ -59,3 +59,5 @@ pub use text_layout::{
 };
 
 pub use text_layout::{SemanticTextLayoutTarget, TEXT_LAYOUT_SEMANTIC_PROFILE, TextLayoutRole};
+
+pub use text_layout::TEXT_LAYOUT_CATEGORY_PROFILE;

@@ -364,14 +364,27 @@ pub fn compiled_mir_schema() -> serde_json::Value {
         .as_array_mut()
         .expect("required array")
         .push("semantic_targets".into());
+    let mut category_layout = semantic_layout.clone();
+    category_layout["properties"]["profile"]["const"] =
+        crate::text_layout::TEXT_LAYOUT_CATEGORY_PROFILE.into();
+    category_layout["properties"]["semantic_targets"]["items"]["$ref"] =
+        "#/$defs/CategorySemanticTextLayoutTarget".into();
+    category_layout["properties"]["semantic_targets"]["contains"] = serde_json::json!({
+        "type": "object",
+        "properties": {"role": {"const": "bar.category_labels"}},
+        "required": ["role"],
+        "additionalProperties": true
+    });
     // The combined array length, source identity duplicates and UTF-8 byte ID
     // limits are executable checks; the schema bounds each array independently.
     schema["$defs"]["TextLayoutContext"] = serde_json::json!({"oneOf": [
         {"$ref": "#/$defs/GeometryTextLayoutContext"},
-        {"$ref": "#/$defs/SemanticTextLayoutContext"}
+        {"$ref": "#/$defs/SemanticTextLayoutContext"},
+        {"$ref": "#/$defs/CategoryTextLayoutContext"}
     ]});
     schema["$defs"]["GeometryTextLayoutContext"] = geometry_layout;
     schema["$defs"]["SemanticTextLayoutContext"] = semantic_layout;
+    schema["$defs"]["CategoryTextLayoutContext"] = category_layout;
     for (definition, ids) in [
         ("TextLayoutTarget", &["view_id", "node_id"][..]),
         ("SemanticTextLayoutTarget", &["view_id"][..]),
@@ -389,6 +402,13 @@ pub fn compiled_mir_schema() -> serde_json::Value {
         schema["$defs"][definition]["properties"]["max_lines"]["maximum"] =
             crate::text_layout::MAX_LINES.into();
     }
+    // Preserve the published v2 target and role definitions exactly. Widening
+    // their shared role reference would silently admit v3 targets to v2.
+    schema["$defs"]["CategoryTextLayoutRole"] = schema["$defs"]["TextLayoutRole"].clone();
+    schema["$defs"]["TextLayoutRole"]["enum"] = serde_json::json!(["chart.title"]);
+    let mut category_target = schema["$defs"]["SemanticTextLayoutTarget"].clone();
+    category_target["properties"]["role"]["$ref"] = "#/$defs/CategoryTextLayoutRole".into();
+    schema["$defs"]["CategorySemanticTextLayoutTarget"] = category_target;
     // Null is an accepted spelling of absence. A present non-null layout policy
     // requires the measured-text identity rather than just a nullable text key.
     schema["$defs"]["CompilationContext"]["allOf"] = serde_json::json!([{

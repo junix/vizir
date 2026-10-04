@@ -28,9 +28,11 @@ optional theme uses one reusable envelope instead of stacking feature wrappers:
 This illustrative envelope elides the required MIR and full theme defaults;
 actual output includes both. Theme and text are optional. The additional optional
 `text_layout` entry requires `text` and enables explicit source-targeted
-wrapping: v1 names geometry text nodes, while v2 adds the `chart.title` semantic
-role on bar, line, and scatter charts. See [wrapping.md](wrapping.md) for the
-pinned profiles, unchanged source-byte contract, and title allocation rules. `schema compiled-mir` emits the complete schema. Every
+wrapping: v1 names geometry text nodes; v2 adds the `chart.title` semantic
+role on bar, line, and scatter charts; v3 adds `bar.category_labels` on bar
+charts. V3 requires a category target and may combine title and geometry
+targets. See [wrapping.md](wrapping.md) for the pinned profiles, unchanged
+source-byte contract, and title/category allocation rules. `schema compiled-mir` emits the complete schema. Every
 persisted
 theme is checked against the canonical pinned registry, including its defaults.
 `schema themed-mir` and `schema mir` retain their previous contracts.
@@ -72,7 +74,9 @@ font, missing glyph or exceeded budget is an error. `--font` without measured
 context is also an error. The first unit requires static normal-width upright
 faces with exact 400/500/700 weights. Without `text_layout`, single-line shaping
 rejects line breaks, tabs and control characters. The separate opt-in wrapping policy permits supported hard breaks
-only on its explicit geometry text targets or v2 semantic chart-title targets. Overflow/colliding labels are
+only on its explicit geometry, chart-title, or v3 bar-category targets.
+Category targeting does not grant multiline permission to a same-field color
+legend or unrelated view. Overflow/colliding labels are
 diagnosed; edit the original HIR frame or strings to fix them. Automatic
 fallback and font synthesis remain unsupported.
 
@@ -92,7 +96,11 @@ then the resulting HIR accepts the same text/profile flags as any other source.
 persisted context and explicit domains/ranges, without reflow. The refreshed
 scene is checked with exact resources. Other commands reject stale caches.
 Changing data may make preserved layout no longer fit; that is a diagnostic,
-not permission to silently re-layout the persisted plan.
+not permission to silently re-layout the persisted plan. V3 category replay
+uses the complete actual Band domain in its preserved order, including valid
+unused values, and requires its unique bottom axis to match the bar's category
+binding. Materialization refresh keeps the existing scale ranges. New category
+allocation requires compiling HIR again.
 
 Font-independent outlines preserve each original text node’s stable semantic ID and provenance.
 Original strings remain in HIR/MIR. Render manifests include
@@ -120,7 +128,10 @@ legacy nested MIR deserializers would discard. Arbitrary supported inline data
 metadata remains allowed. Optional top-level context entries can be absent or null;
 canonical serialization omits absent entries. This does not make nested layout
 fields nullable: v1 rejects any `semantic_targets` field, including null or an
-empty array, and v2 requires a non-null, nonempty semantic target array. JSON's recursion limit stays
+empty array. V2 requires a non-null, nonempty chart-title target array and
+rejects the new category role. V3 requires a non-null, nonempty semantic array
+containing at least one `bar.category_labels` target. The published closed
+v1/v2 schema branches remain unchanged. JSON's recursion limit stays
 enabled, and compiler materialization/text work budgets remain independent.
 
 ## Rust APIs
@@ -129,7 +140,11 @@ enabled, and compiler materialization/text work budgets remain independent.
 identity-only context. `.with_text_layout(...)` adds an explicit wrapping
 policy alongside measured text. `TextLayoutContext::new(targets)` retains the
 v1 geometry-only API and serialized bytes. Adding `.with_semantic_targets(...)`
-explicitly selects v2 while retaining existing geometry targets. `FontResources::new()` and `insert(hash, bytes)` supply
+explicitly selects v2 while retaining existing geometry targets.
+`SemanticTextLayoutTarget::bar_category_labels(...)` and
+`.with_category_labels(...)` explicitly select v3; the latter retains geometry
+targets and requires at least one category role. The existing semantic builder
+always selects v2 and cannot accept the new role. `FontResources::new()` and `insert(hash, bytes)` supply
 verified resources separately. `compile_with_context`,
 `lower_to_compiled_mir`, `build_compiled_scene`, and
 `rematerialize_compiled_mir` are additive APIs; their `_with_limits` variants

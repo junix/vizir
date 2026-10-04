@@ -1,0 +1,41 @@
+schema: vizir-composition/0.1
+id: wrapped-bar-categories
+width: 1280
+height: 700
+background: transparent
+layout: {kind: grid, columns: 2, gap: 24, padding: 24}
+datasets:
+  services:
+    key: id
+    rows:
+      - {id: bj, category: "北京\nAPI", value: 8, group: Alpha}
+      - {id: sh, category: "上海\nData", value: 12, group: Beta}
+      - {id: sz, category: "深圳\nQueue", value: 6, group: Alpha}
+      - {id: gz, category: "广州\nCache", value: 10, group: Beta}
+      - {id: metric, category: "中文\nMetric", value: 14, group: Alpha}
+      - {id: alert, category: "温度\nAlert", value: 9, group: Beta}
+      - {id: trace, category: "延迟\nTrace", value: 11, group: Alpha}
+      - {id: limit, category: "请求\nLimit", value: 7, group: Beta}
+      - {id: scale, category: "容量\nScale", value: 13, group: Alpha}
+      - {id: route, category: "可靠性\nRoute", value: 5, group: Beta}
+  text_cases:
+    key: id
+    rows:
+      - {id: latin, category: "AV office ffi, Café Å", value: 8}
+      - {id: chinese, category: "中文（字体测量），保留标点。", value: 12}
+      - {id: spaces, category: "  Alpha  Beta  ", value: 6}
+      - {id: blanks, category: "A\n\nB\n", value: 10}
+panels:
+  - kind: chart.bar
+    id: services
+    title: "Ten categories\nFixed 10px labels"
+    dataset: services
+    category: {field: category, label: service}
+    value: {field: value, label: value}
+    color: {field: group}
+  - kind: chart.bar
+    id: text-cases
+    title: "Full source text\nincluding blank lines"
+    dataset: text_cases
+    category: {field: category, label: category}
+    value: {field: value, label: value}
