@@ -42,7 +42,9 @@ every domain concept.
 The first bounded [HTML explorer](html-explorer.md) implements a document
 camera, recorded-source inspection and single Scene-node selection. Its real
 browser/DOM acceptance remains blocked; this does not promote the full phase
-or implement the broader contracts below.
+or implement the broader contracts below. A separate
+[linked-selection profile](linked-selection.md) adds explicit disjoint
+Scene-node groups without data joins, filtering or cross-instance state.
 
 - expression evaluation in the browser using the already-stable typed AST;
 - signals, point/interval selections, reducers, and named event spaces;

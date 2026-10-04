@@ -1,0 +1,25 @@
+{
+  "format": "vizir-selection-links/1",
+  "document_id": "linked-services",
+  "scene_sha256": "93a5a7259655200c6e8b3d1e70bc61caeba677569c9844958546f1a569397065",
+  "instance_key": "main",
+  "groups": [
+    {
+      "id": "api",
+      "members": [
+        "status/api-card",
+        "topology/node/api/shape",
+        "topology/node/api/label",
+        "latency/point/api"
+      ]
+    },
+    {
+      "id": "database",
+      "members": [
+        "status/db-card",
+        "topology/node/db/shape",
+        "latency/point/db"
+      ]
+    }
+  ]
+}

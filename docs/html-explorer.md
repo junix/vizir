@@ -14,6 +14,11 @@ accepted in the current environment: browser access is policy-blocked. Native
 checks do not substitute for that gate. This is a bounded implementation, not
 promotion of the full interactive roadmap phase.
 
+A separate [explicit linked-selection profile](linked-selection.md) now adds
+authored exact-node groups. It does not change the v1 wire or reducer semantics.
+The shared runtime/CSS may change v1 HTML payload hashes; older standalone
+artifacts retain their own module and CSP. Static SVG/PNG/IR bytes remain exact.
+
 ## CLI and Rust API
 
 ```sh

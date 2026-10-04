@@ -9,6 +9,13 @@ use sha2::{Digest, Sha256};
 use vizir_backend_svg::SvgRenderContext;
 use vizir_core::{Origin, PathCommand, Scene2D, SceneNode, VizError, VizResult};
 
+mod links;
+pub use links::{
+    LINKED_FORMAT, LINKED_PROFILE, LINKS_FORMAT, LinkedInteractionContext, MAX_GROUP_MEMBERS,
+    MAX_LINK_GROUPS, MAX_LINK_MEMBERS, MAX_LINK_SPEC_BYTES, SelectionGroup, SelectionLinks,
+    linked_interaction_schema, selection_links_schema,
+};
+
 pub const FORMAT: &str = "vizir-interaction/1";
 pub const PROFILE: &str = "explorer-v1";
 pub const MAX_NODES: usize = 8_192;
@@ -134,11 +141,26 @@ pub fn capabilities() -> vizir_core::BackendCapabilities {
     result
 }
 
+pub fn linked_capabilities() -> vizir_core::BackendCapabilities {
+    let mut result = capabilities();
+    result.backend = "html-linked".into();
+    result.unsupported.remove("interaction.select.linked");
+    result
+        .supports
+        .insert("interaction.select.linked-explicit".into());
+    result
+}
+
 pub fn interaction_schema() -> serde_json::Value {
-    let mut schema =
-        serde_json::to_value(schemars::schema_for!(InteractionContext)).expect("schema serializes");
-    schema["properties"]["format"]["const"] = FORMAT.into();
-    schema["properties"]["profile"]["const"] = PROFILE.into();
+    context_schema(
+        serde_json::to_value(schemars::schema_for!(InteractionContext)).expect("schema serializes"),
+        FORMAT,
+        PROFILE,
+    )
+}
+fn context_schema(mut schema: serde_json::Value, format: &str, profile: &str) -> serde_json::Value {
+    schema["properties"]["format"]["const"] = format.into();
+    schema["properties"]["profile"]["const"] = profile.into();
     schema["properties"]["instance_key"]["pattern"] = r"^[a-z][a-z0-9-]{0,31}$(?![\s\S])".into();
     schema["properties"]["scene_sha256"]["pattern"] = r"^[0-9a-f]{64}$(?![\s\S])".into();
     schema["properties"]["runtime_payload_sha256"]["pattern"] = r"^[0-9a-f]{64}$(?![\s\S])".into();
@@ -166,10 +188,26 @@ pub fn interaction_schema() -> serde_json::Value {
 /// unique key and include `runtime_script()` and `STYLESHEET` once in the host document.
 /// Hosts must adopt this package's CSP hashes or stricter equivalent policy.
 pub fn render_html(scene: &Scene2D, options: &ExplorerOptions) -> VizResult<HtmlExport> {
-    render(scene, options, true)
+    render(scene, options, true, None)
 }
 pub fn render_fragment(scene: &Scene2D, options: &ExplorerOptions) -> VizResult<HtmlExport> {
-    render(scene, options, false)
+    render(scene, options, false, None)
+}
+
+/// Linked selection is a separate opt-in profile; v1 options and output shape are unchanged.
+pub fn render_linked_html(
+    scene: &Scene2D,
+    options: &ExplorerOptions,
+    links: &SelectionLinks,
+) -> VizResult<HtmlExport> {
+    render(scene, options, true, Some(links))
+}
+pub fn render_linked_fragment(
+    scene: &Scene2D,
+    options: &ExplorerOptions,
+    links: &SelectionLinks,
+) -> VizResult<HtmlExport> {
+    render(scene, options, false, Some(links))
 }
 
 /// Exact module bytes for a host embedding fragments. The identity covers the
@@ -190,12 +228,37 @@ pub fn content_security_policy() -> String {
     )
 }
 
-fn render(scene: &Scene2D, options: &ExplorerOptions, standalone: bool) -> VizResult<HtmlExport> {
+fn render(
+    scene: &Scene2D,
+    options: &ExplorerOptions,
+    standalone: bool,
+    links: Option<&SelectionLinks>,
+) -> VizResult<HtmlExport> {
     let svg_context = SvgRenderContext::new(&options.instance_key)?;
     // Must precede every recursive validator, serializer and SVG call.
-    let nodes = preflight(scene)?;
+    let link_budget = links.map(SelectionLinks::budget).transpose()?;
+    let checked = preflight(scene)?;
+    if let Some(budget) = &link_budget
+        && (checked.source_bytes + budget.source_bytes > MAX_SOURCE_STRING_BYTES
+            || checked.metadata_reserve + budget.json_bytes * 6 + 64 > MAX_METADATA_BYTES
+            || checked.svg_reserve
+                + (checked.metadata_reserve + budget.json_bytes * 6 + 64) * 6
+                + RUNTIME.len()
+                + STYLESHEET.len()
+                + 16_384
+                > MAX_HTML_BYTES)
+    {
+        return Err(error(
+            "0102",
+            "combined scene/link escaped byte reserve exceeds explorer limits",
+        ));
+    }
+    let nodes = checked.nodes;
     vizir_core::validate_scene(scene).map_err(|d| VizError::validation(&d))?;
     let scene_sha256 = scene_hash(scene)?;
+    let link_groups = links
+        .map(|links| links.resolve(&scene.document_id, &scene_sha256, options, &nodes))
+        .transpose()?;
     let context = InteractionContext {
         format: FORMAT.into(),
         profile: PROFILE.into(),
@@ -221,12 +284,37 @@ fn render(scene: &Scene2D, options: &ExplorerOptions, standalone: bool) -> VizRe
             .collect(),
     };
     let mut metadata = BoundedBytes::new(MAX_METADATA_BYTES);
-    serde_json::to_writer(&mut metadata, &context).map_err(|_| {
+    let normalized_extra = if link_groups.is_some() {
+        context
+            .nodes
+            .iter()
+            .filter(|n| n.origin.data_lineage.is_empty())
+            .count()
+            * 18
+    } else {
+        0
+    };
+    let profile = if link_groups.is_some() {
+        LINKED_PROFILE
+    } else {
+        PROFILE
+    };
+    let serialized = match link_groups {
+        None => serde_json::to_writer(&mut metadata, &context),
+        Some(groups) => serde_json::to_writer(
+            &mut metadata,
+            &LinkedInteractionContext::new(context, groups),
+        ),
+    };
+    serialized.map_err(|_| {
         error(
             "0002",
             "metadata JSON exceeds its bounded writer or cannot serialize",
         )
     })?;
+    if metadata.bytes.len() + normalized_extra > MAX_METADATA_BYTES {
+        return Err(error("0102", "normalized linked metadata exceeds 4 MiB"));
+    }
     let metadata = std::str::from_utf8(&metadata.bytes).expect("serde_json emits UTF-8");
     let escaped_metadata_bytes = 2 + metadata
         .chars()
@@ -253,7 +341,7 @@ fn render(scene: &Scene2D, options: &ExplorerOptions, standalone: bool) -> VizRe
     }
     let manifest = ExportManifest {
         format: "html".into(),
-        profile: PROFILE.into(),
+        profile: profile.into(),
         instance_key: options.instance_key.clone(),
         scene_sha256,
         runtime_sha256: hex(&Sha256::digest(runtime_script().as_bytes())),
@@ -424,7 +512,13 @@ fn base64(bytes: &[u8]) -> String {
 
 /// Conservatively reserve escaped emission bytes, including every duplicate
 /// identity/parent occurrence, before cloning metadata or recursive work.
-fn preflight(scene: &Scene2D) -> VizResult<Vec<(&SceneNode, Option<&str>)>> {
+struct Preflight<'a> {
+    nodes: Vec<(&'a SceneNode, Option<&'a str>)>,
+    source_bytes: usize,
+    metadata_reserve: usize,
+    svg_reserve: usize,
+}
+fn preflight(scene: &Scene2D) -> VizResult<Preflight<'_>> {
     if !scene.width.is_finite()
         || !scene.height.is_finite()
         || !(1.0..=1_000_000.0).contains(&scene.width)
@@ -557,7 +651,12 @@ fn preflight(scene: &Scene2D) -> VizResult<Vec<(&SceneNode, Option<&str>)>> {
                 .map(|child| (child, Some(node.id()), depth + 1)),
         );
     }
-    Ok(nodes)
+    Ok(Preflight {
+        nodes,
+        source_bytes: budget.strings,
+        metadata_reserve,
+        svg_reserve,
+    })
 }
 fn number_reserve(value: f64) -> usize {
     format!("{value:.4}").len()
@@ -595,89 +694,118 @@ impl InteractionContext {
     }
 
     pub fn validate(&self) -> VizResult<()> {
-        use std::collections::BTreeSet;
-        if self.format != FORMAT
-            || self.profile != PROFILE
-            || self.camera != CameraPolicy::default()
-            || self.home.x != 0.0
-            || self.home.y != 0.0
-            || !self.home.width.is_finite()
-            || !self.home.height.is_finite()
-            || !(1.0..=1_000_000.0).contains(&self.home.width)
-            || !(1.0..=1_000_000.0).contains(&self.home.height)
-            || self.runtime_payload_sha256 != hex(&Sha256::digest(RUNTIME.as_bytes()))
-            || self.scene_sha256.len() != 64
-            || !self
-                .scene_sha256
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        {
-            return Err(error(
-                "0001",
-                "unsupported or invalid interaction profile identity/camera",
-            ));
-        }
-        let namespace = SvgRenderContext::new(&self.instance_key)?;
-        let mut budget = Budget::default();
-        budget.string(&self.document_id)?;
-        if self.document_id.trim().is_empty() || self.nodes.len() > MAX_NODES {
-            return Err(error("0001", "invalid document identity or node count"));
-        }
-        let mut seen: BTreeSet<&str> = BTreeSet::new();
-        let mut ancestry: Vec<&str> = Vec::new();
-        let mut lineage_count = 0usize;
-        for node in &self.nodes {
-            budget.string(&node.scene_node_id)?;
-            if node.scene_node_id.trim().is_empty()
-                || node.dom_id != namespace.node_id(&node.scene_node_id)
-                || seen.contains(node.scene_node_id.as_str())
-            {
-                return Err(error("0001", "invalid or duplicate node identity"));
-            }
-            match node.parent_scene_node_id.as_deref() {
-                None => ancestry.clear(),
-                Some(parent) => {
-                    budget.string(parent)?;
-                    let index = ancestry
-                        .iter()
-                        .position(|id| *id == parent)
-                        .ok_or_else(|| {
-                            error("0001", "parent must be active in preorder ancestry")
-                        })?;
-                    ancestry.truncate(index + 1);
-                }
-            }
-            ancestry.push(&node.scene_node_id);
-            if ancestry.len() > MAX_DEPTH {
-                return Err(error("0002", "metadata parent depth exceeds 64"));
-            }
-            seen.insert(&node.scene_node_id);
-            let origin = &node.origin;
-            for s in [&origin.hir_node, &origin.mir_node, &origin.generated_by] {
-                budget.string(s)?;
-                if s.trim().is_empty() {
-                    return Err(error("0001", "blank required provenance identity"));
-                }
-            }
-            budget.string(&origin.explanation)?;
-            if let Some(key) = &origin.data_key {
-                budget.string(key)?;
-            }
-            lineage_count = lineage_count
-                .checked_add(origin.data_lineage.len())
-                .ok_or_else(|| error("0002", "lineage count overflow"))?;
-            if lineage_count > MAX_LINEAGE_ENTRIES {
-                return Err(error("0002", "lineage count exceeds 32768"));
-            }
-            for source in &origin.data_lineage {
-                budget.string(source)?;
-            }
-        }
+        validate_common(ContextFields::from(self), FORMAT, PROFILE)?;
         let mut writer = BoundedBytes::new(MAX_METADATA_BYTES);
         serde_json::to_writer(&mut writer, self)
             .map_err(|_| error("0002", "metadata exceeds 4 MiB"))?;
         Ok(())
     }
+}
+
+struct ContextFields<'a> {
+    format: &'a str,
+    profile: &'a str,
+    document_id: &'a str,
+    scene_sha256: &'a str,
+    runtime_payload_sha256: &'a str,
+    instance_key: &'a str,
+    home: &'a Viewport,
+    camera: &'a CameraPolicy,
+    nodes: &'a [NodeIdentity],
+}
+impl<'a> From<&'a InteractionContext> for ContextFields<'a> {
+    fn from(c: &'a InteractionContext) -> Self {
+        Self {
+            format: &c.format,
+            profile: &c.profile,
+            document_id: &c.document_id,
+            scene_sha256: &c.scene_sha256,
+            runtime_payload_sha256: &c.runtime_payload_sha256,
+            instance_key: &c.instance_key,
+            home: &c.home,
+            camera: &c.camera,
+            nodes: &c.nodes,
+        }
+    }
+}
+fn validate_common(fields: ContextFields<'_>, format: &str, profile: &str) -> VizResult<usize> {
+    use std::collections::BTreeSet;
+    if fields.format != format
+        || fields.profile != profile
+        || fields.camera != &CameraPolicy::default()
+        || fields.home.x != 0.0
+        || fields.home.y != 0.0
+        || !fields.home.width.is_finite()
+        || !fields.home.height.is_finite()
+        || !(1.0..=1_000_000.0).contains(&fields.home.width)
+        || !(1.0..=1_000_000.0).contains(&fields.home.height)
+        || fields.runtime_payload_sha256 != hex(&Sha256::digest(RUNTIME.as_bytes()))
+        || fields.scene_sha256.len() != 64
+        || !fields
+            .scene_sha256
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
+        return Err(error(
+            "0001",
+            "unsupported or invalid interaction profile identity/camera",
+        ));
+    }
+    let namespace = SvgRenderContext::new(fields.instance_key)?;
+    let mut budget = Budget::default();
+    budget.string(fields.document_id)?;
+    if fields.document_id.trim().is_empty() || fields.nodes.len() > MAX_NODES {
+        return Err(error("0001", "invalid document identity or node count"));
+    }
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
+    let mut ancestry: Vec<&str> = Vec::new();
+    let mut lineage_count = 0usize;
+    for node in fields.nodes {
+        budget.string(&node.scene_node_id)?;
+        if node.scene_node_id.trim().is_empty()
+            || node.dom_id != namespace.node_id(&node.scene_node_id)
+            || seen.contains(node.scene_node_id.as_str())
+        {
+            return Err(error("0001", "invalid or duplicate node identity"));
+        }
+        match node.parent_scene_node_id.as_deref() {
+            None => ancestry.clear(),
+            Some(parent) => {
+                budget.string(parent)?;
+                let index = ancestry
+                    .iter()
+                    .position(|id| *id == parent)
+                    .ok_or_else(|| error("0001", "parent must be active in preorder ancestry"))?;
+                ancestry.truncate(index + 1);
+            }
+        }
+        ancestry.push(&node.scene_node_id);
+        if ancestry.len() > MAX_DEPTH {
+            return Err(error("0002", "metadata parent depth exceeds 64"));
+        }
+        seen.insert(&node.scene_node_id);
+        let origin = &node.origin;
+        for s in [&origin.hir_node, &origin.mir_node, &origin.generated_by] {
+            budget.string(s)?;
+            if s.trim().is_empty() {
+                return Err(error("0001", "blank required provenance identity"));
+            }
+        }
+        budget.string(&origin.explanation)?;
+        if let Some(key) = &origin.data_key {
+            budget.string(key)?;
+        }
+        lineage_count = lineage_count
+            .checked_add(origin.data_lineage.len())
+            .ok_or_else(|| error("0002", "lineage count overflow"))?;
+        if lineage_count > MAX_LINEAGE_ENTRIES {
+            return Err(error("0002", "lineage count exceeds 32768"));
+        }
+        for source in &origin.data_lineage {
+            budget.string(source)?;
+        }
+    }
+    Ok(budget.strings)
 }
 
 #[cfg(test)]

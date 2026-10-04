@@ -20,6 +20,8 @@ check:
     node --test crates/vizir-web/runtime/runtime.test.mjs
 
 schemas:
+    cargo run -q -p vizir-cli -- schema selection-links --output schemas/selection-links.schema.json
+    cargo run -q -p vizir-cli -- schema interaction-linked --output schemas/interaction-linked.schema.json
     cargo run -q -p vizir-cli -- schema interaction --output schemas/interaction.schema.json
     cargo run -q -p vizir-cli -- schema csv-import-spec --output schemas/csv-import-spec.schema.json
     cargo run -q -p vizir-cli -- schema composition --output schemas/composition.schema.json

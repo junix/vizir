@@ -333,6 +333,8 @@ remains the responsibility of the `create-plot` skill.
 A separate, opt-in [HTML explorer](docs/html-explorer.md) adds a document camera,
 source inspection and single Scene-node selection over the existing SVG. Its
 real-browser/DOM acceptance gate remains blocked; native tests are separate.
+An additional [linked-selection profile](docs/linked-selection.md) uses only
+explicit, snapshot-bound groups of exact Scene-node IDs.
 The broader interaction/dataflow roadmap, animation, Scene3D, external layout
 providers, native TikZ and large columnar instance buffers remain separate work.
 

@@ -7,6 +7,8 @@
 .vizir-is-panning [data-vizir-viewport]{touch-action:pinch-zoom;cursor:grab}
 .vizir-is-dragging [data-vizir-viewport]{cursor:grabbing}
 .vizir-explorer :focus-visible{outline:3px solid #005fcc;outline-offset:3px}
+.vizir-explorer .vizir-is-linked{outline:2px dotted #624199;outline-offset:5px}
+.vizir-explorer .vizir-is-linked.vizir-is-inspected{outline:2px dashed #8b4300;outline-offset:4px}
 .vizir-is-selected{outline:3px solid #005fcc;outline-offset:2px}
 .vizir-is-inspected{outline:2px dashed #8b4300;outline-offset:4px}
 [data-vizir-inspector]{font:12px ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:20rem;overflow:auto;margin:10px 0 0}

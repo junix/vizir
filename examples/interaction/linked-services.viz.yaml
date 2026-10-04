@@ -1,0 +1,40 @@
+# Illustrative data. Links are authored exact identities, not inferred joins.
+version: "0.1"
+id: linked-services
+width: 1000
+height: 600
+background: transparent
+datasets:
+  services:
+    key: id
+    rows:
+      - {id: api, latency: 10, errors: 2}
+      - {id: db, latency: 22, errors: 7}
+views:
+  - kind: chart.scatter
+    id: latency
+    title: Service measurements
+    frame: {x: 0, y: 0, width: 500, height: 360}
+    dataset: services
+    x: {field: latency, label: latency}
+    y: {field: errors, label: errors}
+    point_size: 9
+  - kind: diagram.graph
+    id: topology
+    title: Service dependency
+    frame: {x: 500, y: 0, width: 500, height: 360}
+    layout: manual
+    nodes:
+      - {id: api, label: API, position: {x: 100, y: 170}}
+      - {id: db, label: Database, position: {x: 360, y: 170}}
+    edges:
+      - {from: api, to: db, label: queries}
+  - kind: geometry.scene
+    id: status
+    frame: {x: 0, y: 360, width: 1000, height: 240}
+    children:
+      - {type: text, id: heading, x: 30, y: 40, text: "Explicit links across chart, graph and geometry", font_size: 22, weight: bold}
+      - {type: rect, id: api-card, x: 30, y: 80, width: 420, height: 100, radius: 12, style: {fill: "#EAF0FF", stroke: "#9AB2F8", stroke_width: 2}}
+      - {type: text, id: api-label, x: 50, y: 135, text: "API status card", font_size: 20}
+      - {type: rect, id: db-card, x: 540, y: 80, width: 420, height: 100, radius: 12, style: {fill: "#E5F7F3", stroke: "#80CFC0", stroke_width: 2}}
+      - {type: text, id: db-label, x: 560, y: 135, text: "Database status card", font_size: 20}

@@ -77,12 +77,15 @@ enum Commands {
         text: input::TextOptions,
         #[arg(long, value_enum, default_value = "png")]
         format: OutputFormat,
-        /// Required for HTML: explorer-v1. Unsupported on static formats.
+        /// Required for HTML: explorer-v1 or explorer-linked-v1.
         #[arg(long)]
         interaction_profile: Option<String>,
         /// HTML instance identity; defaults to main. Use unique keys when embedding.
         #[arg(long)]
         instance_key: Option<String>,
+        /// Strict local snapshot-bound links; required only by explorer-linked-v1.
+        #[arg(long, value_name = "PATH")]
+        selection_links: Option<PathBuf>,
         #[arg(long)]
         background: Option<String>,
         #[arg(short, long)]
@@ -127,12 +130,15 @@ enum Backend {
     Svg,
     Png,
     Html,
+    HtmlLinked,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum IrKind {
     CsvImportSpec,
     Interaction,
+    InteractionLinked,
+    SelectionLinks,
     Composition,
     Mir,
     ThemedMir,
@@ -201,31 +207,53 @@ fn run(cli: Cli) -> VizResult<()> {
             format,
             interaction_profile,
             instance_key,
+            selection_links,
             background,
             output,
             manifest,
         } => {
-            let explorer =
-                match (format, interaction_profile.as_deref(), instance_key) {
-                    (OutputFormat::Html, Some(vizir_web::PROFILE), key) => {
-                        Some(vizir_web::ExplorerOptions {
-                            instance_key: key.unwrap_or_else(|| "main".into()),
-                        })
-                    }
-                    (OutputFormat::Html, _, _) => {
-                        return Err(VizError::Diagnostic(
-                            "VIZ-WEB-0001: HTML requires --interaction-profile explorer-v1".into(),
+            let linked_profile = interaction_profile.as_deref() == Some(vizir_web::LINKED_PROFILE);
+            if linked_profile != selection_links.is_some()
+                || (selection_links.is_some() && format != OutputFormat::Html)
+            {
+                return Err(VizError::Diagnostic("VIZ-WEB-0101: --selection-links and --format html --interaction-profile explorer-linked-v1 require each other".into()));
+            }
+            let explorer = match (format, interaction_profile.as_deref(), instance_key) {
+                (OutputFormat::Html, Some(vizir_web::PROFILE | vizir_web::LINKED_PROFILE), key) => {
+                    Some(vizir_web::ExplorerOptions {
+                        instance_key: key.unwrap_or_else(|| "main".into()),
+                    })
+                }
+                (OutputFormat::Html, _, _) => {
+                    return Err(VizError::Diagnostic(
+                            "VIZ-WEB-0001: HTML requires --interaction-profile explorer-v1 or explorer-linked-v1".into(),
                         ));
-                    }
-                    (_, None, None) => None,
-                    _ => return Err(VizError::Diagnostic(
+                }
+                (_, None, None) => None,
+                _ => {
+                    return Err(VizError::Diagnostic(
                         "VIZ-WEB-0001: interaction profile and instance key require --format html"
                             .into(),
-                    )),
-                };
+                    ));
+                }
+            };
             if let Some(options) = &explorer {
                 vizir_backend_svg::SvgRenderContext::new(&options.instance_key)?;
             }
+            let links = selection_links
+                .as_ref()
+                .map(|path| {
+                    paths::check_destinations(path, Some(&output), manifest.as_deref())?;
+                    paths::check_distinct_sources(&input, path)?;
+                    let bytes = input::read_bounded_regular_with_prefix(
+                        path,
+                        vizir_web::MAX_LINK_SPEC_BYTES,
+                        "selection links",
+                        "VIZ-WEB",
+                    )?;
+                    vizir_web::SelectionLinks::parse(&bytes)
+                })
+                .transpose()?;
             let document = input::read(&input, theme, text)?;
             document.check_destinations(&input, Some(&output), manifest.as_deref())?;
             let mut compilation = document.compile(false)?;
@@ -236,11 +264,17 @@ fn run(cli: Cli) -> VizResult<()> {
             // HTML preflight must run before any recursive target negotiation.
             let html = explorer
                 .as_ref()
-                .map(|options| vizir_web::render_html(&compilation.scene, options))
+                .map(|options| match &links {
+                    None => vizir_web::render_html(&compilation.scene, options),
+                    Some(links) => {
+                        vizir_web::render_linked_html(&compilation.scene, options, links)
+                    }
+                })
                 .transpose()?;
             let capabilities = match format {
                 OutputFormat::Svg => vizir_backend_svg::capabilities(),
                 OutputFormat::Png => png_capabilities(),
+                OutputFormat::Html if linked_profile => vizir_web::linked_capabilities(),
                 OutputFormat::Html => vizir_web::capabilities(),
             };
             let capability_report = negotiate_scene(&compilation.scene, &capabilities)?;
@@ -358,6 +392,7 @@ fn run(cli: Cli) -> VizResult<()> {
                 Backend::Svg => vizir_backend_svg::capabilities(),
                 Backend::Png => png_capabilities(),
                 Backend::Html => vizir_web::capabilities(),
+                Backend::HtmlLinked => vizir_web::linked_capabilities(),
             };
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
@@ -365,6 +400,8 @@ fn run(cli: Cli) -> VizResult<()> {
             let schema = match ir {
                 IrKind::CsvImportSpec => vizir_core::csv_import_spec_schema(),
                 IrKind::Interaction => vizir_web::interaction_schema(),
+                IrKind::InteractionLinked => vizir_web::linked_interaction_schema(),
+                IrKind::SelectionLinks => vizir_web::selection_links_schema(),
                 IrKind::Composition => composition_schema(),
                 IrKind::Mir => mir_schema(),
                 IrKind::ThemedMir => themed_mir_schema(),

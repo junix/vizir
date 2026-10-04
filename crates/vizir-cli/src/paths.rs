@@ -71,6 +71,18 @@ pub(crate) fn check_destinations(
     Ok(())
 }
 
+/// Both are read-only inputs, but one path cannot claim both source contracts.
+pub(crate) fn check_distinct_sources(input: &Path, links: &Path) -> VizResult<()> {
+    let input = CheckedPath::new("input", input)?;
+    let links = CheckedPath::new("selection links", links)?;
+    if input.resolved == links.resolved
+        || same_file(&input, &links).map_err(|e| path_error(links.role, links.original, e))?
+    {
+        return Err(VizError::Diagnostic("VIZ-PATH-0001: input and selection links paths refer to the same file; choose distinct sources".into()));
+    }
+    Ok(())
+}
+
 fn path_error(role: &str, path: &Path, error: io::Error) -> VizError {
     VizError::Diagnostic(format!(
         "VIZ-PATH-0002: cannot check {role} path {}: {error}",

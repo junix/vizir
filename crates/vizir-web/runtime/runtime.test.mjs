@@ -4,8 +4,9 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { validateContext, createState, reduce, nodeDomId, nodeReference, viewportKeyAction, validateRuntimeRevision, expectedOriginAttributes, bootstrap } from './runtime.mjs';
+import { validateContext, createState, reduce, nodeDomId, nodeReference, viewportKeyAction, validateRuntimeRevision, expectedOriginAttributes, selectionInfo, bootstrap } from './runtime.mjs';
 
 function wire({ ids = ['root', 'child', 'other'], key = 'main', parents = [null, 'root', null] } = {}) {
   return {
@@ -441,4 +442,428 @@ test('explicit null data_key is canonically omitted and expects no DOM attribute
   }
   const presentEmpty = wire(); presentEmpty.nodes[0].origin.data_key = '';
   assert.equal(new Map(expectedOriginAttributes(validateContext(presentEmpty).nodes[0].origin)).get('data-key'), '');
+});
+
+function linkedWire(options = {}) {
+  const value = wire(options);
+  value.format = 'vizir-interaction/2'; value.profile = 'explorer-linked-v1';
+  value.link_groups = options.groups ?? [{ id: 'pair', members: ['root', 'child'] }];
+  return value;
+}
+const linkedFixture = () => validateContext(linkedWire());
+function invalidLinked(change, pattern = /VizIR explorer:/) {
+  const value = linkedWire(); change(value); assert.throws(() => validateContext(value), pattern);
+}
+const linkedIds = (state) => state.linked.map((ref) => ref.scene_node_id);
+
+test('v2 metadata is independently copied, canonical, frozen and profile-specific', () => {
+  const source = linkedWire(); const before = JSON.stringify(source); const context = validateContext(source);
+  assert.equal(context.format, 'vizir-interaction/2'); assert.equal(context.profile, 'explorer-linked-v1');
+  assert.deepEqual(context.link_groups, source.link_groups); assert.notEqual(context.link_groups, source.link_groups);
+  assert.equal(JSON.stringify(source), before); assert.equal(validateContext(context), context);
+  for (const value of [context, context.link_groups, context.link_groups[0], context.link_groups[0].members]) assert.ok(Object.isFrozen(value));
+  source.link_groups[0].members[0] = 'other'; source.link_groups[0].id = 'changed';
+  assert.deepEqual(context.link_groups, [{ id: 'pair', members: ['root', 'child'] }]);
+  const v1 = fixture(); assert.equal(Object.hasOwn(v1, 'link_groups'), false);
+});
+
+test('v1 wire stays strict while v2 requires the exact format/profile pair and groups', () => {
+  invalid((v) => { v.link_groups = []; }, /unknown or missing/);
+  invalid((v) => { v.link_groups = null; }, /unknown or missing/);
+  invalid((v) => { v.profile = 'explorer-linked-v1'; }, /unsupported/);
+  invalidLinked((v) => { v.profile = 'explorer-v1'; }, /unsupported/);
+  invalidLinked((v) => { v.format = 'vizir-interaction/1'; }, /unsupported/);
+  invalidLinked((v) => { delete v.link_groups; }, /unknown or missing/);
+  invalidLinked((v) => { v.link_groups = null; });
+  invalidLinked((v) => { v.link_groups = []; }, /empty/);
+  for (const field of ['selected_group_id', 'linked', 'links', 'unknown']) {
+    invalid((v) => { v[field] = []; }); invalidLinked((v) => { v[field] = []; });
+  }
+  for (const field of ['id', 'members']) invalidLinked((v) => { delete v.link_groups[0][field]; });
+  invalidLinked((v) => { v.link_groups[0].unknown = true; });
+  invalidLinked((v) => { v.link_groups[0] = null; });
+});
+
+test('v2 groups and member arrays reject accessors, exotic objects, holes and hidden fields', () => {
+  let calls = 0;
+  for (const target of [(v) => v.link_groups[0], (v) => v.link_groups]) {
+    invalidLinked((v) => { Object.setPrototypeOf(target(v), {}); });
+    invalidLinked((v) => { target(v)[Symbol('extra')] = 1; });
+  }
+  invalidLinked((v) => { Object.defineProperty(v.link_groups[0], 'id', { enumerable: true, get() { calls += 1; return 'pair'; } }); });
+  invalidLinked((v) => { Object.defineProperty(v.link_groups[0].members, '0', { enumerable: true, get() { calls += 1; return 'root'; } }); });
+  invalidLinked((v) => { Object.defineProperty(v.link_groups[0], 'id', { enumerable: false }); });
+  invalidLinked((v) => { delete v.link_groups[0].members[0]; });
+  invalidLinked((v) => { v.link_groups[0].members.extra = 'root'; });
+  assert.equal(calls, 0);
+  const cyclic = linkedWire(); cyclic.link_groups[0].members[0] = cyclic;
+  assert.throws(() => validateContext(cyclic), /nesting/);
+});
+
+test('v2 group identities have absolute ASCII grammar and 64-byte bound', () => {
+  for (const id of ['', 'A', '1a', 'a_b', 'a.b', 'é', 'a b', 'a'.repeat(65), null, 1, 'a\ud800']) invalidLinked((v) => { v.link_groups[0].id = id; });
+  for (const ending of ['\n', '\r', '\r\n', '\u2028', '\u2029']) invalidLinked((v) => { v.link_groups[0].id += ending; });
+  const value = linkedWire(); value.link_groups[0].id = 'a'.repeat(64);
+  assert.equal(validateContext(value).link_groups[0].id.length, 64);
+});
+
+test('v2 groups use unique ASCII order and members use exact Scene preorder, not lexical order', () => {
+  const value = linkedWire({ ids: ['z', 'a', 'x', 'b'], parents: [], groups: [{ id: 'a', members: ['z', 'a'] }, { id: 'z', members: ['x', 'b'] }] });
+  assert.deepEqual(validateContext(value).link_groups, value.link_groups);
+  const reversedGroups = structuredClone(value); reversedGroups.link_groups.reverse();
+  assert.throws(() => validateContext(reversedGroups), /sorted/);
+  const duplicateGroup = structuredClone(value); duplicateGroup.link_groups[1].id = 'a';
+  assert.throws(() => validateContext(duplicateGroup), /sorted/);
+  invalidLinked((v) => { v.link_groups[0].members.reverse(); }, /preorder/);
+  invalidLinked((v) => { v.link_groups[0].members = ['root', 'root']; }, /preorder/);
+});
+
+test('v2 rejects missing/foreign member identities and overlapping groups without union', () => {
+  for (const member of ['absent', 'hir:0', 'mir:0', nodeDomId('main', 'root'), '', ' ', null, {}, 3, 'root\n', 'root\ud800']) invalidLinked((v) => { v.link_groups[0].members[1] = member; });
+  invalidLinked((v) => { v.link_groups = [{ id: 'a', members: ['root', 'child'] }, { id: 'b', members: ['child', 'other'] }]; }, /overlapping/);
+  invalidLinked((v) => { v.link_groups[0].members = ['root']; }, /two members/);
+  invalidLinked((v) => { v.link_groups[0].members = null; });
+  invalidLinked((v) => { v.link_groups[0].members = 'root,child'; });
+});
+
+test('v2 group count bounds accept 256 disjoint groups and reject 257', () => {
+  const ids = Array.from({ length: 514 }, (_, i) => `n${i}`);
+  const groups = Array.from({ length: 257 }, (_, i) => ({ id: `g${String(i).padStart(3, '0')}`, members: ids.slice(i * 2, i * 2 + 2) }));
+  const value = linkedWire({ ids, parents: [], groups: groups.slice(0, 256) });
+  assert.equal(validateContext(value).link_groups.length, 256);
+  value.link_groups = groups; assert.throws(() => validateContext(value), /array/);
+});
+
+test('v2 group member bounds accept 256 per group and 4096 total, rejecting either overflow', () => {
+  const ids = Array.from({ length: 4098 }, (_, i) => `n${i}`);
+  const groups = Array.from({ length: 16 }, (_, i) => ({ id: `g${String(i).padStart(2, '0')}`, members: ids.slice(i * 256, i * 256 + 256) }));
+  const value = linkedWire({ ids, parents: [], groups });
+  const context = validateContext(value);
+  assert.equal(context.link_groups.reduce((n, g) => n + g.members.length, 0), 4096);
+  const selected = apply(createState(context), context, 'Select', { reference: nodeReference(context, 'n128') });
+  assert.equal(selected.linked.length, 255); assert.equal(selected.linked[0].scene_node_id, 'n0');
+  const tooWide = structuredClone(value); tooWide.link_groups[0].members.push(ids[256]);
+  assert.throws(() => validateContext(tooWide), /array/);
+  value.link_groups.push({ id: 'z', members: ids.slice(4096) });
+  assert.throws(() => validateContext(value), /member count/);
+  value.link_groups[0].members.pop();
+  assert.equal(value.link_groups.reduce((n, g) => n + g.members.length, 0), 4097);
+  assert.throws(() => validateContext(value), /member count/);
+});
+
+test('v2 source member strings preserve exact Unicode and enforce the existing byte bound', () => {
+  const longId = '😀'.repeat(1024);
+  const ids = [longId, 'e\u0301', 'é', '__proto__', 'constructor'];
+  const value = linkedWire({ ids, parents: [], groups: [{ id: 'exact', members: ids }] });
+  const context = validateContext(value); const state = apply(createState(context), context, 'Select', { reference: nodeReference(context, 'é') });
+  assert.deepEqual(linkedIds(state), [longId, 'e\u0301', '__proto__', 'constructor']);
+  invalidLinked((v) => { v.link_groups[0].members[0] = '😀'.repeat(1025); }, /string/);
+});
+
+test('v2 byte preflight rejects escaped-wire overflow before normalization and qualified-reference expansion', () => {
+  const largeWire = linkedWire({ ids: Array.from({ length: 180 }, (_, i) => `n${i}`), parents: [], groups: [{ id: 'pair', members: ['n0', 'n1'] }] });
+  for (const node of largeWire.nodes) node.origin.explanation = '\u0001'.repeat(4096);
+  assert.ok(new TextEncoder().encode(JSON.stringify(largeWire)).length > 4 * 1024 * 1024);
+  assert.throws(() => validateContext(largeWire), /byte limit/);
+  const expanded = linkedWire({ ids: Array.from({ length: 1024 }, (_, i) => `n${i}`), parents: [], groups: [{ id: 'pair', members: ['n0', 'n1'] }] });
+  expanded.document_id = 'd'.repeat(4096);
+  assert.ok(new TextEncoder().encode(JSON.stringify(expanded)).length < 4 * 1024 * 1024);
+  assert.throws(() => validateContext(expanded), /derived references.*byte limit/);
+});
+
+test('v2 normalized metadata also fits the byte budget even when wire fits exactly', () => {
+  const value = linkedWire({ ids: Array.from({ length: 1024 }, (_, i) => `n${i}`), parents: [], groups: [{ id: 'pair', members: ['n0', 'n1'] }] });
+  const budget = 4 * 1024 * 1024;
+  let needed = budget - Buffer.byteLength(JSON.stringify(value));
+  for (const node of value.nodes) {
+    const size = Math.min(4096, needed); node.origin.explanation = 'x'.repeat(size); needed -= size;
+  }
+  assert.equal(needed, 0); assert.equal(Buffer.byteLength(JSON.stringify(value)), budget);
+  assert.throws(() => validateContext(value), /normalized.*byte limit/);
+  let removed = value.nodes.length * 18;
+  for (const node of value.nodes) { const n = Math.min(removed, node.origin.explanation.length); node.origin.explanation = node.origin.explanation.slice(n); removed -= n; }
+  assert.equal(removed, 0);
+  const context = validateContext(value);
+  assert.ok(Buffer.byteLength(JSON.stringify(context)) <= budget);
+});
+
+test('v2 initial state adds only group ID and immutable linked references', () => {
+  const context = linkedFixture(); const state = createState(context);
+  assert.deepEqual(Object.keys(state).sort(), [...Object.keys(createState(fixture())), 'selected_group_id', 'linked'].sort());
+  assert.equal(state.selected_group_id, null); assert.deepEqual(state.linked, []); assert.ok(Object.isFrozen(state.linked));
+  assert.equal(Object.hasOwn(createState(fixture()), 'linked'), false);
+  assert.equal(Object.hasOwn(createState(fixture()), 'selected_group_id'), false);
+});
+
+test('v2 picker and click derive ordered links, repeat idempotently and rotate the primary', () => {
+  const context = validateContext(linkedWire({ groups: [{ id: 'triple', members: ['root', 'child', 'other'] }] }));
+  for (const type of ['Select', 'Click']) {
+    let state = createState(context);
+    const root = nodeReference(context, 'root'); const child = nodeReference(context, 'child');
+    state = apply(state, context, type, { reference: child });
+    assert.equal(state.selected, child); assert.equal(state.inspected, child); assert.equal(state.selected_group_id, 'triple');
+    assert.deepEqual(linkedIds(state), ['root', 'other']); assert.ok(Object.isFrozen(state.linked));
+    for (const ref of state.linked) { assert.equal(ref, nodeReference(context, ref.scene_node_id)); assert.ok(Object.isFrozen(ref)); }
+    assert.equal(apply(state, context, type, { reference: { ...child } }), state);
+    state = apply(state, context, type, { reference: root }); assert.equal(state.selected, root);
+    assert.deepEqual(linkedIds(state), ['child', 'other']); assert.equal(state.selected_group_id, 'triple');
+  }
+});
+
+test('v2 an ungrouped primary and clear remove all links without broadening by matching data key', () => {
+  const value = linkedWire(); for (const node of value.nodes) node.origin.data_key = 'same';
+  const context = validateContext(value); let state = createState(context);
+  state = apply(state, context, 'Select', { reference: nodeReference(context, 'root') }); assert.deepEqual(linkedIds(state), ['child']);
+  state = apply(state, context, 'Select', { reference: nodeReference(context, 'other') });
+  assert.equal(state.selected.scene_node_id, 'other'); assert.equal(state.selected_group_id, null); assert.deepEqual(state.linked, []);
+  state = apply(state, context, 'Select', { reference: nodeReference(context, 'child') });
+  state = apply(state, context, 'Select', { reference: null });
+  assert.equal(state.selected, null); assert.equal(state.selected_group_id, null); assert.deepEqual(state.linked, []);
+  assert.equal(apply(state, context, 'Select', { reference: null }), state);
+});
+
+test('v2 exact ancestor/descendant members do not add siblings or descendants implicitly', () => {
+  const value = linkedWire({ ids: ['root', 'parent', 'leaf', 'sibling', 'other'], parents: [null, 'root', 'parent', 'root', null], groups: [{ id: 'nested', members: ['root', 'leaf'] }] });
+  for (const node of value.nodes) { node.origin.hir_node = 'same'; node.origin.data_key = 'same'; }
+  const context = validateContext(value);
+  let state = apply(createState(context), context, 'Select', { reference: nodeReference(context, 'leaf') });
+  assert.deepEqual(linkedIds(state), ['root']); assert.equal(state.selected.scene_node_id, 'leaf');
+  state = apply(state, context, 'Select', { reference: nodeReference(context, 'root') }); assert.deepEqual(linkedIds(state), ['leaf']);
+  for (const id of ['parent', 'sibling', 'other']) {
+    state = apply(state, context, 'Select', { reference: nodeReference(context, id) });
+    assert.deepEqual(state.linked, []); assert.equal(state.selected_group_id, null);
+  }
+});
+
+test('v2 hover/focus inspect exact latest origins without propagating selection', () => {
+  const context = linkedFixture(); const root = nodeReference(context, 'root'); const child = nodeReference(context, 'child'); const other = nodeReference(context, 'other');
+  let state = apply(createState(context), context, 'Select', { reference: root }); const links = state.linked;
+  state = apply(state, context, 'Hover', { reference: child }); assert.equal(state.inspected, child);
+  state = apply(state, context, 'Focus', { reference: other }); assert.equal(state.inspected, other);
+  state = apply(state, context, 'Hover', { reference: child }); assert.equal(state.inspected, child);
+  assert.equal(state.selected, root); assert.equal(state.linked, links); assert.equal(state.selected_group_id, 'pair');
+  state = apply(state, context, 'Select', { reference: root }); assert.equal(state.inspected, root);
+  assert.equal(apply(state, context, 'Select', { reference: root }), state);
+  state = apply(state, context, 'Escape');
+  assert.equal(state.selected, null); assert.equal(state.selected_group_id, null); assert.deepEqual(state.linked, []); assert.equal(state.inspected, other);
+});
+
+test('v2 reset preserves primary and links and Escape cancels drag before clearing them', () => {
+  const context = linkedFixture(); const root = nodeReference(context, 'root');
+  const selected = apply(createState(context), context, 'Select', { reference: root });
+  const dragged = move(startDrag(context, selected), context);
+  const reset = apply(dragged, context, 'Reset'); assert.deepEqual(reset.camera, { ...context.home, zoom: 1 });
+  assert.equal(reset.selected, root); assert.equal(reset.linked, selected.linked); assert.equal(reset.selected_group_id, 'pair');
+  const cancelled = apply(dragged, context, 'Escape'); assert.equal(cancelled.selected, root); assert.equal(cancelled.linked, selected.linked); assert.equal(cancelled.gesture, null);
+  const cleared = apply(cancelled, context, 'Escape'); assert.equal(cleared.selected, null); assert.deepEqual(cleared.linked, []); assert.equal(cleared.selected_group_id, null);
+});
+
+test('v2 cancellation, late events and suppressed drag clicks preserve the whole selection', () => {
+  const context = linkedFixture(); const root = nodeReference(context, 'root'); const child = nodeReference(context, 'child');
+  const selected = apply(createState(context), context, 'Select', { reference: root });
+  const dragged = move(startDrag(context, selected), context);
+  for (const action of [{ type: 'CancelGesture' }, { type: 'TogglePan' }, { type: 'PointerStart', pointer_id: 8 }, { type: 'Pan', dx: 1, dy: 0 }, { type: 'ZoomAt', factor: 1.25 }]) {
+    const cancelled = reduce(dragged, action, context);
+    assert.equal(cancelled.gesture, null); assert.equal(cancelled.selected, root); assert.equal(cancelled.linked, selected.linked); assert.equal(cancelled.selected_group_id, 'pair');
+    assert.equal(move(cancelled, context), cancelled);
+    const suppressed = apply(cancelled, context, 'Click', { reference: child }); assert.equal(suppressed.selected, root); assert.equal(suppressed.linked, selected.linked);
+    const nextClick = apply(suppressed, context, 'Click', { reference: child }); assert.equal(nextClick.selected, child); assert.deepEqual(linkedIds(nextClick), ['root']);
+  }
+});
+
+test('v2 canonical groups bind retained state even when document, scene and instance match', () => {
+  const source = linkedWire(); const context = validateContext(source); const state = createState(context);
+  assert.equal(apply(state, validateContext(structuredClone(source)), 'Select', { reference: null }), state);
+  for (const groups of [[{ id: 'different', members: ['root', 'child'] }], [{ id: 'pair', members: ['root', 'other'] }]]) {
+    const changed = structuredClone(source); changed.link_groups = groups;
+    assert.throws(() => apply(state, validateContext(changed), 'Reset'), /state belongs/);
+  }
+  assert.throws(() => apply(state, fixture(), 'Reset'), /state belongs/);
+  assert.throws(() => apply(createState(fixture()), context, 'Reset'), /state belongs/);
+});
+
+test('mixed v1/v2 contexts isolate instance-qualified references and retain shared revision checks', () => {
+  const v1 = fixture(); const v2 = validateContext(linkedWire({ key: 'linked' }));
+  const one = apply(createState(v1), v1, 'Select', { reference: nodeReference(v1, 'child') });
+  const two = apply(createState(v2), v2, 'Click', { reference: nodeReference(v2, 'root') });
+  assert.equal(Object.hasOwn(one, 'linked'), false); assert.deepEqual(linkedIds(two), ['child']);
+  assert.equal(apply(one, v1, 'Select', { reference: two.selected }), one);
+  assert.equal(apply(two, v2, 'Select', { reference: one.selected }), two);
+  assert.throws(() => apply(one, v2, 'Reset'), /state belongs/);
+  assert.throws(() => apply(two, v1, 'Reset'), /state belongs/);
+  assert.equal(validateRuntimeRevision(v1.runtime_payload_sha256, v2.runtime_payload_sha256), v1.runtime_payload_sha256);
+  const changed = linkedWire({ key: 'linked' }); changed.runtime_payload_sha256 = 'f'.repeat(64);
+  assert.throws(() => validateRuntimeRevision(v1.runtime_payload_sha256, changed.runtime_payload_sha256), /incompatible/);
+  assert.throws(() => apply(two, validateContext(changed), 'Reset'), /state belongs/);
+});
+
+test('linked DOM projection structural audit uses exact nodes, independent text and existing cleanup only', async () => {
+  const source = await readFile(new URL('./runtime.mjs', import.meta.url), 'utf8');
+  assert.match(source, /for \(const ref of renderedLinked \?\? \[\]\) elements\.get\(ref\.scene_node_id\)\.classList\.remove\('vizir-is-linked'\)/);
+  assert.match(source, /for \(const ref of state\.linked\) \{\s+const element = elements\.get\(ref\.scene_node_id\);\s+element\.classList\.add\('vizir-is-linked'\);\s+element\.setAttribute\('tabindex', '-1'\)/);
+  assert.match(source, /Link group: \$\{state\.selected_group_id \?\? 'none'\}\. Linked nodes: \$\{state\.linked\.length\}/);
+  assert.match(source, /linked_count: state\.linked\.length/);
+  assert.match(source, /origin: contextData\(context\)\.index\.get\(inspect\.scene_node_id\)\.origin, \.\.\.selectionInfo\(state\)/);
+  assert.match(source, /\['class', 'tabindex', 'aria-label'\]/);
+  assert.match(source, /for \(const restore of restores\.reverse\(\)\) restore\(\)/);
+  assert.doesNotMatch(source, /querySelector(?:All)?\([^\n]*vizir-is-linked/);
+  assert.match(source, /version: FORMAT, profile: PROFILE, supported_profiles: SUPPORTED_PROFILES/);
+  // These are source/contract checks. They do not run DOM, focus or cleanup APIs.
+});
+
+test('v2 derived linked-state envelope is bounded before selecting any primary', () => {
+  const ids = Array.from({ length: 256 }, (_, i) => `n${i}`);
+  const value = linkedWire({ ids, parents: [], groups: [{ id: 'all', members: ids }] });
+  value.document_id = '\u0001'.repeat(2680);
+  const binding = { document_id: value.document_id, scene_sha256: value.scene_sha256, instance_key: value.instance_key };
+  const bindingBytes = Buffer.byteLength(JSON.stringify(binding));
+  const refBytes = ids.map((id) => bindingBytes + 17 + Buffer.byteLength(JSON.stringify(id)));
+  assert.ok(refBytes.reduce((a, b) => a + b, 0) < 4 * 1024 * 1024);
+  assert.ok(bindingBytes + 3 * Math.max(...refBytes) + 2048 + refBytes.reduce((a, b) => a + b + 1, 0) > 4 * 1024 * 1024);
+  assert.throws(() => validateContext(value), /derived linked state.*byte limit/);
+  value.document_id = '\u0001'.repeat(2600);
+  const context = validateContext(value); let state = createState(context);
+  state = apply(state, context, 'Select', { reference: nodeReference(context, ids[0]) });
+  state = apply(state, context, 'Hover', { reference: nodeReference(context, ids[1]) });
+  state = apply(state, context, 'Focus', { reference: nodeReference(context, ids[2]) });
+  state = move(startDrag(context, state), context);
+  assert.equal(state.linked.length, 255); assert.ok(Buffer.byteLength(JSON.stringify(state)) < 4 * 1024 * 1024);
+});
+
+// V1 oracle begin. Fixed bounded trace generated against the published frozen-v3
+// payload SHA-256 49b480dfe490e8e3e5d903989f3d58c9d243db8d8e1fc0bf15cb471f99a7bb36
+// from baseline 480772e4d9760579e7b7b900fa832701e2cf0d30. State has no
+// payload-revision field, so the only permitted payload-identity change is inert.
+const V1_GOLDEN_ACTIONS = [
+  { type: 'Select', id: 'child' }, { type: 'Select', id: 'child' },
+  { type: 'Hover', id: 'root' }, { type: 'Focus', id: 'other' },
+  { type: 'Select', id: 'child' }, { type: 'Click', id: 'child' },
+  { type: 'ZoomAt', factor: 2, x: 200, y: 100 }, { type: 'Pan', dx: 1, dy: -1 },
+  { type: 'TogglePan' },
+  { type: 'PointerStart', pointer_id: 7, css_x: 100, css_y: 100, scene_x: 500, scene_y: 250 },
+  { type: 'PointerMove', pointer_id: 7, css_x: 102, css_y: 102, scene_x: 510, scene_y: 260 },
+  { type: 'PointerMove', pointer_id: 7, css_x: 105, css_y: 100, scene_x: 508, scene_y: 250 },
+  { type: 'PointerEnd', pointer_id: 8 }, { type: 'PointerEnd', pointer_id: 7 },
+  { type: 'Click', id: 'other' }, { type: 'Click', id: 'other' },
+  { type: 'Hover', id: null }, { type: 'Focus', id: null }, { type: 'Escape' },
+  { type: 'Select', id: 'root' },
+  { type: 'PointerStart', pointer_id: 9, css_x: 20, css_y: 30, scene_x: 200, scene_y: 100 },
+  { type: 'PointerMove', pointer_id: 9, css_x: 40, css_y: 50, scene_x: 300, scene_y: 200 },
+  { type: 'Escape' }, { type: 'Escape' }, { type: 'PrepareClick' },
+  { type: 'Click', id: 'child' }, { type: 'Reset' },
+  { type: 'ZoomAt', factor: Number.MAX_VALUE }, { type: 'Pan', dx: Number.MAX_VALUE, dy: -Number.MAX_VALUE },
+  { type: 'ZoomAt', factor: Number.MIN_VALUE }, { type: 'ZoomAt', factor: NaN },
+  { type: 'Select', id: 'other', foreign: true }, { type: 'CancelGesture' },
+  { type: 'TogglePan' }, { type: 'Select', id: null }, { type: 'Select', id: null },
+];
+function v1TraceSnapshots(runtime) {
+  const context = runtime.validateContext(wire());
+  let state = runtime.createState(context);
+  const result = [{ same: false, state }];
+  for (const entry of V1_GOLDEN_ACTIONS) {
+    const { id, foreign, ...action } = entry;
+    if (Object.hasOwn(entry, 'id')) action.reference = id === null ? null : runtime.nodeReference(context, id);
+    if (foreign) action.reference = { ...action.reference, instance_key: 'foreign' };
+    const previous = state; state = runtime.reduce(state, action, context);
+    result.push({ same: state === previous, state });
+  }
+  return result;
+}
+// V1 oracle end.
+
+test('v1 reducer full state and identity trace matches its fixed published-runtime golden', () => {
+  const trace = v1TraceSnapshots({ validateContext, createState, reduce, nodeReference });
+  const digest = createHash('sha256').update(JSON.stringify(trace)).digest('hex');
+  assert.equal(trace.length, 37);
+  assert.equal(digest, '896bbcda4e6f777b89ed8d5c78af1c47e8798a219a6c8ecbdfafec4c5333e2ee');
+  for (const { state } of trace) {
+    assert.equal(Object.hasOwn(state, 'linked'), false); assert.equal(Object.hasOwn(state, 'selected_group_id'), false);
+  }
+});
+
+test('v2 preserves Origin null normalization and exact mixed Unicode JSON budget accounting', () => {
+  const value = linkedWire();
+  value.document_id = '"\\\b\t\n\f\r\u0001/é\u2028😀';
+  value.nodes[0].origin.data_key = null;
+  value.nodes[1].origin.data_lineage = ['"\\\u0000', 'é', '😀', '\u2028'];
+  const omitted = structuredClone(value); delete omitted.nodes[0].origin.data_key;
+  const context = validateContext(value);
+  assert.deepEqual(context, validateContext(omitted));
+  const state = apply(createState(context), context, 'Select', { reference: nodeReference(context, 'root') });
+  assert.equal(state.linked[0].document_id, value.document_id);
+  assert.equal(state.linked[0].scene_node_id, 'child');
+  assert.equal(new Map(expectedOriginAttributes(context.nodes[0].origin)).get('data-key'), null);
+  assert.equal(apply(state, validateContext(omitted), 'Select', { reference: nodeReference(context, 'root') }), state);
+});
+
+test('v2 two ungrouped equal-data-key nodes never join and background click clears primary plus links', () => {
+  const value = linkedWire({ ids: ['root', 'child', 'other', 'equal'], parents: [null, 'root', null, null] });
+  value.nodes[2].origin.data_key = 'same'; value.nodes[3].origin.data_key = 'same';
+  const context = validateContext(value); let state = createState(context);
+  for (const id of ['other', 'equal']) {
+    state = apply(state, context, 'Click', { reference: nodeReference(context, id) });
+    assert.equal(state.selected.scene_node_id, id); assert.equal(state.selected_group_id, null); assert.deepEqual(state.linked, []);
+  }
+  state = apply(state, context, 'Select', { reference: nodeReference(context, 'child') });
+  assert.deepEqual(linkedIds(state), ['root']);
+  state = apply(state, context, 'Click', { reference: null });
+  assert.equal(state.selected, null); assert.equal(state.selected_group_id, null); assert.deepEqual(state.linked, []);
+  assert.equal(apply(state, context, 'Click', { reference: null }), state);
+});
+
+test('v2 compact link-group metadata accepts exactly 1 MiB and rejects one byte more', () => {
+  const ids = Array.from({ length: 200 }, (_, i) => '\t'.repeat(2500) + String(i).padStart(3, '0'));
+  const groups = [{ id: 'group', members: ids }];
+  const groupBudget = 1024 * 1024;
+  let needed = groupBudget - Buffer.byteLength(JSON.stringify(groups));
+  for (let i = 0; i < ids.length && needed; i += 1) {
+    const room = 4096 - Buffer.byteLength(ids[i]);
+    const tabs = Math.min(Math.floor(needed / 2), room);
+    ids[i] = '\t'.repeat(tabs) + ids[i]; needed -= tabs * 2;
+    if (needed === 1 && tabs < room) { ids[i] += 'x'; needed -= 1; }
+  }
+  assert.equal(needed, 0); assert.equal(Buffer.byteLength(JSON.stringify(groups)), groupBudget);
+  const value = linkedWire({ ids, parents: [], groups });
+  assert.ok(Buffer.byteLength(JSON.stringify(value)) < 4 * 1024 * 1024);
+  assert.equal(validateContext(value).link_groups[0].members.length, 200);
+  const last = value.nodes.at(-1); last.scene_node_id += 'x'; last.dom_id = nodeDomId(value.instance_key, last.scene_node_id);
+  value.link_groups[0].members[ids.length - 1] = last.scene_node_id;
+  assert.ok(Buffer.byteLength(last.scene_node_id) <= 4096);
+  assert.equal(Buffer.byteLength(JSON.stringify(value.link_groups)), groupBudget + 1);
+  assert.ok(Buffer.byteLength(JSON.stringify(value)) < 4 * 1024 * 1024);
+  assert.throws(() => validateContext(value), /byte limit/);
+});
+
+test('pure selection-info projection lists exact linked IDs in order without changing Origin or v1 output', () => {
+  const context = validateContext(linkedWire({ groups: [{ id: 'triple', members: ['root', 'child', 'other'] }] }));
+  let state = apply(createState(context), context, 'Select', { reference: nodeReference(context, 'child') });
+  const before = JSON.stringify(state); const origins = JSON.stringify(context.nodes.map((node) => node.origin));
+  assert.deepEqual(selectionInfo(state), { selected_group_id: 'triple', linked_count: 2, linked_scene_node_ids: ['root', 'other'] });
+  assert.equal(JSON.stringify(state), before);
+  state = apply(state, context, 'Hover', { reference: nodeReference(context, 'other') });
+  assert.equal(state.inspected.scene_node_id, 'other');
+  assert.deepEqual(selectionInfo(state), { selected_group_id: 'triple', linked_count: 2, linked_scene_node_ids: ['root', 'other'] });
+  assert.equal(JSON.stringify(context.nodes.map((node) => node.origin)), origins);
+  state = apply(state, context, 'Select', { reference: nodeReference(context, 'root') });
+  assert.deepEqual(selectionInfo(state), { selected_group_id: 'triple', linked_count: 2, linked_scene_node_ids: ['child', 'other'] });
+  state = apply(state, context, 'Escape');
+  assert.deepEqual(selectionInfo(state), { selected_group_id: null, linked_count: 0, linked_scene_node_ids: [] });
+  const v1 = fixture(); const legacy = apply(createState(v1), v1, 'Select', { reference: nodeReference(v1, 'child') });
+  assert.deepEqual(selectionInfo(createState(v1)), {}); assert.deepEqual(selectionInfo(legacy), {});
+  assert.throws(() => selectionInfo(structuredClone(state)), /state belongs/);
+});
+
+test('selection-info projection preserves all 255 linked IDs without truncation or reinterpretation', () => {
+  const ids = Array.from({ length: 256 }, (_, i) => `n${i}<>&"\t`);
+  const context = validateContext(linkedWire({ ids, parents: [], groups: [{ id: 'all', members: ids }] }));
+  const primary = ids[128];
+  const state = apply(createState(context), context, 'Select', { reference: nodeReference(context, primary) });
+  const projected = selectionInfo(state);
+  assert.equal(projected.linked_count, 255);
+  assert.deepEqual(projected.linked_scene_node_ids, ids.filter((id) => id !== primary));
+  assert.equal(projected.linked_scene_node_ids.includes(primary), false);
+  assert.equal(projected.linked_scene_node_ids.at(-1), ids.at(-1));
+  assert.deepEqual(JSON.parse(JSON.stringify(projected)), projected);
+  projected.linked_scene_node_ids.length = 0;
+  assert.equal(state.linked.length, 255);
 });

@@ -1,10 +1,13 @@
-/** VizIR explorer-v1. No dependencies, network, timers, source mutation or animation.
+/** VizIR explorer-v1 and explorer-linked-v1. No dependencies, network, timers, source mutation or animation.
  * The digest binds references to the emitted snapshot; it is not authentication.
  * Only compiler-generated fragments are supported. Call dispose before replacing a
  * fragment; callers must not mutate a generated subtree while it is mounted.
  */
 const FORMAT = 'vizir-interaction/1';
 const PROFILE = 'explorer-v1';
+const LINKED_FORMAT = 'vizir-interaction/2';
+const LINKED_PROFILE = 'explorer-linked-v1';
+const SUPPORTED_PROFILES = Object.freeze([PROFILE, LINKED_PROFILE]);
 // The exporter prefixes this immutable declaration before these exact payload bytes.
 const PAYLOAD_SHA256 = typeof VIZIR_RUNTIME_PAYLOAD_SHA256 === 'string' ? VIZIR_RUNTIME_PAYLOAD_SHA256 : null;
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -45,6 +48,41 @@ function string(value, nonblank = false) {
   }
   return value;
 }
+// Count JSON's UTF-8 representation incrementally, without serializing an
+// untrusted aggregate. A fixed-depth walk also rejects cycles and exotic values.
+// V1 keeps its published validation path; V2 preflights before normalization.
+function jsonByteLength(value, limit = MAX_BYTES) {
+  let bytes = 0;
+  const add = (count) => { bytes += count; if (bytes > limit) fail('interaction metadata or derived state exceeds byte limit'); };
+  const text = (value) => {
+    add(2);
+    for (const character of value) {
+      const cp = character.codePointAt(0);
+      add(cp === 34 || cp === 92 || [8, 9, 10, 12, 13].includes(cp) ? 2 : cp < 32 || cp >= 0xd800 && cp <= 0xdfff ? 6 : cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4);
+    }
+  };
+  const visit = (value, depth) => {
+    if (depth > 8) fail('invalid metadata nesting');
+    if (value === null) { add(4); return; }
+    if (typeof value === 'string') { text(value); return; }
+    if (typeof value === 'number') { add(JSON.stringify(value).length); return; }
+    if (typeof value === 'boolean') { add(value ? 4 : 5); return; }
+    if (Array.isArray(value)) {
+      array(value, 32768);
+      add(2);
+      for (let i = 0; i < value.length; i += 1) { if (i) add(1); visit(value[i], depth + 1); }
+      return;
+    }
+    if (!value || typeof value !== 'object') fail('invalid metadata value');
+    const keys = Reflect.ownKeys(value);
+    if (keys.length > 16) fail('invalid metadata object field count');
+    record(value, keys);
+    add(2);
+    for (let i = 0; i < keys.length; i += 1) { if (i) add(1); text(keys[i]); add(1); visit(value[keys[i]], depth + 1); }
+  };
+  visit(value, 0);
+  return bytes;
+}
 function deepFreeze(value) {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) deepFreeze(child);
@@ -59,8 +97,13 @@ export function nodeDomId(instanceKey, sceneNodeId) {
 /** Validate exact wire fields, bounds and preorder; return an independent frozen copy. */
 export function validateContext(input) {
   if (contexts.has(input)) return input;
-  record(input, ['format', 'profile', 'document_id', 'scene_sha256', 'runtime_payload_sha256', 'instance_key', 'home', 'camera', 'nodes']);
-  if (input.format !== FORMAT || input.profile !== PROFILE) fail('unsupported interaction format or profile');
+  const fields = ['format', 'profile', 'document_id', 'scene_sha256', 'runtime_payload_sha256', 'instance_key', 'home', 'camera', 'nodes'];
+  record(input, fields, ['link_groups']);
+  const linkedProfile = input.format === LINKED_FORMAT && input.profile === LINKED_PROFILE;
+  if (!linkedProfile && (input.format !== FORMAT || input.profile !== PROFILE)) fail('unsupported interaction format or profile');
+  record(input, linkedProfile ? [...fields, 'link_groups'] : fields);
+  let normalizedBytes = linkedProfile ? jsonByteLength(input) : 0;
+  if (linkedProfile) jsonByteLength(input.link_groups, 1024 * 1024);
   let sourceBytes = 0;
   const sourceString = (value, nonblank = false) => {
     const text = string(value, nonblank);
@@ -77,8 +120,19 @@ export function validateContext(input) {
   record(input.camera, Object.keys(FIXED_CAMERA));
   if (Object.entries(FIXED_CAMERA).some(([key, value]) => input.camera[key] !== value)) fail('unsupported camera policy');
   array(input.nodes, 8192);
+  if (linkedProfile) {
+    // Account for normalization before copying, including later null omissions.
+    for (const node of input.nodes) {
+      record(node, ['scene_node_id', 'parent_scene_node_id', 'dom_id', 'origin']);
+      record(node.origin, ['hir_node', 'mir_node', 'generated_by', 'explanation'], ['data_key', 'data_lineage']);
+      if (!own(node.origin, 'data_lineage')) normalizedBytes += 18; // ,"data_lineage":[]
+      if (own(node.origin, 'data_key') && node.origin.data_key === null) normalizedBytes -= 16; // ,"data_key":null
+    }
+    if (normalizedBytes > MAX_BYTES) fail('normalized interaction metadata exceeds byte limit');
+  }
   const nodes = [];
   const index = new Map();
+  const positions = new Map();
   const activeParents = [];
   let lineageCount = 0;
   for (const node of input.nodes) {
@@ -111,15 +165,75 @@ export function validateContext(input) {
       origin.data_lineage = node.origin.data_lineage.map((entry) => sourceString(entry));
     } else origin.data_lineage = [];
     const normalized = { scene_node_id: id, parent_scene_node_id: parent, dom_id: node.dom_id, origin };
+    positions.set(id, nodes.length);
     nodes.push(normalized);
     index.set(id, normalized);
   }
-  const result = { format: FORMAT, profile: PROFILE, document_id: documentId, scene_sha256: input.scene_sha256, runtime_payload_sha256: input.runtime_payload_sha256, instance_key: input.instance_key, home: { x: 0, y: 0, width: input.home.width, height: input.home.height }, camera: { ...FIXED_CAMERA }, nodes };
-  if (utf8.encode(JSON.stringify(input)).length > MAX_BYTES) fail('interaction metadata exceeds byte limit');
+  const linkGroups = [];
+  const membership = new Map();
+  if (linkedProfile) {
+    array(input.link_groups, 256);
+    if (!input.link_groups.length) fail('link groups must not be empty');
+    let previousId = null;
+    let memberCount = 0;
+    for (const group of input.link_groups) {
+      record(group, ['id', 'members']);
+      const id = sourceString(group.id);
+      if (!/^[a-z][a-z0-9-]{0,63}(?![\s\S])/.test(id)) fail('invalid link group identity');
+      if (previousId !== null && id <= previousId) fail('link groups must be sorted by unique ASCII identity');
+      previousId = id;
+      array(group.members, 256);
+      if (group.members.length < 2) fail('link group requires at least two members');
+      memberCount += group.members.length;
+      if (memberCount > 4096) fail('link group member count exceeds limit');
+      const members = [];
+      let previousPosition = -1;
+      for (const member of group.members) {
+        const nodeId = sourceString(member, true);
+        const position = positions.get(nodeId);
+        if (position === undefined) fail('link member does not resolve to an exact scene node');
+        if (position <= previousPosition) fail('link members must be unique and in scene preorder');
+        if (membership.has(nodeId)) fail('overlapping link groups are unsupported');
+        previousPosition = position;
+        membership.set(nodeId, linkGroups.length);
+        members.push(nodeId);
+      }
+      linkGroups.push({ id, members });
+    }
+  }
+  const result = { format: input.format, profile: input.profile, document_id: documentId, scene_sha256: input.scene_sha256, runtime_payload_sha256: input.runtime_payload_sha256, instance_key: input.instance_key, home: { x: 0, y: 0, width: input.home.width, height: input.home.height }, camera: { ...FIXED_CAMERA }, nodes };
+  if (linkedProfile) result.link_groups = linkGroups;
+  else if (utf8.encode(JSON.stringify(input)).length > MAX_BYTES) fail('interaction metadata exceeds byte limit');
   deepFreeze(result);
   const binding = deepFreeze({ document_id: result.document_id, scene_sha256: result.scene_sha256, instance_key: result.instance_key });
-  const references = new Map(nodes.map((node) => [node.scene_node_id, deepFreeze({ ...binding, scene_node_id: node.scene_node_id })]));
-  contexts.set(result, { index, binding, references, signature: JSON.stringify(result) });
+  const references = new Map();
+  const referenceBytes = new Map();
+  let derivedBytes = 0;
+  const bindingBytes = linkedProfile ? jsonByteLength(binding) : 0;
+  for (const node of nodes) {
+    if (linkedProfile) {
+      // Qualified references repeat the binding, so small wire inputs can expand.
+      const bytes = bindingBytes + 17 + jsonByteLength(node.scene_node_id);
+      derivedBytes += bytes;
+      if (derivedBytes > MAX_BYTES) fail('derived references exceed byte limit');
+      referenceBytes.set(node.scene_node_id, bytes);
+    }
+    references.set(node.scene_node_id, deepFreeze({ ...binding, scene_node_id: node.scene_node_id }));
+  }
+  if (linkedProfile) {
+    const largestReference = Math.max(0, ...referenceBytes.values());
+    // A state can retain the primary plus its links and independent hover/focus/
+    // inspection references. 2048 bounds fixed keys and finite camera/gesture
+    // numbers, including two cameras, and the 64-byte ASCII group identity.
+    for (const group of linkGroups) {
+      let stateBytes = bindingBytes + 3 * largestReference + 2048;
+      for (const id of group.members) {
+        stateBytes += referenceBytes.get(id) + 1;
+        if (stateBytes > MAX_BYTES) fail('derived linked state exceeds byte limit');
+      }
+    }
+  }
+  contexts.set(result, { index, binding, references, referenceBytes, membership, signature: JSON.stringify(result) });
   return result;
 }
 function contextData(context) { return contexts.get(validateContext(context)); }
@@ -133,10 +247,48 @@ function reference(context, value) {
 }
 function homeCamera(context) { return { ...context.home, zoom: 1 }; }
 function retain(state, context) { deepFreeze(state); retainedStates.set(state, context); return state; }
-function nextState(state, patch) { return retain({ ...state, ...patch }, retainedStates.get(state)); }
+function nextState(state, patch) {
+  const context = retainedStates.get(state);
+  if (context.profile === LINKED_PROFILE) {
+    // Check the merged representation before copying a new retained state.
+    let bytes = 1;
+    for (const key of Object.keys(state)) {
+      bytes += jsonByteLength(key) + 2;
+      bytes += jsonByteLength(own(patch, key) ? patch[key] : state[key], MAX_BYTES - bytes);
+      if (bytes > MAX_BYTES) fail('derived state exceeds byte limit');
+    }
+  }
+  return retain({ ...state, ...patch }, context);
+}
+function selectionPatch(context, selected) {
+  const patch = { selected, inspected: selected };
+  if (context.profile === LINKED_PROFILE) {
+    const data = contextData(context);
+    const group = selected ? context.link_groups[data.membership.get(selected.scene_node_id)] : null;
+    patch.selected_group_id = group?.id ?? null;
+    patch.linked = [];
+    let bytes = 2;
+    for (const id of group?.members ?? []) {
+      if (id === selected.scene_node_id) continue;
+      bytes += data.referenceBytes.get(id) + (patch.linked.length ? 1 : 0);
+      if (bytes > MAX_BYTES) fail('derived linked state exceeds byte limit');
+      patch.linked.push(data.references.get(id));
+    }
+  }
+  return patch;
+}
 export function createState(rawContext) {
   const context = validateContext(rawContext);
-  return retain({ binding: contextData(context).binding, camera: homeCamera(context), selected: null, hovered: null, focused: null, inspected: null, pan_mode: false, gesture: null, suppress_click: false }, context);
+  const state = { binding: contextData(context).binding, camera: homeCamera(context), selected: null, hovered: null, focused: null, inspected: null, pan_mode: false, gesture: null, suppress_click: false };
+  if (context.profile === LINKED_PROFILE) { state.selected_group_id = null; state.linked = []; }
+  return retain(state, context);
+}
+/** Plain selection details for text inspection; Origin remains exact-node only. */
+export function selectionInfo(state) {
+  const context = retainedStates.get(state);
+  if (!context) fail('state belongs to another instance or snapshot');
+  if (context.profile !== LINKED_PROFILE) return {};
+  return { selected_group_id: state.selected_group_id, linked_count: state.linked.length, linked_scene_node_ids: state.linked.map((ref) => ref.scene_node_id) };
 }
 function cameraAt(context, zoom, x, y) {
   const width = context.home.width / zoom;
@@ -178,7 +330,7 @@ export function reduce(state, action, rawContext) {
     case 'Select': {
       const selected = reference(context, action.reference);
       if (selected === undefined || selected?.scene_node_id === state.selected?.scene_node_id && selected?.scene_node_id === state.inspected?.scene_node_id) return state;
-      return nextState(state, { selected, inspected: selected });
+      return nextState(state, selectionPatch(context, selected));
     }
     case 'Hover':
     case 'Focus': {
@@ -216,9 +368,9 @@ export function reduce(state, action, rawContext) {
     case 'Click': {
       if (state.suppress_click) return nextState(state, { suppress_click: false });
       const selected = reference(context, action.reference);
-      return selected === undefined || selected?.scene_node_id === state.selected?.scene_node_id && selected?.scene_node_id === state.inspected?.scene_node_id ? state : nextState(state, { selected, inspected: selected });
+      return selected === undefined || selected?.scene_node_id === state.selected?.scene_node_id && selected?.scene_node_id === state.inspected?.scene_node_id ? state : nextState(state, selectionPatch(context, selected));
     }
-    case 'Escape': return state.gesture ? cancelled(state) : state.selected ? nextState(state, { selected: null, inspected: state.focused ?? state.hovered }) : state;
+    case 'Escape': return state.gesture ? cancelled(state) : state.selected ? nextState(state, { ...selectionPatch(context, null), inspected: state.focused ?? state.hovered }) : state;
     default: fail('unsupported action');
   }
 }
@@ -360,6 +512,7 @@ export function mount(root) {
   let inverse = null;
   let captured = null;
   let renderedSelected = null;
+  let renderedLinked = null;
   let renderedInspected = null;
   let pendingClickReference;
   const activePointers = new Set();
@@ -400,6 +553,15 @@ export function mount(root) {
       }
       renderedSelected = state.selected;
     }
+    if (context.profile === LINKED_PROFILE && renderedLinked !== state.linked) {
+      for (const ref of renderedLinked ?? []) elements.get(ref.scene_node_id).classList.remove('vizir-is-linked');
+      for (const ref of state.linked) {
+        const element = elements.get(ref.scene_node_id);
+        element.classList.add('vizir-is-linked');
+        element.setAttribute('tabindex', '-1');
+      }
+      renderedLinked = state.linked;
+    }
     const inspect = inspected();
     if (renderedInspected !== inspect) {
       if (renderedInspected) elements.get(renderedInspected.scene_node_id).classList.remove('vizir-is-inspected');
@@ -407,9 +569,10 @@ export function mount(root) {
       renderedInspected = inspect;
     }
     picker.value = state.selected?.scene_node_id ?? '';
-    const nextStatus = `Zoom ${Math.round(camera.zoom * 100)}%. ${state.selected ? `Selected scene node: ${state.selected.scene_node_id}.` : 'No selection.'} ${state.pan_mode ? 'Pan mode.' : 'Inspect mode.'}`;
+    const linkedStatus = context.profile === LINKED_PROFILE ? ` Link group: ${state.selected_group_id ?? 'none'}. Linked nodes: ${state.linked.length}.` : '';
+    const nextStatus = `Zoom ${Math.round(camera.zoom * 100)}%. ${state.selected ? `Selected scene node: ${state.selected.scene_node_id}.` : 'No selection.'}${linkedStatus} ${state.pan_mode ? 'Pan mode.' : 'Inspect mode.'}`;
     if (status.textContent !== nextStatus) status.textContent = nextStatus;
-    const nextInspector = inspect ? JSON.stringify({ reference: inspect, origin: contextData(context).index.get(inspect.scene_node_id).origin }, null, 2) : 'Point to an element, focus a selected element, or choose a source element to inspect its provenance.';
+    const nextInspector = inspect ? JSON.stringify({ reference: inspect, origin: contextData(context).index.get(inspect.scene_node_id).origin, ...selectionInfo(state) }, null, 2) : 'Point to an element, focus a selected element, or choose a source element to inspect its provenance.';
     if (inspector.textContent !== nextInspector) inspector.textContent = nextInspector;
   };
   const dispatch = (action) => {
@@ -550,7 +713,7 @@ export function mount(root) {
 export function bootstrap(globalObject = globalThis) {
   if (!globalObject.document) return null;
   const shared = registry(globalObject);
-  if (!shared.api) shared.api = Object.freeze({ version: FORMAT, profile: PROFILE, runtime_payload_sha256: PAYLOAD_SHA256, mount, bootstrap });
+  if (!shared.api) shared.api = Object.freeze({ version: FORMAT, profile: PROFILE, supported_profiles: SUPPORTED_PROFILES, runtime_payload_sha256: PAYLOAD_SHA256, mount, bootstrap });
   if (!own(globalObject, 'VizIRExplorerV1')) Object.defineProperty(globalObject, 'VizIRExplorerV1', { value: shared.api, writable: false, configurable: false });
   else if (globalObject.VizIRExplorerV1 !== shared.api) fail('global runtime API collision');
   const run = () => {
