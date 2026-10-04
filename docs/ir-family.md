@@ -64,6 +64,39 @@ The first stable surface is intentionally narrower than the full VIR proposal:
   and typed operations. Applying a patch is atomic because it operates on a
   clone and publishes only the validated result.
 
+### Bounded Scene2D validation
+
+`validate_scene(&Scene2D)` returns deterministic, field-addressed diagnostics,
+using the same `Result<(), Vec<Diagnostic>>` interface as HIR/MIR validation.
+It checks finite positive scene dimensions, finite coordinates and transforms,
+finite nonnegative bounds extents/radii/stroke widths, positive font sizes,
+opacity in `[0, 1]`, and portable colors (`transparent`, `#RRGGBB`, `#RRGGBBAA`).
+Document and node IDs are nonblank opaque strings; node IDs are globally
+unique. They are not restricted to the HIR ASCII ID grammar or normalized.
+Origin `hir_node`, `mir_node`, and `generated_by` must be nonblank; references
+need not resolve inside the scene. Data keys/lineage remain arbitrary strings
+and explanations may be empty.
+
+Empty scenes, groups, paths and text are valid. Zero-sized bounds, degenerate
+geometry, transparent paint, zero opacity/stroke width, and zero/reflected
+transform scales remain valid. Bounds are approximate; validation does not
+prove exact geometry bounds, parent/viewport containment, font measurements,
+or safe rendering at every finite magnitude. It does not impose backend limits
+or verify provenance truth. No wire fields or decoding rules are changed.
+
+The compiler validates the completed scene, `diff_scene` validates both inputs,
+and the SVG backend validates before negotiation or emission (including PNG's
+SVG path). Patch envelope/revision errors retain precedence. Patch application
+validates its base and final cloned transaction before publishing the revised
+result. Insertions and replacements additionally preserve global ID uniqueness
+immediately, including descendants, so a temporary collision cannot redirect
+later operations. Other semantic values can be changed and repaired within one
+transaction. Invalid programmatically constructed scenes now fail explicitly.
+
+Cross-parent move ordering in `diff_scene` is a separate known limitation:
+an insertion emitted before another parent's removal may not form an applicable
+patch. Semantic validation does not repair that diff ordering algorithm.
+
 The checked-in schemas are generated from the Rust types:
 
 ```text

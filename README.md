@@ -268,6 +268,10 @@ stable 0.1 surface, and promotion rules.
 See [backend negotiation](docs/backend-capabilities.md) for exact Scene2D
 identity aliases, advertised node/clip limits, and fail-closed report semantics.
 
+Scene construction, diff, patch application, and SVG/PNG emission enforce
+[bounded Scene2D validation](docs/ir-family.md#bounded-scene2d-validation),
+including global stable identity and transactional patch checks.
+
 ## Executable reference gallery
 
 Every gallery PNG is built from the adjacent semantic example and retains a

@@ -4,6 +4,10 @@ use std::path::Path;
 
 use serde_json::Value;
 
+#[path = "validate_scene.rs"]
+mod scene;
+pub use scene::validate_scene;
+
 use crate::{
     ChartMark, Color, Diagnostic, DiagramLayout, Document, GeometryNode, GuideKind, MirChart,
     MirScale, MirView, PathCommand, Point, ShapeStyle, TypeEnvironment, ValueType, View, VizError,

@@ -27,14 +27,16 @@ pub fn build_scene(mir: &VizMir) -> VizResult<Scene2D> {
             MirView::Geometry(geometry) => build_geometry(geometry)?,
         });
     }
-    Ok(Scene2D {
+    let scene = Scene2D {
         document_id: mir.document_id.clone(),
         width: mir.width,
         height: mir.height,
         background: mir.background.clone(),
         nodes,
         losses: mir.losses.clone(),
-    })
+    };
+    vizir_core::validate_scene(&scene).map_err(|diagnostics| VizError::validation(&diagnostics))?;
+    Ok(scene)
 }
 
 fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {

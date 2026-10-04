@@ -3,7 +3,7 @@ use std::fmt::Write;
 
 use vizir_core::{
     BackendCapabilities, FontWeight, PathCommand, ResolvedStyle, Scene2D, SceneNode, TextAnchor,
-    Transform2D, UnsupportedPolicy, VizResult, negotiate_scene,
+    Transform2D, UnsupportedPolicy, VizError, VizResult, negotiate_scene, validate_scene,
 };
 
 pub fn capabilities() -> BackendCapabilities {
@@ -35,6 +35,7 @@ pub fn capabilities() -> BackendCapabilities {
 }
 
 pub fn render(scene: &Scene2D) -> VizResult<String> {
+    validate_scene(scene).map_err(|diagnostics| VizError::validation(&diagnostics))?;
     negotiate_scene(scene, &capabilities())?.require_accepted()?;
     let mut output = String::new();
     writeln!(

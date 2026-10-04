@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{Color, LossRecord, Scene2D, SceneNode, VizError, VizResult};
+use crate::{Color, LossRecord, Scene2D, SceneNode, VizError, VizResult, validate_scene};
 
 fn patch_protocol_version() -> String {
     "0.1".to_owned()
@@ -81,6 +81,9 @@ pub fn diff_scene(
         )));
     }
 
+    validate_scene(previous).map_err(|diagnostics| VizError::validation(&diagnostics))?;
+    validate_scene(next).map_err(|diagnostics| VizError::validation(&diagnostics))?;
+
     let mut operations = Vec::new();
     if previous.width != next.width
         || previous.height != next.height
@@ -140,11 +143,12 @@ pub fn apply_scene_patch(
         )));
     }
 
+    validate_scene(scene).map_err(|diagnostics| VizError::validation(&diagnostics))?;
     let mut next = scene.clone();
     for operation in &patch.operations {
         apply_operation(&mut next, operation)?;
     }
-    validate_scene_ids(&next.nodes)?;
+    validate_scene(&next).map_err(|diagnostics| VizError::validation(&diagnostics))?;
     Ok((next, patch.target_revision))
 }
 
@@ -291,7 +295,8 @@ fn apply_operation(scene: &mut Scene2D, operation: &SceneOp) -> VizResult<()> {
             }
             let children = children_mut(&mut scene.nodes, parent)?;
             children.insert(*index, node.clone());
-            Ok(())
+            // Check descendants before a later operation can resolve an ambiguous ID.
+            validate_scene_ids(&scene.nodes)
         }
         SceneOp::RemoveNode { id } => {
             if remove_node(&mut scene.nodes, id) {
@@ -315,7 +320,7 @@ fn apply_operation(scene: &mut Scene2D, operation: &SceneOp) -> VizResult<()> {
                 )));
             };
             *existing = node.clone();
-            Ok(())
+            validate_scene_ids(&scene.nodes)
         }
         SceneOp::ReorderChildren { parent, order } => {
             let children = children_mut(&mut scene.nodes, parent)?;

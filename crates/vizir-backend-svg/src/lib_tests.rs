@@ -36,15 +36,13 @@ fn svg_escapes_text_and_keeps_transparent_root() {
 
 #[test]
 fn svg_escapes_gt_in_text_and_quotes_in_attributes() {
-    let scene = Scene2D {
+    let mut scene = Scene2D {
         document_id: "a & b < c > d".to_owned(),
         width: 100.0,
         height: 80.0,
-        // The renderer escapes whatever it is handed, so raw quotes in the
-        // background must never break out of the fill attribute.
-        background: Color("#11\"22'33".to_owned()),
+        background: Color::hex("#112233"),
         nodes: vec![SceneNode::Text {
-            id: "label".to_owned(),
+            id: "label\" & '< >".to_owned(),
             bounds: Rect::default(),
             origin: Origin {
                 hir_node: "label".to_owned(),
@@ -66,6 +64,9 @@ fn svg_escapes_gt_in_text_and_quotes_in_attributes() {
     let svg = render(&scene).unwrap();
     assert!(svg.contains("a &amp; b &lt; c &gt; d"));
     assert!(svg.contains("x &lt; y &gt; z &amp; w"));
-    assert!(svg.contains("fill=\"#11&quot;22&apos;33\""));
-    assert!(!svg.contains("#11\"22'33"));
+    assert!(svg.contains("id=\"label&quot; &amp; &apos;&lt; &gt;\""));
+    scene.background = Color("#11\"22'33".to_owned());
+    let error = render(&scene).unwrap_err().to_string();
+    assert!(error.contains("VIZ-TYPE-0004"));
+    assert!(error.contains("background"));
 }
