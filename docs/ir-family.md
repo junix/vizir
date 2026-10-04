@@ -201,3 +201,17 @@ opaque IDs/data strings retain their existing representation. ScenePatch's
 schema now marks Origin, Rect and ResolvedStyle with
 `additionalProperties: false`; decoding remains separate from semantic
 `validate_scene` checks. No standalone Scene2D schema command is introduced.
+
+## Executable chart materialization
+
+Static chart compilation now evaluates a bounded scalar subset of typed MIR
+bindings. Inline rows/schema and bindings are authoritative; symbol/bar
+instances and line series are checked caches. `build_scene` rejects stale
+caches, and the explicit `rematerialize_mir` API refreshes them without changing
+resolved scale domains/ranges. HIR normalization uses the same materializer.
+
+See [static MIR materialization](materialization.md) for the supported operators,
+exact float round trips, identity/order, resource bounds, diagnostics, and the
+executable Rust example. Structural `validate_mir` remains distinct from the
+compiler's executable/materialization checks. No new HIR/MIR wire version,
+calculate/filter syntax, or incremental dataflow runtime is introduced.

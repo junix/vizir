@@ -9,6 +9,7 @@ use vizir_core::{
 
 use crate::chart_layout::{ChartLayout, header_text_width, legend_domain};
 use crate::layout::{LayeredLayoutProvider, LayoutProvider};
+use crate::materialize::{MaterializationLimits, materialize_mir_marks};
 use crate::tick_format::{NumericTickLabels, format_number};
 
 const INK: &str = "#1C2736";
@@ -18,11 +19,17 @@ const BLUE: &str = "#3B6EF5";
 const SURFACE: &str = "#F7F9FC";
 
 pub fn build_scene(mir: &VizMir) -> VizResult<Scene2D> {
-    vizir_core::validate_mir(mir).map_err(|diagnostics| VizError::validation(&diagnostics))?;
+    build_scene_with_limits(mir, MaterializationLimits::default())
+}
+
+pub fn build_scene_with_limits(mir: &VizMir, limits: MaterializationLimits) -> VizResult<Scene2D> {
+    let marks = materialize_mir_marks(mir, limits, true)?;
     let mut nodes = Vec::new();
-    for view in &mir.views {
+    for (view, mark) in mir.views.iter().zip(&marks) {
         nodes.push(match view {
-            MirView::Chart(chart) => build_chart(chart)?,
+            MirView::Chart(chart) => {
+                build_chart(chart, mark.as_ref().expect("chart materialized"))?
+            }
             MirView::Diagram(diagram) => build_diagram(diagram)?,
             MirView::Geometry(geometry) => build_geometry(geometry)?,
         });
@@ -39,7 +46,7 @@ pub fn build_scene(mir: &VizMir) -> VizResult<Scene2D> {
     Ok(scene)
 }
 
-fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
+fn build_chart(chart: &MirChart, materialized: &ChartMark) -> VizResult<SceneNode> {
     let mut children = Vec::new();
     let guides = ChartGuides::resolve(chart)?;
     let ticks = NumericTickLabels::new(
@@ -117,7 +124,7 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
     let plot = [x_range[0], y_range[1], x_range[1], y_range[0]];
     guides.check_ranges(chart, plot)?;
     children.extend(build_grid_and_axes(chart, plot, &guides, ticks.as_ref()));
-    match &chart.mark {
+    match materialized {
         ChartMark::Symbol {
             id: mark_id,
             x,
@@ -176,6 +183,7 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
             color,
             line_width,
             show_points,
+            order_expression,
             series,
             ..
         } => {
@@ -213,8 +221,15 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                         data_lineage: vec![chart.source.clone()],
                         generated_by: "build-line-scene".to_owned(),
                         explanation: format!(
-                            "series {} sorted by x and mapped through {} and {}",
-                            series.key, x.scale, y.scale
+                            "series {} sorted by {} and mapped through {} and {}",
+                            series.key,
+                            if order_expression == &x.expression {
+                                "x"
+                            } else {
+                                order_expression.as_str()
+                            },
+                            x.scale,
+                            y.scale
                         ),
                     },
                     commands,

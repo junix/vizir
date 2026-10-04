@@ -280,6 +280,9 @@ MVP placeholders hidden behind generic enums.
 See [the IR family contract](docs/ir-family.md) for the ownership boundary,
 stable 0.1 surface, and promotion rules.
 
+See [static MIR materialization](docs/materialization.md) for executable numeric
+bindings, checked instance caches, and the explicit `rematerialize_mir` API.
+
 See [backend negotiation](docs/backend-capabilities.md) for exact Scene2D
 identity aliases, advertised node/clip limits, and fail-closed report semantics.
 

@@ -1,6 +1,7 @@
 mod chart_layout;
 mod layout;
 mod lower;
+mod materialize;
 mod scene_builder;
 mod tick_format;
 
@@ -8,7 +9,8 @@ use vizir_core::{Document, Scene2D, VizMir, VizResult};
 
 pub use layout::{LayeredLayoutProvider, LayoutProvider, LayoutResult};
 pub use lower::lower_to_mir;
-pub use scene_builder::build_scene;
+pub use materialize::{MaterializationLimits, rematerialize_mir, rematerialize_mir_with_limits};
+pub use scene_builder::{build_scene, build_scene_with_limits};
 
 #[derive(Debug, Clone)]
 pub struct Compilation {

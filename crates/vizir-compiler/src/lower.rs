@@ -3,14 +3,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::Value;
 use vizir_core::{
     BarChart, ChartMark, Color, ColorEncoding, CoordinateSpace2D, CoordinateSpaceKind, Document,
-    Expression, GeometryNode, GuideKind, GuideOrient, LineChart, MirBarItem, MirChart, MirDataNode,
-    MirDataOperator, MirDataSchema, MirDiagram, MirGeometry, MirGeometryNode, MirGuide,
-    MirPointItem, MirScale, MirSeries, MirShapeStyle, MirView, ScaleBinding, ScatterChart,
-    SpatialUnit, Transform2D, TypeEnvironment, TypedExpression, UpdateMode, ValueType, View,
-    VizError, VizMir, VizResult, type_expression, value_as_key,
+    Expression, GeometryNode, GuideKind, GuideOrient, LineChart, MirChart, MirDataNode,
+    MirDataOperator, MirDataSchema, MirDiagram, MirGeometry, MirGeometryNode, MirGuide, MirScale,
+    MirShapeStyle, MirView, ScaleBinding, ScatterChart, SpatialUnit, Transform2D, TypeEnvironment,
+    TypedExpression, UpdateMode, ValueType, View, VizError, VizMir, VizResult, type_expression,
 };
 
 use crate::chart_layout::{ChartLayout, legend_domain};
+use crate::materialize::{
+    Budget, MaterializationLimits, materialize_mark, preflight_document, preflight_hir_bindings,
+};
 use crate::tick_format::NumericTickLabels;
 
 const DEFAULT_PALETTE: [&str; 8] = [
@@ -20,6 +22,8 @@ const DEFAULT_PALETTE: [&str; 8] = [
 const DOCUMENT_SPACE: &str = "space/document";
 
 pub fn lower_to_mir(document: &Document) -> VizResult<VizMir> {
+    let mut budget = Budget::new(MaterializationLimits::default());
+    preflight_document(document, &mut budget)?;
     vizir_core::validate_document(document)
         .map_err(|diagnostics| VizError::validation(&diagnostics))?;
     let data = lower_data(document).map_err(lowering_error)?;
@@ -38,13 +42,16 @@ pub fn lower_to_mir(document: &Document) -> VizResult<VizMir> {
     for view in &document.views {
         views.push(match view {
             View::Scatter(chart) => MirView::Chart(Box::new(
-                lower_scatter(document, chart, &data, &mut expressions).map_err(lowering_error)?,
+                lower_scatter(document, chart, &data, &mut expressions, &mut budget)
+                    .map_err(lowering_error)?,
             )),
             View::Line(chart) => MirView::Chart(Box::new(
-                lower_line(document, chart, &data, &mut expressions).map_err(lowering_error)?,
+                lower_line(document, chart, &data, &mut expressions, &mut budget)
+                    .map_err(lowering_error)?,
             )),
             View::Bar(chart) => MirView::Chart(Box::new(
-                lower_bar(document, chart, &data, &mut expressions).map_err(lowering_error)?,
+                lower_bar(document, chart, &data, &mut expressions, &mut budget)
+                    .map_err(lowering_error)?,
             )),
             View::Diagram(diagram) => MirView::Diagram(MirDiagram {
                 id: diagram.id.clone(),
@@ -118,9 +125,11 @@ fn lower_scatter(
     chart: &ScatterChart,
     data: &BTreeMap<String, MirDataNode>,
     expressions: &mut BTreeMap<String, TypedExpression>,
+    budget: &mut Budget,
 ) -> Result<MirChart, String> {
     let dataset = dataset(document, &chart.dataset)?;
     let source = data_id(&chart.dataset);
+    preflight_hir_bindings(&data[&source], budget).map_err(|e| e.to_string())?;
     let row_variable = row_variable(&chart.id);
     let key_expression = register_field_expression(
         expressions,
@@ -164,11 +173,37 @@ fn lower_scatter(
             )
         })
         .transpose()?;
-    let x_values = numeric_values(&dataset.rows, &chart.x.field)?;
-    let y_values = numeric_values(&dataset.rows, &chart.y.field)?;
+    let plan = ChartMark::Symbol {
+        id: format!("{}/marks/points", chart.id),
+        x: scale_binding(format!("{}/x", chart.id), x_expression),
+        y: scale_binding(format!("{}/y", chart.id), y_expression),
+        color: color_expression
+            .map(|expression| scale_binding(format!("{}/color", chart.id), expression)),
+        size: chart.point_size,
+        instances: Vec::new(),
+    };
+    let mark = materialize_mark(
+        &data[&source],
+        &row_variable,
+        &key_expression,
+        &plan,
+        expressions,
+        &chart.id,
+        budget,
+    )
+    .map_err(|e| e.to_string())?;
+    let ChartMark::Symbol { instances, .. } = &mark else {
+        unreachable!()
+    };
+    let x_values = instances.iter().map(|p| p.x).collect::<Vec<_>>();
+    let y_values = instances.iter().map(|p| p.y).collect::<Vec<_>>();
     let x_domain = nice_domain(extent(&x_values), false);
     let y_domain = nice_domain(extent(&y_values), false);
-    let color_scale = color_scale(&chart.id, chart.color.as_ref(), &dataset.rows)?;
+    let color_scale = materialized_color_scale(
+        &chart.id,
+        chart.color.as_ref(),
+        instances.iter().filter_map(|p| p.color_category.as_ref()),
+    );
     let ticks = NumericTickLabels::new(
         Some((x_domain, chart.x.number_format())),
         Some((y_domain, chart.y.number_format())),
@@ -188,16 +223,6 @@ fn lower_scatter(
         ticks.as_ref(),
     )?
     .plot;
-    let mut items = Vec::with_capacity(dataset.rows.len());
-    for row in &dataset.rows {
-        items.push(MirPointItem {
-            key: key(row, &dataset.key)?,
-            x: number(row, &chart.x.field)?,
-            y: number(row, &chart.y.field)?,
-            color_category: optional_category(row, chart.color.as_ref())?,
-        });
-    }
-
     let mut scales = vec![
         MirScale::Linear {
             id: format!("{}/x", chart.id),
@@ -228,15 +253,7 @@ fn lower_scatter(
         key_expression,
         scales,
         guides: chart_guides(chart, chart.color.as_ref()),
-        mark: ChartMark::Symbol {
-            id: format!("{}/marks/points", chart.id),
-            x: scale_binding(format!("{}/x", chart.id), x_expression),
-            y: scale_binding(format!("{}/y", chart.id), y_expression),
-            color: color_expression
-                .map(|expression| scale_binding(format!("{}/color", chart.id), expression)),
-            size: chart.point_size,
-            instances: items,
-        },
+        mark,
         provenance: vec![
             format!("x domain inferred from {} finite values", x_values.len()),
             format!("y domain inferred from {} finite values", y_values.len()),
@@ -251,9 +268,11 @@ fn lower_line(
     chart: &LineChart,
     data: &BTreeMap<String, MirDataNode>,
     expressions: &mut BTreeMap<String, TypedExpression>,
+    budget: &mut Budget,
 ) -> Result<MirChart, String> {
     let dataset = dataset(document, &chart.dataset)?;
     let source = data_id(&chart.dataset);
+    preflight_hir_bindings(&data[&source], budget).map_err(|e| e.to_string())?;
     let row_variable = row_variable(&chart.id);
     let key_expression = register_field_expression(
         expressions,
@@ -297,11 +316,47 @@ fn lower_line(
             )
         })
         .transpose()?;
-    let x_values = numeric_values(&dataset.rows, &chart.x.field)?;
-    let y_values = numeric_values(&dataset.rows, &chart.y.field)?;
+    let plan = ChartMark::Line {
+        id: format!("{}/marks/lines", chart.id),
+        x: scale_binding(format!("{}/x", chart.id), x_expression.clone()),
+        y: scale_binding(format!("{}/y", chart.id), y_expression),
+        color: series_expression
+            .clone()
+            .map(|expression| scale_binding(format!("{}/color", chart.id), expression)),
+        group_expression: series_expression,
+        order_expression: x_expression,
+        line_width: chart.line_width,
+        show_points: chart.show_points,
+        series: Vec::new(),
+    };
+    let mark = materialize_mark(
+        &data[&source],
+        &row_variable,
+        &key_expression,
+        &plan,
+        expressions,
+        &chart.id,
+        budget,
+    )
+    .map_err(|e| e.to_string())?;
+    let ChartMark::Line { series, .. } = &mark else {
+        unreachable!()
+    };
+    let x_values = series
+        .iter()
+        .flat_map(|s| s.points.iter().map(|p| p.x))
+        .collect::<Vec<_>>();
+    let y_values = series
+        .iter()
+        .flat_map(|s| s.points.iter().map(|p| p.y))
+        .collect::<Vec<_>>();
     let x_domain = nice_domain(extent(&x_values), false);
     let y_domain = nice_domain(extent(&y_values), false);
-    let color_scale = color_scale(&chart.id, chart.series.as_ref(), &dataset.rows)?;
+    let color_scale = materialized_color_scale(
+        &chart.id,
+        chart.series.as_ref(),
+        series.iter().filter_map(|s| s.color_category.as_ref()),
+    );
     let ticks = NumericTickLabels::new(
         Some((x_domain, chart.x.number_format())),
         Some((y_domain, chart.y.number_format())),
@@ -321,33 +376,6 @@ fn lower_line(
         ticks.as_ref(),
     )?
     .plot;
-    let mut grouped: BTreeMap<String, Vec<MirPointItem>> = BTreeMap::new();
-    for row in &dataset.rows {
-        let series =
-            optional_category(row, chart.series.as_ref())?.unwrap_or_else(|| "series".to_owned());
-        grouped
-            .entry(series.clone())
-            .or_default()
-            .push(MirPointItem {
-                key: key(row, &dataset.key)?,
-                x: number(row, &chart.x.field)?,
-                y: number(row, &chart.y.field)?,
-                color_category: chart.series.as_ref().map(|_| series),
-            });
-    }
-    let mut series = grouped
-        .into_iter()
-        .map(|(key, mut points)| {
-            points.sort_by(|a, b| a.x.total_cmp(&b.x).then_with(|| a.key.cmp(&b.key)));
-            MirSeries {
-                color_category: chart.series.as_ref().map(|_| key.clone()),
-                key,
-                points,
-            }
-        })
-        .collect::<Vec<_>>();
-    series.sort_by(|a, b| a.key.cmp(&b.key));
-
     let mut scales = vec![
         MirScale::Linear {
             id: format!("{}/x", chart.id),
@@ -403,19 +431,7 @@ fn lower_line(
                 number_format: chart.y.number_format().copied(),
             },
         ],
-        mark: ChartMark::Line {
-            id: format!("{}/marks/lines", chart.id),
-            x: scale_binding(format!("{}/x", chart.id), x_expression.clone()),
-            y: scale_binding(format!("{}/y", chart.id), y_expression),
-            color: series_expression
-                .clone()
-                .map(|expression| scale_binding(format!("{}/color", chart.id), expression)),
-            group_expression: series_expression,
-            order_expression: x_expression,
-            line_width: chart.line_width,
-            show_points: chart.show_points,
-            series,
-        },
+        mark,
         provenance: vec![
             "rows grouped by stable series value and sorted by x encoding".to_owned(),
             "linear scale domains inferred and expanded deterministically".to_owned(),
@@ -429,9 +445,11 @@ fn lower_bar(
     chart: &BarChart,
     data: &BTreeMap<String, MirDataNode>,
     expressions: &mut BTreeMap<String, TypedExpression>,
+    budget: &mut Budget,
 ) -> Result<MirChart, String> {
     let dataset = dataset(document, &chart.dataset)?;
     let source = data_id(&chart.dataset);
+    preflight_hir_bindings(&data[&source], budget).map_err(|e| e.to_string())?;
     let row_variable = row_variable(&chart.id);
     let key_expression = register_field_expression(
         expressions,
@@ -475,22 +493,37 @@ fn lower_bar(
             )
         })
         .transpose()?;
-    let values = numeric_values(&dataset.rows, &chart.value.field)?;
-    let categories = dataset
-        .rows
-        .iter()
-        .map(|row| category(row, &chart.category.field))
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut unique = BTreeSet::new();
-    for category in &categories {
-        if !unique.insert(category.clone()) {
-            return Err(format!("bar category {category:?} is duplicated"));
-        }
-    }
+    let plan = ChartMark::Bar {
+        id: format!("{}/marks/bars", chart.id),
+        category: scale_binding(format!("{}/category", chart.id), category_expression),
+        value: scale_binding(format!("{}/value", chart.id), value_expression),
+        color: color_expression
+            .map(|expression| scale_binding(format!("{}/color", chart.id), expression)),
+        instances: Vec::new(),
+    };
+    let mark = materialize_mark(
+        &data[&source],
+        &row_variable,
+        &key_expression,
+        &plan,
+        expressions,
+        &chart.id,
+        budget,
+    )
+    .map_err(|e| e.to_string())?;
+    let ChartMark::Bar { instances, .. } = &mark else {
+        unreachable!()
+    };
+    let values = instances.iter().map(|p| p.value).collect::<Vec<_>>();
+    let categories = instances.iter().map(|p| p.category.clone()).collect();
     let raw = extent(&values);
     let domain = nice_domain([raw[0].min(0.0), raw[1].max(0.0)], true);
     let ticks = NumericTickLabels::new(None, Some((domain, chart.value.number_format())))?;
-    let color_scale = color_scale(&chart.id, chart.color.as_ref(), &dataset.rows)?;
+    let color_scale = materialized_color_scale(
+        &chart.id,
+        chart.color.as_ref(),
+        instances.iter().filter_map(|p| p.color_category.as_ref()),
+    );
     let plot = ChartLayout::new(
         &chart.id,
         chart.frame,
@@ -518,15 +551,6 @@ fn lower_bar(
         ticks.as_ref(),
     )?
     .plot;
-    let mut items = Vec::with_capacity(dataset.rows.len());
-    for row in &dataset.rows {
-        items.push(MirBarItem {
-            key: key(row, &dataset.key)?,
-            category: category(row, &chart.category.field)?,
-            value: number(row, &chart.value.field)?,
-            color_category: optional_category(row, chart.color.as_ref())?,
-        });
-    }
     let mut scales = vec![
         MirScale::Band {
             id: format!("{}/category", chart.id),
@@ -582,14 +606,7 @@ fn lower_bar(
                 number_format: chart.value.number_format().copied(),
             },
         ],
-        mark: ChartMark::Bar {
-            id: format!("{}/marks/bars", chart.id),
-            category: scale_binding(format!("{}/category", chart.id), category_expression),
-            value: scale_binding(format!("{}/value", chart.id), value_expression),
-            color: color_expression
-                .map(|expression| scale_binding(format!("{}/color", chart.id), expression)),
-            instances: items,
-        },
+        mark,
         provenance: vec![
             "one bar generated per unique category".to_owned(),
             "quantitative domain includes zero to preserve bar-chart truth".to_owned(),
@@ -638,36 +655,34 @@ fn chart_guides(chart: &ScatterChart, color: Option<&ColorEncoding>) -> Vec<MirG
     guides
 }
 
-fn color_scale(
+fn materialized_color_scale<'a>(
     chart_id: &str,
     encoding: Option<&ColorEncoding>,
-    rows: &[BTreeMap<String, Value>],
-) -> Result<Option<MirScale>, String> {
-    let Some(encoding) = encoding else {
-        return Ok(None);
-    };
-    let domain = rows
-        .iter()
-        .map(|row| category(row, &encoding.field))
-        .collect::<Result<BTreeSet<_>, _>>()?
-        .into_iter()
-        .collect::<Vec<_>>();
-    let palette = if encoding.palette.is_empty() {
-        DEFAULT_PALETTE
-            .iter()
-            .map(|value| Color::hex(value))
-            .collect::<Vec<_>>()
-    } else {
-        encoding.palette.clone()
-    };
-    let range = (0..domain.len())
-        .map(|index| palette[index % palette.len()].clone())
-        .collect();
-    Ok(Some(MirScale::OrdinalColor {
-        id: format!("{chart_id}/color"),
-        domain,
-        range,
-    }))
+    categories: impl Iterator<Item = &'a String>,
+) -> Option<MirScale> {
+    encoding.map(|encoding| {
+        let domain = categories
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let palette = if encoding.palette.is_empty() {
+            DEFAULT_PALETTE
+                .iter()
+                .map(|color| Color::hex(color))
+                .collect()
+        } else {
+            encoding.palette.clone()
+        };
+        let range = (0..domain.len())
+            .map(|index| palette[index % palette.len()].clone())
+            .collect();
+        MirScale::OrdinalColor {
+            id: format!("{chart_id}/color"),
+            domain,
+            range,
+        }
+    })
 }
 
 fn lower_data(document: &Document) -> Result<BTreeMap<String, MirDataNode>, String> {
@@ -940,37 +955,6 @@ fn dataset<'a>(document: &'a Document, name: &str) -> Result<&'a vizir_core::Dat
         .datasets
         .get(name)
         .ok_or_else(|| format!("dataset {name:?} disappeared after validation"))
-}
-
-fn key(row: &BTreeMap<String, Value>, field: &str) -> Result<String, String> {
-    row.get(field)
-        .and_then(value_as_key)
-        .ok_or_else(|| format!("stable key field {field:?} disappeared after validation"))
-}
-
-fn number(row: &BTreeMap<String, Value>, field: &str) -> Result<f64, String> {
-    row.get(field)
-        .and_then(Value::as_f64)
-        .ok_or_else(|| format!("numeric field {field:?} disappeared after validation"))
-}
-
-fn category(row: &BTreeMap<String, Value>, field: &str) -> Result<String, String> {
-    row.get(field)
-        .and_then(value_as_key)
-        .ok_or_else(|| format!("category field {field:?} disappeared after validation"))
-}
-
-fn optional_category(
-    row: &BTreeMap<String, Value>,
-    encoding: Option<&ColorEncoding>,
-) -> Result<Option<String>, String> {
-    encoding
-        .map(|encoding| category(row, &encoding.field))
-        .transpose()
-}
-
-fn numeric_values(rows: &[BTreeMap<String, Value>], field: &str) -> Result<Vec<f64>, String> {
-    rows.iter().map(|row| number(row, field)).collect()
 }
 
 fn extent(values: &[f64]) -> [f64; 2] {
