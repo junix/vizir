@@ -19,5 +19,8 @@ vizir-backend-svg = { path = "../vizir-backend-svg" }
 vizir-compiler = { path = "../vizir-compiler" }
 vizir-core = { path = "../vizir-core" }
 
+[target.'cfg(not(unix))'.dependencies]
+same-file = "1.0.6"
+
 [dev-dependencies]
 tempfile.workspace = true

@@ -41,6 +41,28 @@ cargo run -p vizir-cli -- render \
 Use `vizir explain <file> --node <stable-id>` to inspect why a Scene2D node
 exists, and `vizir capabilities <backend>` to inspect output support.
 
+### Output path safety
+
+`normalize`, `lower`, and `render` reject an output that refers to their input.
+`render --manifest` also rejects a manifest that refers to the input or rendered
+artifact. The read-only preflight runs before creating destination directories
+or writing any artifact, including before PNG rasterization. A collision reports
+`VIZ-PATH-0001`; a path that cannot be inspected reports `VIZ-PATH-0002`.
+
+Checks include relative/absolute spellings, existing symlinks and hard links,
+symlinked parent directories, and dangling symlinks to new destinations. Missing
+parents are projected without creating them, respecting symlinks before `..`.
+Distinct destinations still support automatic parent creation and overwriting
+an existing artifact; JSON output to stdout and `schema` are unchanged.
+
+This is protection against accidental path collisions, not a filesystem security
+boundary or atomic transaction. Concurrent path/link changes after the preflight
+can invalidate the check. Writes remain direct, so a later write or rasterizer
+failure may leave partial output; the artifact and manifest are not committed
+together. Checks rely on the filesystem's path resolution and file identities;
+they do not predict filesystem-specific aliases between differently spelled
+files that do not exist yet (for example, case folding on some volumes).
+
 The executable contracts can be emitted directly from the Rust model:
 
 ```bash

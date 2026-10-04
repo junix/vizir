@@ -12,6 +12,8 @@ use vizir_core::{
     scene_patch_schema, validate_document,
 };
 
+mod paths;
+
 #[derive(Debug, Parser)]
 #[command(name = "vizir", version = version(), about = "Compile semantic visualization IR")]
 struct Cli {
@@ -113,11 +115,13 @@ fn run(cli: Cli) -> VizResult<()> {
         }
         Commands::Normalize { input, output } => {
             let document = parse_document(&input)?;
+            paths::check_destinations(&input, output.as_deref(), None)?;
             let compilation = compile(&document)?;
             emit_json(&compilation.mir, output.as_deref())?;
         }
         Commands::Lower { input, output } => {
             let document = parse_document(&input)?;
+            paths::check_destinations(&input, output.as_deref(), None)?;
             let compilation = compile(&document)?;
             emit_json(&compilation.scene, output.as_deref())?;
         }
@@ -129,6 +133,7 @@ fn run(cli: Cli) -> VizResult<()> {
             manifest,
         } => {
             let document = parse_document(&input)?;
+            paths::check_destinations(&input, Some(&output), manifest.as_deref())?;
             let mut compilation = compile(&document)?;
             if let Some(background) = background {
                 validate_cli_color(&background)?;
