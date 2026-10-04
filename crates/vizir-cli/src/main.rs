@@ -367,6 +367,12 @@ fn verify_png_alpha(path: &Path, expect_transparency: bool) -> VizResult<()> {
             path.display()
         ))
     })?;
+    reader.finish().map_err(|error| {
+        VizError::Diagnostic(format!(
+            "VIZ-ARTIFACT-0001: {} has an incomplete or invalid PNG stream: {error}",
+            path.display()
+        ))
+    })?;
     let pixels = &buffer[..info.buffer_size()];
     let alphas = match info.color_type {
         png::ColorType::Rgba => pixels
@@ -458,4 +464,54 @@ fn write(path: &Path, content: &[u8]) -> VizResult<()> {
         path: path.display().to_string(),
         source,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn complete_png() -> Vec<u8> {
+        let mut bytes = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut bytes, 2, 1);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            let mut writer = encoder.write_header().unwrap();
+            writer
+                .write_image_data(&[0, 0, 0, 0, 10, 20, 30, 255])
+                .unwrap();
+            writer.finish().unwrap();
+        }
+        bytes
+    }
+
+    fn verify_bytes(bytes: &[u8]) -> VizResult<()> {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("artifact.png");
+        fs::write(&path, bytes).unwrap();
+        verify_png_alpha(&path, true)
+    }
+
+    #[test]
+    fn complete_png_stream_is_accepted() {
+        verify_bytes(&complete_png()).unwrap();
+    }
+
+    #[test]
+    fn png_with_pixels_but_truncated_iend_is_rejected() {
+        let mut bytes = complete_png();
+        assert_eq!(&bytes[bytes.len() - 8..bytes.len() - 4], b"IEND");
+        bytes.truncate(bytes.len() - 4);
+        let error = verify_bytes(&bytes).unwrap_err().to_string();
+        assert!(error.contains("VIZ-ARTIFACT-0001"), "{error}");
+        assert!(error.contains("PNG stream"), "{error}");
+    }
+
+    #[test]
+    fn png_with_corrupt_iend_crc_is_rejected() {
+        let mut bytes = complete_png();
+        *bytes.last_mut().unwrap() ^= 1;
+        let error = verify_bytes(&bytes).unwrap_err().to_string();
+        assert!(error.contains("VIZ-ARTIFACT-0001"), "{error}");
+    }
 }
