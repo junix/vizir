@@ -1,0 +1,10 @@
+{
+  "profile": "vizir-text-wrap/2",
+  "engine": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+  "targets": [],
+  "semantic_targets": [
+    {"view_id": "coverage", "role": "chart.title", "max_width": 300.0, "max_lines": 4, "line_height": 30.0},
+    {"view_id": "trend", "role": "chart.title", "max_width": 300.0, "max_lines": 4, "line_height": 30.0},
+    {"view_id": "observations", "role": "chart.title", "max_width": 300.0, "max_lines": 4, "line_height": 30.0}
+  ]
+}

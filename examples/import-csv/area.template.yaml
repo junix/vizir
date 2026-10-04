@@ -1,0 +1,18 @@
+version: "0.3"
+id: csv-area-signals
+width: 1040
+height: 600
+background: transparent
+# The importer supplies signals before ordinary HIR validation.
+datasets: {}
+views:
+  - kind: chart.area
+    id: signals
+    title: Imported samples keep stable keys while area points follow time order
+    frame: {x: 0, y: 0, width: 1040, height: 600}
+    dataset: signals
+    x: {field: minute, label: minute}
+    y: {field: value, label: signal}
+    series: {field: service, palette: ["#3366CC", "#009E73"]}
+    baseline: 0
+    order: x-ascending

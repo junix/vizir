@@ -1,0 +1,11 @@
+sample_id,minute,value,service,checked,note,batch
+beta-3,3,7,Beta,true,"Quoted ""sample"", later in time",42
+alpha-2,2,-2,Alpha,true,,42
+beta-0,0,2,Beta,false,initial sample,42
+alpha-0,0,4,Alpha,true,initial sample,42
+alpha-4,4,3,Alpha,true,last sample,42
+beta-4,4,4,Beta,true,last sample,42
+alpha-1,1,8,Alpha,true,peak,42
+beta-1,1,3,Beta,true,low sample,42
+alpha-3,3,5,Alpha,false,  spaces stay  ,42
+beta-2,2,6,Beta,true,middle sample,42

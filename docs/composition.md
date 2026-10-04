@@ -62,6 +62,22 @@ cargo run -p vizir-cli -- schema composition --output out/composition.schema.jso
 
 The same generated contract is checked in at `schemas/composition.schema.json`.
 
+## Import a CSV dataset before composition
+
+[`vizir import-csv`](csv-import.md) can populate one named dataset in a
+composition template. With `--template-kind composition`, it emits ordinary
+composition JSON in the same source version, not HIR. Pass that result to
+`compose` as usual. Dataset insertion precedes `compose_versioned` validation,
+so a template may intentionally omit the one imported dataset; other invalid
+references still fail. Replacing an existing dataset requires the explicit
+`--replace-dataset` flag, which also requires that target to exist.
+
+The [CSV observation dashboard](../examples/import-csv/dashboard.template.yaml)
+uses a single imported dataset for a sparse heatmap, grouped area and line
+chart. Its [executable workflow](../examples/import-csv/run.sh) demonstrates
+import, composition, normalization, measured titles, exact replay and both
+existing render targets. Composition layout and wire versions are unchanged.
+
 ## Composition 0.1 source contract
 
 The required root fields are `schema`, `id`, `width`, `height`, `layout`, and

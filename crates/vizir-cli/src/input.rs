@@ -349,17 +349,31 @@ fn context_conflict(flag: &str) -> VizError {
 }
 
 fn read_bounded_regular(path: &Path, limit: usize, role: &str) -> VizResult<Vec<u8>> {
-    let read_error = |source| VizError::Read {
-        path: path.display().to_string(),
-        source,
-    };
     // Retain established JSON diagnostics for the legacy themed boundary.
     let prefix = if role == "JSON input" {
         "VIZ-THEME"
     } else {
         "VIZ-CONTEXT"
     };
+    read_bounded_regular_with_prefix(path, limit, role, prefix)
+}
+
+pub(crate) fn read_bounded_regular_with_prefix(
+    path: &Path,
+    limit: usize,
+    role: &str,
+    prefix: &str,
+) -> VizResult<Vec<u8>> {
+    let read_error = |source| VizError::Read {
+        path: path.display().to_string(),
+        source,
+    };
     let too_large = || {
+        if prefix == "VIZ-CSV" {
+            return VizError::Diagnostic(format!(
+                "VIZ-CSV-0010: {role} exceeds the {limit} byte limit"
+            ));
+        }
         let kind = if role == "font resource" {
             "byte"
         } else {
@@ -389,8 +403,14 @@ fn open_regular(path: &Path, role: &str, prefix: &str) -> VizResult<File> {
         path: path.display().to_string(),
         source,
     };
-    let nonregular =
-        || VizError::Diagnostic(format!("{prefix}-0008: {role} must be a regular file"));
+    let nonregular = || {
+        let code = if prefix == "VIZ-CSV" {
+            "VIZ-CSV-0104".to_owned()
+        } else {
+            format!("{prefix}-0008")
+        };
+        VizError::Diagnostic(format!("{code}: {role} must be a regular file"))
+    };
     // Canonicalize the explicit operator mapping, including any symlink target.
     let resolved = std::fs::canonicalize(path).map_err(read_error)?;
     if !std::fs::metadata(&resolved).map_err(read_error)?.is_file() {

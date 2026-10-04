@@ -1,0 +1,8 @@
+sample_id,day,service,minute,checks,verified,note,batch
+api-tue,Tue,API,1,10,true,"Observed, not inferred",42
+jobs-mon,Mon,Jobs,0,0,true,Present zero,42
+api-mon,Mon,API,0,20,true,Peak,42
+cache-wed,Wed,Cache,2,6,false,,42
+jobs-wed,Wed,Jobs,2,15,true,"Quoted ""check""",42
+api-wed,Wed,API,2,12,true,Later API observation,42
+cache-mon,Mon,Cache,0,2,false,  spaces stay  ,42

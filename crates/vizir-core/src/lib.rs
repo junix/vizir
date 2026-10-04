@@ -1,5 +1,6 @@
 pub mod capability;
 pub mod composition;
+pub mod csv_import;
 pub mod error;
 pub mod expression;
 pub mod heatmap;
@@ -11,6 +12,7 @@ pub mod validate;
 
 pub use capability::*;
 pub use composition::*;
+pub use csv_import::*;
 pub use error::{Diagnostic, VizError, VizResult};
 pub use expression::*;
 pub use heatmap::*;

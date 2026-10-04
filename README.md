@@ -57,6 +57,27 @@ cargo run -q -p vizir-cli -- render /tmp/service-grid.viz.json --format png --ou
 `just composition-demo` runs this pipeline into the Cargo target directory.
 The independent input schema is available through `vizir schema composition`.
 
+### Explicit CSV import
+
+[`import-csv`](docs/csv-import.md) reads one bounded local CSV using a strict,
+ordered type/key specification, then inserts or explicitly replaces one inline
+dataset in a HIR or composition template. It emits ordinary source JSON and a
+required deterministic provenance receipt. Import is an authoring step; MIR and
+rendering do not acquire filesystem data sources or new versions.
+
+```sh
+cargo run -q -p vizir-cli -- import-csv examples/import-csv/area.csv \
+  --template examples/import-csv/area.template.yaml --template-kind hir \
+  --dataset signals --spec examples/import-csv/area.spec.json \
+  --output out/import-csv/area.viz.json --provenance out/import-csv/area.provenance.json
+cargo run -q -p vizir-cli -- render out/import-csv/area.viz.json --format svg \
+  --output out/import-csv/area.svg
+```
+
+The [executable area and sparse-dashboard workflow](examples/import-csv/run.sh)
+includes measured titles, light/dark themes, exact MIR replay, SVG and native
+transparent PNG. See the [profile, limits and replacement rules](docs/csv-import.md).
+
 ### Numeric axes in VizHIR 0.2
 
 Use `version: "0.2"` and `axis.number_format: {notation: scientific, precision: 2}`
@@ -130,15 +151,16 @@ files that do not exist yet (for example, case folding on some volumes).
 
 ### Output publication
 
-All file writers (`normalize`, `lower`, `schema`, SVG, PNG, and render manifests)
-first write to fresh staging directories beside their destinations (mode `0700`
+All file writers (`normalize`, `lower`, `schema`, SVG, PNG, render manifests,
+and `import-csv` documents/receipts) first write to fresh staging directories beside their destinations (mode `0700`
 on Unix; inherited access control on other platforms).
 PNG rasterizers receive an absent staging path, never the final output, and that
 fresh artifact must pass the complete PNG and alpha checks before publication.
 A renderer that exits successfully without writing cannot reuse an old PNG.
 Compilation, provider selection, rendering, validation, or manifest serialization
 failure leaves existing artifact and manifest contents untouched; absent outputs
-remain absent. The manifest always records the requested output path.
+remain absent. Render manifests record the requested output path; CSV import
+receipts are path-free and have their own [bounded paired-output contract](docs/csv-import.md#path-safety-and-publication).
 
 After staging succeeds, every destination and required backup is prepared before
 any final file changes. Ordinary files are replaced by same-directory rename;

@@ -32,6 +32,17 @@ VizMIR, ScenePatch, and Capability are strict generated JSON contracts. Unknown
 fields are rejected by their Rust model, and their JSON Schemas are checked in
 under `schemas/`. YAML remains an authoring convenience for VizHIR only.
 
+## Importing CSV without changing the wire format
+
+The independent [`vizir-csv-import/1` authoring boundary](csv-import.md) converts
+explicitly typed local CSV into the existing inline `Dataset { key, rows }`.
+`vizir import-csv` writes ordinary HIR in the template's original version, or an
+ordinary composition source when `--template-kind composition` is selected.
+Its required provenance receipt is separate from HIR and MIR. There are no
+file paths, reload operators, type declarations or CSV resources in the emitted
+dataset. Existing wire versions, schema branches and inline-data behavior are
+unchanged; subsequent compilation follows the normal contracts below.
+
 ## Numeric axis formats in 0.2
 
 Numeric axis formatting is an explicit, versioned opt-in. Declare

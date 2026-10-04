@@ -1,0 +1,61 @@
+{
+  "$defs": {
+    "CsvColumnType": {
+      "enum": [
+        "string",
+        "int64",
+        "float64",
+        "bool"
+      ],
+      "type": "string"
+    },
+    "CsvImportColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029]+$(?![\\s\\S])",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/CsvColumnType"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "columns": {
+      "items": {
+        "$ref": "#/$defs/CsvImportColumn"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "type": "array"
+    },
+    "format": {
+      "const": "vizir-csv-import/1",
+      "type": "string"
+    },
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u2028\\u2029]+$(?![\\s\\S])",
+      "type": "string"
+    }
+  },
+  "required": [
+    "format",
+    "columns",
+    "key"
+  ],
+  "title": "CsvImportSpec",
+  "type": "object"
+}

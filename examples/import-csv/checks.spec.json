@@ -1,0 +1,38 @@
+{
+  "format": "vizir-csv-import/1",
+  "columns": [
+    {
+      "name": "sample_id",
+      "type": "string"
+    },
+    {
+      "name": "day",
+      "type": "string"
+    },
+    {
+      "name": "service",
+      "type": "string"
+    },
+    {
+      "name": "minute",
+      "type": "int64"
+    },
+    {
+      "name": "checks",
+      "type": "float64"
+    },
+    {
+      "name": "verified",
+      "type": "bool"
+    },
+    {
+      "name": "note",
+      "type": "string"
+    },
+    {
+      "name": "batch",
+      "type": "int64"
+    }
+  ],
+  "key": "sample_id"
+}

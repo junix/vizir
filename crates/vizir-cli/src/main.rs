@@ -12,6 +12,8 @@ use vizir_core::{
     mir_schema, negotiate_scene, parse_versioned_composition, scene_patch_schema,
 };
 
+mod import_csv;
+mod import_template;
 mod input;
 mod paths;
 mod process;
@@ -26,6 +28,8 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    /// Import explicitly typed local CSV into an ordinary HIR or composition source.
+    ImportCsv(import_csv::Options),
     /// Resolve a frame-free grid composition into ordinary versioned VizHIR JSON.
     Compose {
         input: PathBuf,
@@ -119,6 +123,7 @@ enum Backend {
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum IrKind {
+    CsvImportSpec,
     Composition,
     Mir,
     ThemedMir,
@@ -143,6 +148,7 @@ fn main() {
 
 fn run(cli: Cli) -> VizResult<()> {
     match cli.command {
+        Commands::ImportCsv(options) => import_csv::run(options)?,
         Commands::Compose { input, output } => {
             let composition = parse_versioned_composition(&input)?;
             paths::check_destinations(&input, output.as_deref(), None)?;
@@ -308,6 +314,7 @@ fn run(cli: Cli) -> VizResult<()> {
         }
         Commands::Schema { ir, output } => {
             let schema = match ir {
+                IrKind::CsvImportSpec => vizir_core::csv_import_spec_schema(),
                 IrKind::Composition => composition_schema(),
                 IrKind::Mir => mir_schema(),
                 IrKind::ThemedMir => themed_mir_schema(),

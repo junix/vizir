@@ -15,7 +15,9 @@ png.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
+sha2 = "=0.11.0"
 tempfile.workspace = true
+unsafe-libyaml = "=0.2.11"
 vizir-backend-svg = { path = "../vizir-backend-svg" }
 vizir-compiler = { path = "../vizir-compiler" }
 vizir-core = { path = "../vizir-core" }

@@ -19,6 +19,7 @@ check:
     cargo test --workspace
 
 schemas:
+    cargo run -q -p vizir-cli -- schema csv-import-spec --output schemas/csv-import-spec.schema.json
     cargo run -q -p vizir-cli -- schema composition --output schemas/composition.schema.json
     cargo run -q -p vizir-cli -- schema mir --output schemas/viz-mir.schema.json
     cargo run -q -p vizir-cli -- schema themed-mir --output schemas/themed-mir.schema.json

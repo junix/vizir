@@ -1,0 +1,48 @@
+schema: vizir-composition/0.3
+id: csv-observation-dashboard
+width: 1440
+height: 1100
+background: transparent
+layout: {kind: grid, columns: 2, gap: 28, padding: 28}
+# Missing checks is intentional: import-csv inserts it, then validates composition.
+datasets: {}
+panels:
+  - kind: chart.heatmap
+    id: coverage
+    title: Observed pairs stay sparse, including Thursday
+    dataset: checks
+    x: {field: day, label: day, domain: [Mon, Tue, Wed, Thu]}
+    y: {field: service, label: service, domain: [API, Jobs, Cache]}
+    color:
+      field: checks
+      label: checks
+      domain: [0, 20]
+      palette: ["#DFEBF7", "#9DC5E8", "#559CCD", "#2169AC"]
+      number_format: {notation: fixed, precision: 0}
+  - kind: chart.area
+    id: trend
+    title: Observed samples as overlapping area series
+    dataset: checks
+    x: {field: minute, label: day index}
+    y: {field: checks, label: checks}
+    series: {field: service, palette: ["#2169AC", "#9E4F84", "#26816F"]}
+    baseline: 0
+    order: x-ascending
+  - kind: chart.line
+    id: observations
+    title: Imported rows keep their observed order
+    dataset: checks
+    x: {field: minute, label: day index}
+    y: {field: checks, label: checks}
+    series: {field: service, palette: ["#2169AC", "#9E4F84", "#26816F"]}
+  - kind: geometry.scene
+    id: notes
+    title: Read imported data without inventing observations
+    children:
+      - {type: rect, id: card, x: 0, y: 48, width: 678, height: 418, radius: 8, style: {fill: "#F4F7FC", stroke: "#D5DEEC", stroke_width: 1}}
+      - {type: text, id: sparse, x: 24, y: 98, text: "Seven rows become seven observed cells", font_size: 22, anchor: start, weight: medium, color: "#222A33"}
+      - {type: text, id: missing, x: 24, y: 158, text: "Blank pairs stay missing, never zero", font_size: 21, anchor: start, color: "#222A33"}
+      - {type: text, id: zero, x: 24, y: 218, text: "Jobs / Mon is an observed zero", font_size: 21, anchor: start, color: "#222A33"}
+      - {type: text, id: keys, x: 24, y: 278, text: "Stable sample IDs survive every stage", font_size: 21, anchor: start, color: "#222A33"}
+      - {type: text, id: types, x: 24, y: 338, text: "The spec selects types; no guessing", font_size: 21, anchor: start, color: "#222A33"}
+      - {type: text, id: area, x: 24, y: 398, text: "Area series overlap; they are not stacked", font_size: 21, anchor: start, color: "#222A33"}
