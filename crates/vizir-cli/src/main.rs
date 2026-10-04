@@ -353,22 +353,97 @@ fn render_png(svg: &str, output: &Path, expect_transparency: bool) -> VizResult<
     Ok(rasterizer.name())
 }
 
+// PNG verification policy, independent of the decoder's internal allocation
+// budget. Eight bytes per pixel retains full RGBA16 precision at the pixel cap.
+const PNG_MAX_PIXELS: usize = 16_777_216;
+const PNG_MAX_DECODED_BYTES: usize = 128 * 1024 * 1024;
+const PNG_DECODER_BYTES: usize = 64 * 1024 * 1024;
+
+fn png_pixel_count(path: &Path, width: u32, height: u32) -> VizResult<usize> {
+    usize::try_from(width)
+        .ok()
+        .zip(usize::try_from(height).ok())
+        .and_then(|(width, height)| width.checked_mul(height))
+        .filter(|&pixels| pixels <= PNG_MAX_PIXELS)
+        .ok_or_else(|| {
+            VizError::Diagnostic(format!(
+                "VIZ-ARTIFACT-0004: {} declares PNG dimensions {width}x{height} exceeding the {PNG_MAX_PIXELS} pixel verification limit",
+                path.display()
+            ))
+        })
+}
+
+fn png_decoded_bytes(
+    path: &Path,
+    pixels: usize,
+    color: png::ColorType,
+    depth: png::BitDepth,
+) -> VizResult<usize> {
+    // EXPAND makes every output sample byte-aligned, including packed palette
+    // and grayscale inputs and channels added by tRNS. Never size from IHDR's
+    // original color type or bit depth, and never strip 16-bit precision.
+    let sample_bytes = match depth {
+        png::BitDepth::Eight => 1,
+        png::BitDepth::Sixteen => 2,
+        _ => {
+            return Err(VizError::Diagnostic(format!(
+                "VIZ-ARTIFACT-0001: {} has unexpected decoded PNG depth {depth:?}",
+                path.display()
+            )));
+        }
+    };
+    pixels
+        .checked_mul(color.samples())
+        .and_then(|bytes| bytes.checked_mul(sample_bytes))
+        .filter(|&bytes| bytes <= PNG_MAX_DECODED_BYTES)
+        .ok_or_else(|| {
+            VizError::Diagnostic(format!(
+                "VIZ-ARTIFACT-0004: {} exceeds the {PNG_MAX_DECODED_BYTES} byte decoded PNG verification limit ({color:?}/{depth:?})",
+                path.display()
+            ))
+        })
+}
+
 fn verify_png_alpha(path: &Path, expect_transparency: bool) -> VizResult<()> {
     let file = fs::File::open(path).map_err(|source| VizError::Read {
         path: path.display().to_string(),
         source,
     })?;
-    let mut decoder = png::Decoder::new(file);
+    let mut decoder = png::Decoder::new_with_limits(
+        file,
+        png::Limits {
+            bytes: PNG_DECODER_BYTES,
+        },
+    );
     // Expand palette/low-bit grayscale samples and tRNS to decoded channels,
     // but retain 16-bit precision: alpha 0x0001 is visible, not transparent.
     decoder.set_transformations(png::Transformations::EXPAND);
+    // Reject oversized IHDRs before reading further metadata or preparing any
+    // image buffers. Their resource error intentionally precedes later stream
+    // errors, even when the over-budget PNG is also truncated or corrupt.
+    let header = decoder.read_header_info().map_err(|error| {
+        VizError::Diagnostic(format!(
+            "VIZ-ARTIFACT-0001: {} is not a decodable PNG: {error}",
+            path.display()
+        ))
+    })?;
+    let pixels = png_pixel_count(path, header.width, header.height)?;
     let mut reader = decoder.read_info().map_err(|error| {
         VizError::Diagnostic(format!(
             "VIZ-ARTIFACT-0001: {} is not a decodable PNG: {error}",
             path.display()
         ))
     })?;
-    let mut buffer = vec![0; reader.output_buffer_size()];
+    let (color, depth) = reader.output_color_type();
+    let buffer_size = png_decoded_bytes(path, pixels, color, depth)?;
+    let mut buffer = Vec::new();
+    buffer.try_reserve_exact(buffer_size).map_err(|_| {
+        VizError::Diagnostic(format!(
+            "VIZ-ARTIFACT-0004: {} could not allocate {buffer_size} bytes for decoded PNG verification",
+            path.display()
+        ))
+    })?;
+    buffer.resize(buffer_size, 0);
     let info = reader.next_frame(&mut buffer).map_err(|error| {
         VizError::Diagnostic(format!(
             "VIZ-ARTIFACT-0001: {} has invalid PNG pixels: {error}",
@@ -517,6 +592,10 @@ fn validate_cli_color(value: &str) -> VizResult<()> {
 mod png_fixtures;
 
 #[cfg(test)]
+#[path = "../tests/support/png_budget_fixtures.rs"]
+mod png_budget_fixtures;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -544,6 +623,152 @@ mod tests {
 
     fn verify_bytes(bytes: &[u8]) -> VizResult<()> {
         verify_bytes_with_policy(bytes, true)
+    }
+
+    #[test]
+    fn png_resource_arithmetic_checks_boundaries_and_overflow() {
+        let path = Path::new("fixture.png");
+        for (width, height) in [(4096, 4096), (1, 16_777_216), (16_777_216, 1)] {
+            assert_eq!(
+                png_pixel_count(path, width, height).unwrap(),
+                PNG_MAX_PIXELS
+            );
+        }
+        assert_eq!(
+            png_pixel_count(path, 1, 16_777_215).unwrap(),
+            PNG_MAX_PIXELS - 1
+        );
+        for (width, height) in [(4096, 4097), (1, 16_777_217), (u32::MAX, u32::MAX)] {
+            let error = png_pixel_count(path, width, height)
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains("VIZ-ARTIFACT-0004"), "{error}");
+        }
+        for color in [
+            png::ColorType::Grayscale,
+            png::ColorType::GrayscaleAlpha,
+            png::ColorType::Rgb,
+            png::ColorType::Rgba,
+        ] {
+            for (depth, sample_bytes) in [(png::BitDepth::Eight, 1), (png::BitDepth::Sixteen, 2)] {
+                assert_eq!(
+                    png_decoded_bytes(path, PNG_MAX_PIXELS, color, depth).unwrap(),
+                    PNG_MAX_PIXELS * color.samples() * sample_bytes
+                );
+            }
+        }
+        assert_eq!(
+            png_decoded_bytes(
+                path,
+                PNG_MAX_PIXELS,
+                png::ColorType::Rgba,
+                png::BitDepth::Sixteen
+            )
+            .unwrap(),
+            PNG_MAX_DECODED_BYTES
+        );
+        // Exercise the byte guard independently of the tighter pixel guard,
+        // including multiplication overflow on both 32- and 64-bit platforms.
+        for pixels in [PNG_MAX_PIXELS + 1, usize::MAX] {
+            let error =
+                png_decoded_bytes(path, pixels, png::ColorType::Rgba, png::BitDepth::Sixteen)
+                    .unwrap_err()
+                    .to_string();
+            assert!(error.contains("VIZ-ARTIFACT-0004"), "{error}");
+        }
+    }
+
+    #[test]
+    fn png_resource_budget_uses_expanded_decoded_formats() {
+        let path = Path::new("fixture.png");
+        for fixture in png_fixtures::fixtures() {
+            let mut decoder = png::Decoder::new(fixture.bytes.as_slice());
+            decoder.set_transformations(png::Transformations::EXPAND);
+            let reader = decoder.read_info().unwrap();
+            let (color, depth) = reader.output_color_type();
+            let pixels = png_pixel_count(path, reader.info().width, reader.info().height).unwrap();
+            let bytes = png_decoded_bytes(path, pixels, color, depth).unwrap();
+            assert_eq!(bytes, reader.output_buffer_size(), "{}", fixture.name);
+            if reader.info().color_type == png::ColorType::Indexed {
+                assert_eq!(depth, png::BitDepth::Eight);
+                assert_eq!(bytes, if reader.info().trns.is_some() { 8 } else { 6 });
+            }
+        }
+    }
+
+    #[test]
+    fn oversized_png_headers_fail_before_metadata_or_pixel_allocation() {
+        for bytes in png_budget_fixtures::oversized_pngs() {
+            for expect_transparency in [true, false] {
+                let error = verify_bytes_with_policy(&bytes, expect_transparency)
+                    .unwrap_err()
+                    .to_string();
+                assert!(error.contains("VIZ-ARTIFACT-0004"), "{error}");
+                assert!(
+                    error.contains("16777216 pixel verification limit"),
+                    "{error}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn within_budget_truncated_pixels_still_report_corrupt_artifacts() {
+        for header_only in [true, false] {
+            let bytes = png_budget_fixtures::declared_png(
+                2,
+                1,
+                png::ColorType::Rgba,
+                png::BitDepth::Sixteen,
+                header_only,
+            );
+            for expect_transparency in [true, false] {
+                let error = verify_bytes_with_policy(&bytes, expect_transparency)
+                    .unwrap_err()
+                    .to_string();
+                assert!(error.contains("VIZ-ARTIFACT-0001"), "{error}");
+            }
+        }
+    }
+
+    #[test]
+    fn real_pngs_at_the_pixel_and_byte_limits_decode_and_validate_alpha() {
+        use std::io::Write;
+
+        // Stream-encode rows instead of allocating a second full-size image.
+        // The cases run sequentially: at most one 128 MiB decoded buffer exists.
+        for (color, depth, row_bytes) in [
+            (png::ColorType::Rgba, png::BitDepth::Eight, 4096 * 4),
+            (png::ColorType::Rgba, png::BitDepth::Sixteen, 4096 * 8),
+            (png::ColorType::Indexed, png::BitDepth::One, 4096 / 8),
+        ] {
+            let mut bytes = Vec::new();
+            {
+                let mut encoder = png::Encoder::new(&mut bytes, 4096, 4096);
+                encoder.set_color(color);
+                encoder.set_depth(depth);
+                encoder.set_compression(png::Compression::Fast);
+                encoder.set_filter(png::FilterType::NoFilter);
+                if color == png::ColorType::Indexed {
+                    encoder.set_palette(&[0, 0, 0, 255, 255, 255][..]);
+                    encoder.set_trns(&[0, 1][..]);
+                }
+                let mut writer = encoder.write_header().unwrap();
+                {
+                    let mut stream = writer.stream_writer().unwrap();
+                    let mut row = vec![0; row_bytes];
+                    // Includes both zero and nonzero alpha; RGBA16 uses 0x0001.
+                    *row.last_mut().unwrap() = 1;
+                    for _ in 0..4096 {
+                        stream.write_all(&row).unwrap();
+                    }
+                    stream.finish().unwrap();
+                }
+                writer.finish().unwrap();
+            }
+            assert!(bytes.len() < 1024 * 1024);
+            verify_bytes(&bytes).unwrap_or_else(|error| panic!("{color:?}/{depth:?}: {error}"));
+        }
     }
 
     #[test]

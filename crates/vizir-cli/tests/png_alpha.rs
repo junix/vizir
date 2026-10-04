@@ -8,6 +8,9 @@ use std::process::{Command, Output};
 #[path = "support/png_fixtures.rs"]
 mod png_fixtures;
 
+#[path = "support/png_budget_fixtures.rs"]
+mod png_budget_fixtures;
+
 fn render(directory: &Path, background: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_vizir"))
         .args(["render", "--format", "png", "--background", background])
@@ -76,6 +79,51 @@ fn both_renderer_routes_validate_exact_decoded_alpha_fixtures() {
                         fixture.bytes
                     );
                 }
+            }
+        }
+    }
+}
+
+#[test]
+fn both_renderer_routes_reject_oversized_pngs_without_publishing() {
+    for (command, target) in [("rsvg-convert", "\"$4\""), ("magick", "\"${2#png:}\"")] {
+        for fixture in png_budget_fixtures::oversized_pngs() {
+            for background in ["transparent", "#ffffff", "#11223380"] {
+                let directory = tempfile::tempdir().unwrap();
+                fs::write(directory.path().join("fixture.png"), &fixture).unwrap();
+                fs::write(directory.path().join("output.png"), b"previous PNG").unwrap();
+                fs::write(directory.path().join("manifest.json"), b"previous manifest").unwrap();
+                let executable = directory.path().join(command);
+                fs::write(&executable, format!(
+                    "#!/bin/sh\nif [ \"$1\" = --version ]; then exit 0; fi\n/bin/cp \"$VIZIR_ALPHA_FIXTURE\" {target}\n"
+                )).unwrap();
+                fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+                let result = render(directory.path(), background);
+                let stderr = String::from_utf8_lossy(&result.stderr);
+                assert_eq!(
+                    result.status.code(),
+                    Some(1),
+                    "{command}, {background}: {stderr}"
+                );
+                assert!(
+                    stderr.contains("VIZ-ARTIFACT-0004"),
+                    "{command}, {background}: {stderr}"
+                );
+                assert_eq!(
+                    fs::read(directory.path().join("output.png")).unwrap(),
+                    b"previous PNG"
+                );
+                assert_eq!(
+                    fs::read(directory.path().join("manifest.json")).unwrap(),
+                    b"previous manifest"
+                );
+                assert!(fs::read_dir(directory.path()).unwrap().all(|entry| {
+                    !entry
+                        .unwrap()
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with(".vizir-")
+                }));
             }
         }
     }

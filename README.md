@@ -120,6 +120,31 @@ so specifying a hex background is not an assertion that every pixel is opaque.
 Every mode must decode the pixels and finish the PNG stream, including IEND/CRC
 validation. Both rasterizer routes use the same checks.
 
+### PNG verification resource limits
+
+PNG verification accepts at most **16,777,216 pixels** (`width × height`) and
+**134,217,728 decoded bytes** (128 MiB) per image. The byte budget includes all
+channels after palette, packed grayscale, and `tRNS` expansion, and preserves
+16-bit samples: RGBA8 needs four bytes per pixel, RGBA16 needs eight. These
+limits apply to both renderer routes and every background mode.
+
+The PNG library reads the IHDR first; checked dimension arithmetic rejects
+over-budget images before further metadata and pixel-buffer allocation. After
+metadata determines the expanded sample format, checked byte arithmetic and a
+fallible reservation guard the caller's decoded buffer. These failures report
+`VIZ-ARTIFACT-0004` and leave existing output and manifest contents unchanged.
+For a valid but over-budget IHDR, this resource diagnostic takes priority over
+later missing/corrupt pixels or stream chunks. Within-budget invalid streams
+still report `VIZ-ARTIFACT-0001`; complete decoding and alpha checks remain
+required for success.
+
+The decoder retains its separate 64 MiB internal allocation limit. The caps are
+verification maxima, not a guarantee that every image shape below them can be
+decoded or a total-process memory bound. Allocator overhead, decoder state,
+and external rasterizer memory are separate; rasterization happens before
+artifact verification. Scene/SVG dimensions are not newly capped, and do not
+imply support for arbitrarily large PNGs.
+
 ### External renderer limits
 
 PNG selection still prefers `rsvg-convert`, falling back to ImageMagick (`magick`)
