@@ -21,11 +21,47 @@ pub struct BackendCapabilities {
     pub supports: BTreeSet<String>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub unsupported: BTreeSet<String>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        deserialize_with = "deserialize_limits"
+    )]
     pub limits: BTreeMap<String, u64>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub lowering: BTreeMap<String, CapabilityStatus>,
     pub unsupported_policy: UnsupportedPolicy,
+}
+
+// Do not let a repeated key silently replace a stricter advertised bound.
+// Keep the existing u64 value parser and public/map schema representation.
+fn deserialize_limits<'de, D>(deserializer: D) -> Result<BTreeMap<String, u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct LimitsVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for LimitsVisitor {
+        type Value = BTreeMap<String, u64>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("a map of unique limit names to unsigned 64-bit integers")
+        }
+
+        fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+        where
+            M: serde::de::MapAccess<'de>,
+        {
+            let mut limits = BTreeMap::new();
+            while let Some((key, value)) = map.next_entry::<String, u64>()? {
+                if limits.insert(key.clone(), value).is_some() {
+                    return Err(serde::de::Error::custom(format!("duplicate limit {key:?}")));
+                }
+            }
+            Ok(limits)
+        }
+    }
+
+    deserializer.deserialize_map(LimitsVisitor)
 }
 
 impl BackendCapabilities {
@@ -154,7 +190,7 @@ pub fn negotiate_scene(
     capabilities: &BackendCapabilities,
 ) -> VizResult<CapabilityReport> {
     capabilities.validate()?;
-    let decisions = scene_capability_requirements(scene)
+    let mut decisions: Vec<_> = scene_capability_requirements(scene)
         .into_iter()
         .map(|requirement| {
             if capabilities.supports(&requirement.feature) {
@@ -183,6 +219,50 @@ pub fn negotiate_scene(
             }
         })
         .collect();
+    if !matches!(
+        capabilities.accepted_ir.as_str(),
+        "scene2d" | "scene2d-through-svg"
+    ) {
+        decisions.push(CapabilityDecision {
+            source: scene.document_id.clone(),
+            feature: "accepted_ir".to_owned(),
+            status: CapabilityStatus::Error,
+            reason: format!(
+                "backend accepts {:?}, not the current Scene2D 0.1 contract (scene2d or scene2d-through-svg)",
+                capabilities.accepted_ir
+            ),
+        });
+    }
+    if !capabilities.limits.is_empty() {
+        let usage = scene_usage(scene);
+        for (key, limit) in &capabilities.limits {
+            let observed = match key.as_str() {
+                "max-nodes" => usage.nodes,
+                "max-clip-depth" => usage.max_clip_depth,
+                _ => {
+                    decisions.push(CapabilityDecision {
+                        source: scene.document_id.clone(),
+                        feature: format!("limit.{key}"),
+                        status: CapabilityStatus::Error,
+                        reason: format!("unsupported limit {key:?} for Scene2D negotiation"),
+                    });
+                    continue;
+                }
+            };
+            if observed > *limit {
+                decisions.push(CapabilityDecision {
+                    source: scene.document_id.clone(),
+                    feature: format!("limit.{key}"),
+                    status: CapabilityStatus::Error,
+                    reason: format!(
+                        "Scene2D observed {observed} exceeds backend limit {key:?} of {limit}"
+                    ),
+                });
+            }
+        }
+    }
+    decisions
+        .sort_by(|left, right| (&left.source, &left.feature).cmp(&(&right.source, &right.feature)));
     Ok(CapabilityReport {
         backend: capabilities.backend.clone(),
         backend_version: capabilities.version.clone(),
@@ -190,6 +270,35 @@ pub fn negotiate_scene(
         accepted_ir: capabilities.accepted_ir.clone(),
         decisions,
     })
+}
+
+struct SceneUsage {
+    nodes: u64,
+    max_clip_depth: u64,
+}
+
+fn scene_usage(scene: &Scene2D) -> SceneUsage {
+    let mut usage = SceneUsage {
+        nodes: 0,
+        // Scene2D 0.1 has no clip construct. Groups/transforms are not clips.
+        // Keep the match below exhaustive so new node kinds require review.
+        max_clip_depth: 0,
+    };
+    let mut pending = vec![scene.nodes.as_slice()];
+    while let Some(nodes) = pending.pop() {
+        for node in nodes {
+            usage.nodes = usage.nodes.saturating_add(1);
+            match node {
+                SceneNode::Group { children, .. } => pending.push(children),
+                SceneNode::Rect { .. }
+                | SceneNode::Circle { .. }
+                | SceneNode::Line { .. }
+                | SceneNode::Path { .. }
+                | SceneNode::Text { .. } => {}
+            }
+        }
+    }
+    usage
 }
 
 pub fn capability_schema() -> serde_json::Value {
