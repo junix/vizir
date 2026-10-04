@@ -104,6 +104,22 @@ changes, and external processes that keep modifying staged files are outside
 the guarantee. A crash can leave mixed versions and staging/backup directories;
 there is no automatic crash recovery or directory `fsync` durability guarantee.
 
+### PNG alpha validation
+
+The default `--background transparent` requires at least one fully transparent
+pixel (alpha zero) and at least one visible pixel (nonzero alpha). Validation
+uses decoded samples, including 8/16-bit RGBA and grayscale-alpha, low-bit
+indexed palettes, and grayscale/RGB `tRNS` transparency. Full 16-bit precision
+is preserved: alpha `0x0001` is visible. An alpha-capable file containing only
+opaque pixels or only fully transparent pixels does not meet this contract.
+
+Explicit hex backgrounds (`#RRGGBB` or `#RRGGBBAA`) do not require a transparent
+pixel or an alpha channel; RGB, grayscale, and indexed PNGs without transparency
+are valid opaque encodings. An eight-digit background may itself be translucent,
+so specifying a hex background is not an assertion that every pixel is opaque.
+Every mode must decode the pixels and finish the PNG stream, including IEND/CRC
+validation. Both rasterizer routes use the same checks.
+
 ### External renderer limits
 
 PNG selection still prefers `rsvg-convert`, falling back to ImageMagick (`magick`)

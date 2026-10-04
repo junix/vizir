@@ -201,14 +201,19 @@ fn renders_exact_svg_without_an_opaque_background() {
 }
 
 #[test]
-fn png_has_an_alpha_capable_color_type_when_rasterizer_is_available() {
-    if Command::new("rsvg-convert")
-        .arg("--version")
-        .output()
-        .is_err()
-    {
+fn png_has_decoded_alpha_when_either_rasterizer_is_available() {
+    let rasterizer = [("rsvg-convert", "rsvg-convert"), ("magick", "imagemagick")]
+        .into_iter()
+        .find(|(command, _)| {
+            Command::new(command)
+                .arg("--version")
+                .output()
+                .is_ok_and(|result| result.status.success())
+        });
+    let Some((_, rasterizer)) = rasterizer else {
+        eprintln!("native PNG test skipped: no successful rasterizer probe");
         return;
-    }
+    };
     let input = workspace().join("examples/diagram/data-platform.viz.yaml");
     let temporary = tempfile::tempdir().unwrap();
     let output = temporary.path().join("platform.png");
@@ -227,17 +232,39 @@ fn png_has_an_alpha_capable_color_type_when_rasterizer_is_available() {
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
-    let png = std::fs::read(output).unwrap();
-    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
-    assert!(
-        matches!(png[25], 4 | 6),
-        "PNG color type {} has no alpha",
-        png[25]
-    );
+    let mut decoder = png::Decoder::new(std::fs::File::open(output).unwrap());
+    decoder.set_transformations(png::Transformations::EXPAND);
+    let mut reader = decoder.read_info().unwrap();
+    let mut bytes = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut bytes).unwrap();
+    reader.finish().unwrap();
+    assert!(matches!(
+        info.color_type,
+        png::ColorType::Rgba | png::ColorType::GrayscaleAlpha
+    ));
+    let sample_bytes = match info.bit_depth {
+        png::BitDepth::Eight => 1,
+        png::BitDepth::Sixteen => 2,
+        depth => panic!("unexpected decoded alpha depth {depth:?}"),
+    };
+    let stride = info.color_type.samples() * sample_bytes;
+    let alphas: Vec<_> = bytes[..info.buffer_size()]
+        .chunks_exact(stride)
+        .map(|pixel| {
+            let alpha = &pixel[stride - sample_bytes..];
+            if sample_bytes == 1 {
+                u16::from(alpha[0])
+            } else {
+                u16::from_be_bytes([alpha[0], alpha[1]])
+            }
+        })
+        .collect();
+    assert!(alphas.contains(&0));
+    assert!(alphas.iter().any(|&alpha| alpha > 0));
     let report: serde_json::Value =
         serde_json::from_slice(&std::fs::read(manifest).unwrap()).unwrap();
     assert_eq!(report["losses"][0]["fidelity"], "rasterized");
-    assert_eq!(report["rasterizer"], "rsvg-convert");
+    assert_eq!(report["rasterizer"], rasterizer);
     assert_eq!(report["capability_report"]["backend"], "png");
     let decisions = report["capability_report"]["decisions"].as_array().unwrap();
     assert!(

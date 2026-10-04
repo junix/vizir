@@ -358,7 +358,10 @@ fn verify_png_alpha(path: &Path, expect_transparency: bool) -> VizResult<()> {
         path: path.display().to_string(),
         source,
     })?;
-    let decoder = png::Decoder::new(file);
+    let mut decoder = png::Decoder::new(file);
+    // Expand palette/low-bit grayscale samples and tRNS to decoded channels,
+    // but retain 16-bit precision: alpha 0x0001 is visible, not transparent.
+    decoder.set_transformations(png::Transformations::EXPAND);
     let mut reader = decoder.read_info().map_err(|error| {
         VizError::Diagnostic(format!(
             "VIZ-ARTIFACT-0001: {} is not a decodable PNG: {error}",
@@ -378,38 +381,62 @@ fn verify_png_alpha(path: &Path, expect_transparency: bool) -> VizResult<()> {
             path.display()
         ))
     })?;
+    // A hex background may itself include alpha. It does not promise fully
+    // opaque pixels, and rasterizers may legitimately omit an unused channel.
+    // Complete decoding/finish above remains mandatory in either mode.
+    if !expect_transparency {
+        return Ok(());
+    }
     let pixels = &buffer[..info.buffer_size()];
-    let alphas = match info.color_type {
-        png::ColorType::Rgba => pixels
-            .as_chunks::<4>()
-            .0
-            .iter()
-            .map(|pixel| pixel[3])
-            .collect::<Vec<_>>(),
-        png::ColorType::GrayscaleAlpha => pixels
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|pixel| pixel[1])
-            .collect::<Vec<_>>(),
-        color_type => {
+    let (min, max) = match (info.color_type, info.bit_depth) {
+        (png::ColorType::Rgba, png::BitDepth::Eight) => alpha_range(
+            pixels
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|pixel| u16::from(pixel[3])),
+        ),
+        (png::ColorType::GrayscaleAlpha, png::BitDepth::Eight) => alpha_range(
+            pixels
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pixel| u16::from(pixel[1])),
+        ),
+        (png::ColorType::Rgba, png::BitDepth::Sixteen) => alpha_range(
+            pixels
+                .as_chunks::<8>()
+                .0
+                .iter()
+                .map(|pixel| u16::from_be_bytes([pixel[6], pixel[7]])),
+        ),
+        (png::ColorType::GrayscaleAlpha, png::BitDepth::Sixteen) => alpha_range(
+            pixels
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|pixel| u16::from_be_bytes([pixel[2], pixel[3]])),
+        ),
+        (color_type, bit_depth) => {
             return Err(VizError::Diagnostic(format!(
-                "VIZ-ARTIFACT-0002: {} uses {color_type:?} without an alpha channel",
+                "VIZ-ARTIFACT-0002: {} uses {color_type:?}/{bit_depth:?} without a decoded alpha channel",
                 path.display()
             )));
         }
     };
-    if expect_transparency {
-        let min = alphas.iter().copied().min().unwrap_or(255);
-        let max = alphas.iter().copied().max().unwrap_or(0);
-        if min != 0 || max == 0 {
-            return Err(VizError::Diagnostic(format!(
-                "VIZ-ARTIFACT-0003: {} does not contain both transparent and visible pixels (alpha {min}..{max})",
-                path.display()
-            )));
-        }
+    if min != 0 || max == 0 {
+        return Err(VizError::Diagnostic(format!(
+            "VIZ-ARTIFACT-0003: {} does not contain both transparent and visible pixels (alpha {min}..{max})",
+            path.display()
+        )));
     }
     Ok(())
+}
+
+fn alpha_range(alphas: impl Iterator<Item = u16>) -> (u16, u16) {
+    alphas.fold((u16::MAX, 0), |(min, max), alpha| {
+        (min.min(alpha), max.max(alpha))
+    })
 }
 
 fn format_name(format: OutputFormat) -> &'static str {
@@ -486,6 +513,10 @@ fn validate_cli_color(value: &str) -> VizResult<()> {
 }
 
 #[cfg(test)]
+#[path = "../tests/support/png_fixtures.rs"]
+mod png_fixtures;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -504,11 +535,55 @@ mod tests {
         bytes
     }
 
-    fn verify_bytes(bytes: &[u8]) -> VizResult<()> {
+    fn verify_bytes_with_policy(bytes: &[u8], expect_transparency: bool) -> VizResult<()> {
         let temporary = tempfile::tempdir().unwrap();
         let path = temporary.path().join("artifact.png");
         fs::write(&path, bytes).unwrap();
-        verify_png_alpha(&path, true)
+        verify_png_alpha(&path, expect_transparency)
+    }
+
+    fn verify_bytes(bytes: &[u8]) -> VizResult<()> {
+        verify_bytes_with_policy(bytes, true)
+    }
+
+    #[test]
+    fn decoded_alpha_formats_follow_the_background_contract() {
+        for fixture in png_fixtures::fixtures() {
+            let result = verify_bytes(&fixture.bytes);
+            match fixture.transparent_error {
+                Some(code) => {
+                    let error = result.expect_err(fixture.name).to_string();
+                    assert!(error.contains(code), "{}: {error}", fixture.name);
+                }
+                None => result.unwrap_or_else(|error| panic!("{}: {error}", fixture.name)),
+            }
+            verify_bytes_with_policy(&fixture.bytes, false)
+                .unwrap_or_else(|error| panic!("{} with hex background: {error}", fixture.name));
+        }
+    }
+
+    #[test]
+    fn alpha_policy_never_bypasses_complete_stream_validation() {
+        for fixture in png_fixtures::fixtures() {
+            for expect_transparency in [true, false] {
+                for corrupt_crc in [false, true] {
+                    let mut bytes = fixture.bytes.clone();
+                    if corrupt_crc {
+                        *bytes.last_mut().unwrap() ^= 1;
+                    } else {
+                        bytes.truncate(bytes.len() - 4);
+                    }
+                    let error = verify_bytes_with_policy(&bytes, expect_transparency)
+                        .expect_err(fixture.name)
+                        .to_string();
+                    assert!(
+                        error.contains("VIZ-ARTIFACT-0001"),
+                        "{}: {error}",
+                        fixture.name
+                    );
+                }
+            }
+        }
     }
 
     #[test]
