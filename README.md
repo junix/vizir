@@ -329,3 +329,7 @@ Omitting the selector retains legacy output bytes. See [theme context and defaul
 ### Measured single-line text (opt-in)
 
 Use exact supplied font bytes with the durable compilation context for font-independent outlines. See [the complete CLI/composition example and limits](docs/measured-text.md). Legacy native text and themed-mir/1 remain unchanged. Rust 1.89 or newer is required; no font installation is performed.
+
+### Explicit geometry text wrapping (opt-in)
+
+Add a source-targeted `--text-layout` policy to measured text for bounded Latin/CJK paragraphs, preserved whitespace and explicit hard breaks. See [the executable three-panel composition, font resources, and exact wrapping contract](docs/wrapping.md). Chart and diagram text retain their single-line behavior.

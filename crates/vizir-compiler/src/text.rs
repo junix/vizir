@@ -1,4 +1,4 @@
-//! Explicit, bounded single-line font shaping and font-independent outlines.
+//! Explicit, bounded exact-face font shaping and font-independent outlines.
 //! Resource bytes are supplied by the caller; this module never opens files.
 use cosmic_text::{
     Attrs, Buffer, Fallback, Family, FontSystem, Hinting, Metrics, Shaping, Weight, Wrap, fontdb,
@@ -21,6 +21,8 @@ use vizir_core::{
     Color, FontWeight, LossRecord, LoweringFidelity, PathCommand, Point, Rect, ResolvedStyle,
     Scene2D, SceneNode, TextAnchor, Transform2D, VizError, VizResult,
 };
+
+use crate::text_layout::{self, TextLayoutContext, TextLayoutTarget};
 
 pub const TEXT_PROFILE: &str = "vizir-text-outlines/1";
 pub const TEXT_ENGINE: &str = "cosmic-text/0.19.0;harfrust/0.5.2;skrifa/0.40.0";
@@ -205,6 +207,8 @@ pub struct TextLimits {
     pub max_cache_bytes: usize,
     pub max_collision_checks: usize,
     pub max_output_bytes: usize,
+    pub max_layout_lines: usize,
+    pub max_wrap_candidates: usize,
 }
 impl Default for TextLimits {
     fn default() -> Self {
@@ -217,6 +221,8 @@ impl Default for TextLimits {
             max_cache_bytes: 16 * 1024 * 1024,
             max_collision_checks: 1_000_000,
             max_output_bytes: TEXT_MAX_OUTPUT_BYTES,
+            max_layout_lines: 4096,
+            max_wrap_candidates: 4096,
         }
     }
 }
@@ -235,6 +241,8 @@ impl TextLimits {
             max_cache_bytes: self.max_cache_bytes.min(d.max_cache_bytes),
             max_collision_checks: self.max_collision_checks.min(d.max_collision_checks),
             max_output_bytes: self.max_output_bytes.min(d.max_output_bytes),
+            max_layout_lines: self.max_layout_lines.min(d.max_layout_lines),
+            max_wrap_candidates: self.max_wrap_candidates.min(d.max_wrap_candidates),
         }
     }
 }
@@ -263,6 +271,7 @@ struct Run {
     bounds: Rect,
     commands: Vec<PathCommand>,
     glyphs: usize,
+    coverage_complete: bool,
 }
 impl Run {
     fn width(&self) -> f64 {
@@ -271,6 +280,35 @@ impl Run {
         2. * center
             .max(center - self.bounds.x)
             .max(self.bounds.x + self.bounds.width - center)
+    }
+}
+struct WrappedLine {
+    source: std::ops::Range<usize>,
+    separator: std::ops::Range<usize>,
+    baseline: f64,
+    run: Arc<Run>,
+    commands: Vec<PathCommand>,
+    bounds: Rect,
+    logical: Rect,
+}
+struct WrappedOutline {
+    commands: Vec<PathCommand>,
+    bounds: Rect,
+    logical: Rect,
+    details: String,
+}
+fn union_rect(previous: Option<Rect>, next: Rect) -> Rect {
+    if let Some(p) = previous {
+        let x = p.x.min(next.x);
+        let y = p.y.min(next.y);
+        Rect {
+            x,
+            y,
+            width: (p.x + p.width).max(next.x + next.width) - x,
+            height: (p.y + p.height).max(next.y + next.height) - y,
+        }
+    } else {
+        next
     }
 }
 struct State {
@@ -285,18 +323,35 @@ struct State {
     emitted_glyphs: usize,
     emitted_commands: usize,
     collision_checks: usize,
+    layout_lines: usize,
+    wrap_candidates: usize,
+    used_targets: BTreeSet<(String, String)>,
 }
 pub(crate) struct TextSession {
     limits: TextLimits,
     state: RefCell<State>,
+    targets: BTreeMap<String, BTreeMap<String, TextLayoutTarget>>,
+    face_metrics: BTreeMap<u16, (f64, f64)>,
 }
 impl TextSession {
-    pub(crate) fn new(
+    pub(crate) fn new_with_layout(
         context: &TextContext,
         resources: &FontResources,
         limits: TextLimits,
+        layout: Option<&TextLayoutContext>,
     ) -> VizResult<Self> {
         context.validate()?;
+        let mut targets: BTreeMap<String, BTreeMap<String, TextLayoutTarget>> = BTreeMap::new();
+        if let Some(layout) = layout {
+            layout.validate()?;
+            for t in &layout.targets {
+                targets
+                    .entry(t.view_id.clone())
+                    .or_default()
+                    .insert(t.node_id.clone(), t.clone());
+            }
+        }
+        let mut face_metrics = BTreeMap::new();
         let mut db = fontdb::Database::new();
         let mut loaded = BTreeMap::new();
         let mut selected = BTreeMap::new();
@@ -319,6 +374,14 @@ impl TextSession {
             let glyph_count = validate_font_structure(bytes, resource.face_index)?;
             let raw = FontRef::from_index(bytes.as_slice(), resource.face_index)
                 .map_err(|_| error("0002", "invalid font or face index"))?;
+            let metrics = raw.metrics(Size::unscaled(), LocationRef::default());
+            face_metrics.insert(
+                weight(role),
+                (
+                    f64::from(metrics.ascent) / f64::from(metrics.units_per_em),
+                    f64::from(metrics.descent) / f64::from(metrics.units_per_em),
+                ),
+            );
             if !raw.axes().is_empty() {
                 return Err(error(
                     "0002",
@@ -377,6 +440,8 @@ impl TextSession {
         );
         Ok(Self {
             limits: limits.bounded(),
+            targets,
+            face_metrics,
             state: RefCell::new(State {
                 system,
                 selected,
@@ -389,12 +454,16 @@ impl TextSession {
                 emitted_glyphs: 0,
                 emitted_commands: 0,
                 collision_checks: 0,
+                layout_lines: 0,
+                wrap_candidates: 0,
+                used_targets: BTreeSet::new(),
             }),
         })
     }
     pub(crate) fn preflight_document(&self, document: &vizir_core::Document) -> VizResult<()> {
         let mut strings = SourceText::new(self.limits);
         let mut geometry = Vec::new();
+        let mut found_targets = BTreeSet::new();
         for view in &document.views {
             match view {
                 vizir_core::View::Scatter(c) => {
@@ -455,32 +524,43 @@ impl TextSession {
                     if c.children.len() > 65536usize.saturating_sub(geometry.len()) {
                         return Err(error("0003", "text source traversal limit exceeded"));
                     }
-                    geometry.extend(c.children.iter().map(|n| (n, 0usize)));
+                    geometry.extend(c.children.iter().map(|n| (n, 0usize, c.id.as_str())));
                 }
             }
         }
         let mut count = 0usize;
-        while let Some((node, depth)) = geometry.pop() {
+        while let Some((node, depth, view_id)) = geometry.pop() {
             count += 1;
             if count > 65536 || depth > 64 {
                 return Err(error("0003", "text source traversal limit exceeded"));
+            }
+            let target = self.target(view_id, node.id());
+            if target.is_some()
+                && (!matches!(node, vizir_core::GeometryNode::Text { .. })
+                    || !found_targets.insert((view_id.to_owned(), node.id().to_owned())))
+            {
+                return Err(text_layout::error(
+                    "wrapping target is non-text or ambiguous",
+                ));
             }
             match node {
                 vizir_core::GeometryNode::Group { children, .. } => {
                     if children.len() > 65536usize.saturating_sub(geometry.len()) {
                         return Err(error("0003", "text source traversal limit exceeded"));
                     }
-                    geometry.extend(children.iter().map(|n| (n, depth + 1)))
+                    geometry.extend(children.iter().map(|n| (n, depth + 1, view_id)))
                 }
-                vizir_core::GeometryNode::Text { text, .. } => strings.add(text)?,
+                vizir_core::GeometryNode::Text { text, .. } => strings.add_scoped(text, target)?,
                 _ => {}
             }
         }
+        self.check_targets(&found_targets)?;
         Ok(())
     }
     pub(crate) fn preflight_mir(&self, mir: &vizir_core::VizMir) -> VizResult<()> {
         let mut strings = SourceText::new(self.limits);
         let mut geometry = Vec::new();
+        let mut found_targets = BTreeSet::new();
         for view in &mir.views {
             match view {
                 vizir_core::MirView::Chart(c) => {
@@ -512,25 +592,52 @@ impl TextSession {
                     if c.children.len() > 65536usize.saturating_sub(geometry.len()) {
                         return Err(error("0003", "text source traversal limit exceeded"));
                     }
-                    geometry.extend(c.children.iter().map(|n| (n, 0usize)));
+                    geometry.extend(c.children.iter().map(|n| (n, 0usize, c.id.as_str())));
                 }
             }
         }
         let mut count = 0usize;
-        while let Some((node, depth)) = geometry.pop() {
+        while let Some((node, depth, view_id)) = geometry.pop() {
             count += 1;
             if count > 65536 || depth > 64 {
                 return Err(error("0003", "text source traversal limit exceeded"));
+            }
+            let target = self.target(view_id, node.id());
+            if target.is_some()
+                && (!matches!(node, vizir_core::MirGeometryNode::Text { .. })
+                    || !found_targets.insert((view_id.to_owned(), node.id().to_owned())))
+            {
+                return Err(text_layout::error(
+                    "wrapping target is non-text or ambiguous",
+                ));
             }
             match node {
                 vizir_core::MirGeometryNode::Group { children, .. } => {
                     if children.len() > 65536usize.saturating_sub(geometry.len()) {
                         return Err(error("0003", "text source traversal limit exceeded"));
                     }
-                    geometry.extend(children.iter().map(|n| (n, depth + 1)))
+                    geometry.extend(children.iter().map(|n| (n, depth + 1, view_id)))
                 }
-                vizir_core::MirGeometryNode::Text { text, .. } => strings.add(text)?,
+                vizir_core::MirGeometryNode::Text { text, .. } => {
+                    strings.add_scoped(text, target)?
+                }
                 _ => {}
+            }
+        }
+        self.check_targets(&found_targets)?;
+        Ok(())
+    }
+    fn target(&self, view: &str, node: &str) -> Option<&TextLayoutTarget> {
+        self.targets.get(view)?.get(node)
+    }
+    fn check_targets(&self, found: &BTreeSet<(String, String)>) -> VizResult<()> {
+        for (view, nodes) in &self.targets {
+            for node in nodes.keys() {
+                if !found.contains(&(view.clone(), node.clone())) {
+                    return Err(text_layout::error(format!(
+                        "wrapping target ({view:?}, {node:?}) must name exactly one geometry.scene text source"
+                    )));
+                }
             }
         }
         Ok(())
@@ -589,6 +696,7 @@ impl TextSession {
         );
         let mut advance = 0f64;
         let mut glyphs = 0usize;
+        let mut coverage = vec![false; text.len()];
         for line in buffer.layout_runs() {
             advance = advance.max(f64::from(line.line_w));
             for glyph in line.glyphs {
@@ -652,6 +760,10 @@ impl TextSession {
                 let source = text
                     .get(glyph.start..glyph.end)
                     .ok_or_else(|| error("0005", "shaper returned an invalid source cluster"))?;
+                coverage
+                    .get_mut(glyph.start..glyph.end)
+                    .ok_or_else(|| error("0005", "invalid source cluster range"))?
+                    .fill(true);
                 if dimensional_contours(drawn) == 0
                     && (!drawn.is_empty() || glyph.w > 0.0)
                     && source.chars().any(|c| !c.is_whitespace())
@@ -688,6 +800,7 @@ impl TextSession {
             bounds,
             commands: pen.commands,
             glyphs,
+            coverage_complete: coverage.into_iter().all(|covered| covered),
         });
         state.cache.insert(key, run.clone());
         Ok(run)
@@ -818,6 +931,213 @@ impl TextSession {
         }
         Ok(())
     }
+    #[allow(clippy::too_many_arguments)]
+    fn wrapped_outline(
+        &self,
+        target: &TextLayoutTarget,
+        source: &str,
+        size: f64,
+        weight: FontWeight,
+        position: Point,
+        anchor: TextAnchor,
+        id: &str,
+        losses: &mut Vec<LossRecord>,
+    ) -> VizResult<WrappedOutline> {
+        let paragraphs = text_layout::paragraphs(source)?;
+        if paragraphs.len() > target.max_lines as usize {
+            return Err(text_layout::error("hard breaks exceed target max_lines"));
+        }
+        // Empty and terminal logical lines consume work before any shaping.
+        self.reserve_lines(paragraphs.len())?;
+        let (ascent, descent) = self.face_metrics[&crate::text::weight(weight)];
+        let ascent = ascent * size;
+        let descent = descent * size;
+        if !ascent.is_finite()
+            || !descent.is_finite()
+            || ascent < 0.
+            || descent > 0.
+            || ascent - descent <= 0.
+            || target.line_height < ascent - descent
+        {
+            return Err(text_layout::error(format!(
+                "line_height {} must be at least the exact selected-face ascent minus descent {} at size {size}",
+                target.line_height,
+                ascent - descent
+            )));
+        }
+        let mut lines: Vec<WrappedLine> = Vec::new();
+        for paragraph in &paragraphs {
+            let text = &source[paragraph.text.clone()];
+            let opportunities = text_layout::opportunities(text);
+            let mut start = paragraph.text.start;
+            loop {
+                if lines.len() >= target.max_lines as usize {
+                    return Err(text_layout::error(format!(
+                        "text {id:?} exceeds max_lines; no text is dropped"
+                    )));
+                }
+                let baseline = position.y + lines.len() as f64 * target.line_height;
+                coordinate(baseline)?;
+                let mut selected = None;
+                let ends: Vec<usize> = if text.is_empty() {
+                    vec![start]
+                } else {
+                    opportunities
+                        .iter()
+                        .map(|i| i + paragraph.text.start)
+                        .filter(|end| *end > start)
+                        .collect()
+                };
+                for end in ends {
+                    {
+                        let mut state = self.state.borrow_mut();
+                        state.wrap_candidates = state
+                            .wrap_candidates
+                            .checked_add(1)
+                            .filter(|n| *n <= self.limits.max_wrap_candidates)
+                            .ok_or_else(|| {
+                                error("0003", "whole-call wrap candidate limit exceeded")
+                            })?;
+                    }
+                    let run = self.shape(&source[start..end], size, weight)?;
+                    if !run.coverage_complete {
+                        return Err(text_layout::error(
+                            "shaping omitted source coverage; wrapping will not drop whitespace or graphemes",
+                        ));
+                    }
+                    let pos = Point {
+                        x: position.x,
+                        y: baseline,
+                    };
+                    let (commands, bounds) = self.project(&run, pos, anchor)?;
+                    let origin = position.x
+                        + match anchor {
+                            TextAnchor::Start => 0.,
+                            TextAnchor::Middle => -run.advance / 2.,
+                            TextAnchor::End => -run.advance,
+                        };
+                    let mut left = svg_number(origin);
+                    let mut right = svg_number(origin + run.advance);
+                    if !commands.is_empty() {
+                        left = left.min(bounds.x);
+                        right = right.max(bounds.x + bounds.width);
+                    }
+                    // Bounds include actual cubic extrema of serialized coordinates.
+                    if right - left > target.max_width {
+                        // Explicit first-overflow greedy policy, not an assumption
+                        // that arbitrary shaped prefix widths are monotone.
+                        break;
+                    }
+                    let mut top = svg_number(baseline - ascent);
+                    let mut bottom = svg_number(baseline - descent);
+                    if !commands.is_empty() {
+                        top = top.min(bounds.y);
+                        bottom = bottom.max(bounds.y + bounds.height);
+                    }
+                    let logical = Rect {
+                        x: left,
+                        y: top,
+                        width: right - left,
+                        height: bottom - top,
+                    };
+                    selected = Some(WrappedLine {
+                        source: start..end,
+                        separator: end..end,
+                        baseline: svg_number(baseline),
+                        run,
+                        commands,
+                        bounds,
+                        logical,
+                    });
+                }
+                let mut selected = selected.ok_or_else(|| text_layout::error(format!("text {id:?} has an unbreakable segment exceeding max_width {}; no emergency grapheme split or shrink is allowed", target.max_width)))?;
+                let end = selected.source.end;
+                let last = end == paragraph.text.end;
+                if last {
+                    selected.separator = paragraph.separator.clone();
+                } else {
+                    self.reserve_lines(1)?;
+                }
+                let before = dimensional_contours(&selected.run.commands);
+                let after = dimensional_contours_grid(&selected.commands);
+                if before > 0 && after == 0 {
+                    return Err(error(
+                        "0004",
+                        "nonempty wrapped line contours collapse at SVG four-decimal precision",
+                    ));
+                }
+                if after < before {
+                    losses.push(LossRecord { source: id.into(), target: "scene2d".into(), fidelity: LoweringFidelity::VisuallyApproximate, reason: format!("{} wrapped-line sub-contours collapse at four-decimal outline precision", before-after) });
+                }
+                if let Some(previous) = lines.iter().rev().find(|line| !line.commands.is_empty())
+                    && !selected.commands.is_empty()
+                    && previous.bounds.y + previous.bounds.height > selected.bounds.y
+                {
+                    return Err(text_layout::error(format!(
+                        "text {id:?} has vertically overlapping line ink; increase explicit line_height"
+                    )));
+                }
+                {
+                    let mut state = self.state.borrow_mut();
+                    state.emitted_glyphs = state
+                        .emitted_glyphs
+                        .checked_add(selected.run.glyphs)
+                        .filter(|n| *n <= self.limits.max_glyphs)
+                        .ok_or_else(|| error("0003", "whole-call emitted glyph limit exceeded"))?;
+                }
+                lines.push(selected);
+                start = end;
+                if last {
+                    break;
+                }
+            }
+        }
+        let mut cursor = 0;
+        let mut logical = None;
+        let mut commands = Vec::new();
+        let mut details = Vec::new();
+        for line in lines {
+            if line.source.start != cursor || line.source.end != line.separator.start {
+                return Err(text_layout::error(
+                    "internal wrapping source coverage is not contiguous",
+                ));
+            }
+            cursor = line.separator.end;
+            logical = Some(union_rect(logical, line.logical));
+            details.push(format!(
+                "{}..{} separator {}..{} baseline {} advance {}",
+                line.source.start,
+                line.source.end,
+                line.separator.start,
+                line.separator.end,
+                line.baseline,
+                line.run.advance
+            ));
+            commands.extend(line.commands);
+        }
+        if cursor != source.len() {
+            return Err(text_layout::error(
+                "internal wrapping source coverage is incomplete",
+            ));
+        }
+        let bounds = path_bounds(&commands);
+        Ok(WrappedOutline {
+            commands,
+            bounds,
+            logical: logical.expect("one or more logical lines"),
+            details: details.join("; "),
+        })
+    }
+    fn reserve_lines(&self, count: usize) -> VizResult<()> {
+        let mut state = self.state.borrow_mut();
+        state.layout_lines = state
+            .layout_lines
+            .checked_add(count)
+            .filter(|n| *n <= self.limits.max_layout_lines)
+            .ok_or_else(|| error("0003", "whole-call visual line limit exceeded"))?;
+        Ok(())
+    }
+
     pub(crate) fn outline_scene(&self, mut scene: Scene2D) -> VizResult<Scene2D> {
         if !scene.width.is_finite()
             || !scene.height.is_finite()
@@ -845,6 +1165,7 @@ impl TextSession {
             height: scene.height,
         };
         for node in &mut scene.nodes {
+            let view_id = node.id().to_owned();
             let frame = match node {
                 SceneNode::Group { bounds, .. } => {
                     *bounds = serialized_rect(*bounds);
@@ -854,6 +1175,7 @@ impl TextSession {
             };
             self.outline_node(
                 node,
+                &view_id,
                 Affine::IDENTITY,
                 frame,
                 canvas,
@@ -861,6 +1183,7 @@ impl TextSession {
                 &mut contour_losses,
             )?;
         }
+        self.check_targets(&self.state.borrow().used_targets)?;
         scene.losses.extend(contour_losses);
         scene.losses.push(LossRecord{source:"text".into(),target:"scene2d".into(),fidelity:LoweringFidelity::VisuallyApproximate,reason:"Opt-in measured text was converted to font-independent outlines at SVG four-decimal precision (path coordinates and group-transform scalars round by at most 0.00005; transformed error depends on the transform). Original strings remain in source/MIR; SVG text selection, search and text editing are unavailable.".into()});
         vizir_core::validate_scene(&scene).map_err(|d| VizError::validation(&d))?;
@@ -873,9 +1196,11 @@ impl TextSession {
         })?;
         Ok(scene)
     }
+    #[allow(clippy::too_many_arguments)]
     fn outline_node(
         &self,
         node: &mut SceneNode,
+        view_id: &str,
         parent: Affine,
         frame: Rect,
         canvas: Rect,
@@ -894,7 +1219,15 @@ impl TextSession {
             *transform = serialized_transform(*transform)?;
             let matrix = parent.then(*transform)?;
             for child in children {
-                self.outline_node(child, matrix, frame, canvas, depth + 1, contour_losses)?;
+                self.outline_node(
+                    child,
+                    view_id,
+                    matrix,
+                    frame,
+                    canvas,
+                    depth + 1,
+                    contour_losses,
+                )?;
             }
             return Ok(());
         }
@@ -914,45 +1247,85 @@ impl TextSession {
         };
         coordinate(position.x)?;
         coordinate(position.y)?;
-        let run = self.shape(text, *font_size, *weight)?;
+        let (commands, bounds, explanation) = if let Some(target) =
+            self.target(view_id, &origin.hir_node)
+            && id == &format!("{view_id}/{}", target.node_id)
         {
-            let mut state = self.state.borrow_mut();
-            state.emitted_glyphs = state
-                .emitted_glyphs
-                .checked_add(run.glyphs)
-                .filter(|n| *n <= self.limits.max_glyphs)
-                .ok_or_else(|| error("0003", "whole-call emitted glyph limit exceeded"))?;
-        }
-        let (commands, bounds) = self.project(&run, *position, *anchor)?;
-        let before = dimensional_contours(&run.commands);
-        let after = dimensional_contours_grid(&commands);
-        if before > 0 && after == 0 {
-            return Err(error(
-                "0004",
-                "nonempty text contours collapse at SVG four-decimal precision",
-            ));
-        }
-        if after < before {
-            contour_losses.push(LossRecord{source:id.clone(),target:"scene2d".into(),fidelity:LoweringFidelity::VisuallyApproximate,reason:format!("{} sub-contours collapse at four-decimal outline precision; remaining label ink is retained",before-after)});
-        }
-        if run.bounds.width > 0.
-            && run.bounds.height > 0.
-            && (bounds.width == 0. || bounds.height == 0.)
-        {
-            return Err(error(
-                "0004",
-                "nonempty text ink collapses at SVG four-decimal precision",
-            ));
-        }
+            if !self
+                .state
+                .borrow_mut()
+                .used_targets
+                .insert((view_id.to_owned(), target.node_id.clone()))
+            {
+                return Err(text_layout::error(
+                    "wrapping target was emitted more than once",
+                ));
+            }
+            let wrapped = self.wrapped_outline(
+                target,
+                text,
+                *font_size,
+                *weight,
+                *position,
+                *anchor,
+                id,
+                contour_losses,
+            )?;
+            let logical = parent.bounds(wrapped.logical)?;
+            contain(logical, frame, id)?;
+            contain(logical, canvas, id)?;
+            (
+                wrapped.commands,
+                wrapped.bounds,
+                format!(
+                    "exact-face bounded wrapping {}; source byte coverage [{}]; original text: {text}",
+                    text_layout::TEXT_LAYOUT_PROFILE,
+                    wrapped.details
+                ),
+            )
+        } else {
+            let run = self.shape(text, *font_size, *weight)?;
+            {
+                let mut state = self.state.borrow_mut();
+                state.emitted_glyphs = state
+                    .emitted_glyphs
+                    .checked_add(run.glyphs)
+                    .filter(|n| *n <= self.limits.max_glyphs)
+                    .ok_or_else(|| error("0003", "whole-call emitted glyph limit exceeded"))?;
+            }
+            let (commands, bounds) = self.project(&run, *position, *anchor)?;
+            let before = dimensional_contours(&run.commands);
+            let after = dimensional_contours_grid(&commands);
+            if before > 0 && after == 0 {
+                return Err(error(
+                    "0004",
+                    "nonempty text contours collapse at SVG four-decimal precision",
+                ));
+            }
+            if after < before {
+                contour_losses.push(LossRecord{source:id.clone(),target:"scene2d".into(),fidelity:LoweringFidelity::VisuallyApproximate,reason:format!("{} sub-contours collapse at four-decimal outline precision; remaining label ink is retained",before-after)});
+            }
+            if run.bounds.width > 0.
+                && run.bounds.height > 0.
+                && (bounds.width == 0. || bounds.height == 0.)
+            {
+                return Err(error(
+                    "0004",
+                    "nonempty text ink collapses at SVG four-decimal precision",
+                ));
+            }
+            (
+                commands,
+                bounds,
+                format!("exact-face single-line outlines; original text: {text}"),
+            )
+        };
         let world = parent.bounds(bounds)?;
         contain(world, frame, id)?;
         contain(world, canvas, id)?;
         let mut path_origin = origin.clone();
         path_origin.generated_by = "shape-measured-text".into();
-        path_origin.explanation = format!(
-            "{}; exact-face single-line outlines; original text: {text}",
-            origin.explanation
-        );
+        path_origin.explanation = format!("{}; {explanation}", origin.explanation);
         *node = SceneNode::Path {
             id: id.clone(),
             bounds,
@@ -1307,6 +1680,9 @@ impl SourceText {
         }
     }
     fn add(&mut self, s: &str) -> VizResult<()> {
+        self.add_scoped(s, None)
+    }
+    fn add_scoped(&mut self, s: &str, target: Option<&TextLayoutTarget>) -> VizResult<()> {
         self.count += 1;
         if self.count > 1_000_000 || s.len() > self.limits.max_label_bytes {
             return Err(error(
@@ -1319,6 +1695,12 @@ impl SourceText {
             .checked_add(s.len())
             .filter(|n| *n <= self.limits.max_text_bytes)
             .ok_or_else(|| error("0003", "source text exceeds whole-call byte limit"))?;
+        if let Some(target) = target {
+            if text_layout::paragraphs(s)?.len() > target.max_lines as usize {
+                return Err(text_layout::error("hard breaks exceed target max_lines"));
+            }
+            return Ok(());
+        }
         if s.chars()
             .any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}'))
         {
@@ -1565,7 +1947,9 @@ fn validate_font_structure(bytes: &[u8], index: u32) -> VizResult<u16> {
     Ok(count)
 }
 
-fn deserialize_u32_number<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+pub(crate) fn deserialize_u32_number<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<u32, D::Error> {
     struct Integer;
     impl serde::de::Visitor<'_> for Integer {
         type Value = u32;

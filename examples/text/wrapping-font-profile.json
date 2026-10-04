@@ -1,0 +1,23 @@
+{
+  "profile": "vizir-text-outlines/1",
+  "engine": "cosmic-text/0.19.0;harfrust/0.5.2;skrifa/0.40.0",
+  "declared_locale": "zh-CN",
+  "shaping_language": "default",
+  "faces": {
+    "regular": {
+      "sha256": "fac61120f81f6bcd298dfa2f1f5c83860dd15112b27ef529ec99aa13800137c2",
+      "face_index": 0,
+      "weight": 400
+    },
+    "medium": {
+      "sha256": "2296e72a0fae6aba328f0a460f4c18fcf41b805113f8facfafab2bdefda935bc",
+      "face_index": 0,
+      "weight": 500
+    },
+    "bold": {
+      "sha256": "406a4747bd8a46debd27422748fbd931bcdcd868cf6aef6f5fa50049ca114fd0",
+      "face_index": 0,
+      "weight": 700
+    }
+  }
+}

@@ -1,0 +1,47 @@
+schema: vizir-composition/0.1
+id: wrapped-text-panels
+width: 1000
+height: 520
+background: transparent
+layout: {kind: grid, columns: 3, gap: 20, padding: 24}
+datasets: {}
+panels:
+  - kind: geometry.scene
+    id: latin
+    title: Latin + combining
+    children:
+      - {type: rect, id: panel, x: 0, y: 48, width: 304, height: 380, radius: 8, style: {fill: "#eef2ff", stroke: "#c7d2fe", stroke_width: 1}}
+      - type: text
+        id: body
+        x: 18
+        y: 86
+        text: "AV office ffi, Café Å.\nCafé Å x́ gypq\n\nLeading and trailing spaces stay:  AV office ffi  "
+        font_size: 22
+        anchor: start
+        weight: regular
+  - kind: geometry.scene
+    id: chinese
+    title: 中文标点
+    children:
+      - {type: rect, id: panel, x: 0, y: 48, width: 304, height: 380, radius: 8, style: {fill: "#ecfdf5", stroke: "#a7f3d0", stroke_width: 1}}
+      - type: text
+        id: body
+        x: 18
+        y: 86
+        text: "中文（字体测量），保留「标点」。\n明确换行，支持窄列布局。\n\n中文字体测量：Temperature 23.5"
+        font_size: 22
+        anchor: start
+        weight: medium
+  - kind: geometry.scene
+    id: mixed
+    title: Mixed + bold
+    children:
+      - {type: rect, id: panel, x: 0, y: 48, width: 304, height: 380, radius: 8, style: {fill: "#fff7ed", stroke: "#fed7aa", stroke_width: 1}}
+      - type: text
+        id: body
+        x: 152
+        y: 86
+        text: "中文测试\nCafé Å Å gypq\n\nMixed Latin 中文\nAV office ffi\n"
+        font_size: 22
+        anchor: middle
+        weight: bold

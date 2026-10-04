@@ -8,6 +8,7 @@ use vizir_core::{VizMir, VizResult};
 
 use crate::context::{CompilationContext, CompiledMir, context_error};
 use crate::text::TextContext;
+use crate::text_layout::TextLayoutContext;
 
 pub const MAX_COMPILED_MIR_JSON_BYTES: usize = 32 * 1024 * 1024;
 
@@ -77,7 +78,7 @@ fn check_fields(input: &Value, canonical: &Value, path: &mut Vec<String>) -> Res
                 if value.is_null()
                     && path.len() == 1
                     && path[0] == "context"
-                    && matches!(key.as_str(), "theme" | "text")
+                    && matches!(key.as_str(), "theme" | "text" | "text_layout")
                 {
                     continue;
                 }
@@ -173,4 +174,19 @@ pub fn parse_text_context_json(source: &[u8]) -> VizResult<TextContext> {
     let profile: TextContext = serde_json::from_value(input.0)?;
     profile.validate()?;
     Ok(profile)
+}
+
+/// Decode a strict, bounded geometry text-layout policy. It names source IDs
+/// and layout dimensions only; resource paths are never accepted here.
+pub fn parse_text_layout_context_json(source: &[u8]) -> VizResult<TextLayoutContext> {
+    if source.len() > MAX_COMPILED_MIR_JSON_BYTES {
+        return Err(context_error(
+            "0004",
+            "text layout JSON exceeds the 32 MiB parsing limit",
+        ));
+    }
+    let input: UniqueValue = serde_json::from_slice(source)?;
+    let layout: TextLayoutContext = serde_json::from_value(input.0)?;
+    layout.validate()?;
+    Ok(layout)
 }

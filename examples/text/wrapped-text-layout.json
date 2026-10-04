@@ -1,0 +1,27 @@
+{
+  "profile": "vizir-text-wrap/1",
+  "engine": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+  "targets": [
+    {
+      "view_id": "latin",
+      "node_id": "body",
+      "max_width": 268,
+      "max_lines": 10,
+      "line_height": 34
+    },
+    {
+      "view_id": "chinese",
+      "node_id": "body",
+      "max_width": 268,
+      "max_lines": 10,
+      "line_height": 34
+    },
+    {
+      "view_id": "mixed",
+      "node_id": "body",
+      "max_width": 268,
+      "max_lines": 10,
+      "line_height": 34
+    }
+  ]
+}

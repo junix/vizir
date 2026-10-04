@@ -156,12 +156,46 @@
     },
     "CompilationContext": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "text_layout": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "text_layout"
+            ]
+          },
+          "then": {
+            "properties": {
+              "text": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "text"
+            ]
+          }
+        }
+      ],
       "description": "Exact identities needed to reproduce compiler decisions. Resource paths and\nfont bytes are deliberately separate and must be supplied again on replay.",
       "properties": {
         "text": {
           "anyOf": [
             {
               "$ref": "#/$defs/TextContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text_layout": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TextLayoutContext"
             },
             {
               "type": "null"
@@ -2007,6 +2041,75 @@
         "regular",
         "medium",
         "bold"
+      ],
+      "type": "object"
+    },
+    "TextLayoutContext": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+          "type": "string"
+        },
+        "profile": {
+          "const": "vizir-text-wrap/1",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "targets"
+      ],
+      "type": "object"
+    },
+    "TextLayoutTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "line_height": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "max_lines": {
+          "format": "uint32",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_width": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "node_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "view_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_id",
+        "node_id",
+        "max_width",
+        "max_lines",
+        "line_height"
       ],
       "type": "object"
     },

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use vizir_core::{Document, Scene2D, VizError, VizMir, VizResult};
 
 use crate::text::{FontResources, TextContext, TextLimits, TextSession};
+use crate::text_layout::TextLayoutContext;
 use crate::{MaterializationLimits, ThemeContext};
 
 pub const COMPILED_MIR_FORMAT: &str = "vizir-compiled-mir/1";
@@ -18,6 +19,8 @@ pub struct CompilationContext {
     pub theme: Option<ThemeContext>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<TextContext>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_layout: Option<TextLayoutContext>,
 }
 
 impl CompilationContext {
@@ -35,12 +38,26 @@ impl CompilationContext {
         self
     }
 
+    pub fn with_text_layout(mut self, text_layout: TextLayoutContext) -> Self {
+        self.text_layout = Some(text_layout);
+        self
+    }
+
     pub fn validate(&self) -> VizResult<()> {
         if let Some(theme) = &self.theme {
             theme.validate()?;
         }
         if let Some(text) = &self.text {
             text.validate()?;
+        }
+        if let Some(layout) = &self.text_layout {
+            if self.text.is_none() {
+                return Err(context_error(
+                    "0006",
+                    "text_layout requires measured text context",
+                ));
+            }
+            layout.validate()?;
         }
         Ok(())
     }
@@ -258,7 +275,9 @@ fn session(
     context
         .text
         .as_ref()
-        .map(|context| TextSession::new(context, resources, limits))
+        .map(|text| {
+            TextSession::new_with_layout(text, resources, limits, context.text_layout.as_ref())
+        })
         .transpose()
 }
 
@@ -317,6 +336,38 @@ pub fn compiled_mir_schema() -> serde_json::Value {
         schema["$defs"]["TextFaces"]["properties"][role]["properties"]["weight"]["const"] =
             weight.into();
     }
+    schema["$defs"]["TextLayoutContext"]["properties"]["profile"]["const"] =
+        crate::text_layout::TEXT_LAYOUT_PROFILE.into();
+    schema["$defs"]["TextLayoutContext"]["properties"]["engine"]["const"] =
+        crate::text_layout::TEXT_LAYOUT_ENGINE.into();
+    schema["$defs"]["TextLayoutContext"]["properties"]["targets"]["minItems"] = 1.into();
+    schema["$defs"]["TextLayoutContext"]["properties"]["targets"]["maxItems"] =
+        crate::text_layout::MAX_TARGETS.into();
+    schema["$defs"]["TextLayoutContext"]["properties"]["targets"]["uniqueItems"] = true.into();
+    for id in ["view_id", "node_id"] {
+        schema["$defs"]["TextLayoutTarget"]["properties"][id]["minLength"] = 1.into();
+        // JSON Schema counts Unicode characters; the runtime also caps UTF-8 bytes.
+        schema["$defs"]["TextLayoutTarget"]["properties"][id]["maxLength"] = 256.into();
+    }
+    for dimension in ["max_width", "line_height"] {
+        schema["$defs"]["TextLayoutTarget"]["properties"][dimension]["minimum"] = 0.25.into();
+        schema["$defs"]["TextLayoutTarget"]["properties"][dimension]["maximum"] = 1_000_000.into();
+    }
+    schema["$defs"]["TextLayoutTarget"]["properties"]["max_lines"]["minimum"] = 1.into();
+    schema["$defs"]["TextLayoutTarget"]["properties"]["max_lines"]["maximum"] =
+        crate::text_layout::MAX_LINES.into();
+    // Null is an accepted spelling of absence. A present non-null layout policy
+    // requires the measured-text identity rather than just a nullable text key.
+    schema["$defs"]["CompilationContext"]["allOf"] = serde_json::json!([{
+        "if": {
+            "required": ["text_layout"],
+            "properties": {"text_layout": {"type": "object"}}
+        },
+        "then": {
+            "required": ["text"],
+            "properties": {"text": {"type": "object"}}
+        }
+    }]);
     close_declared_objects(&mut schema);
     schema
 }

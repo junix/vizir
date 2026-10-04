@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use vizir_compiler::{
     COMPILED_MIR_FORMAT, CompilationContext, CompiledMir, FontResources,
-    MAX_COMPILED_MIR_JSON_BYTES, TEXT_MAX_FONT_BYTES, TextContext, ThemeContext, ThemedMir,
-    build_themed_scene, compile, compile_compiled_mir, compile_with_context, compile_with_theme,
-    parse_compiled_mir_json, parse_text_context_json, parse_themed_mir_json,
-    rematerialize_themed_mir,
+    MAX_COMPILED_MIR_JSON_BYTES, TEXT_MAX_FONT_BYTES, TextContext, TextLayoutContext, ThemeContext,
+    ThemedMir, build_themed_scene, compile, compile_compiled_mir, compile_with_context,
+    compile_with_theme, parse_compiled_mir_json, parse_text_context_json,
+    parse_text_layout_context_json, parse_themed_mir_json, rematerialize_themed_mir,
 };
 use vizir_core::{
     Document, Scene2D, VizError, VizMir, VizResult, parse_document, validate_document,
@@ -22,6 +22,9 @@ pub(crate) struct TextOptions {
     /// Opt in from HIR using a strict, identity-only measured-text JSON profile.
     #[arg(long, value_name = "PATH")]
     pub text_profile: Option<PathBuf>,
+    /// Opt in from HIR using a strict geometry-only text-wrapping JSON policy.
+    #[arg(long, value_name = "PATH")]
+    pub text_layout: Option<PathBuf>,
     /// Exact font bytes for a profile face; repeat for each distinct SHA-256.
     #[arg(long = "font", value_name = "SHA256=PATH")]
     pub fonts: Vec<String>,
@@ -34,7 +37,12 @@ pub(crate) struct Input {
 }
 
 enum Source {
-    Hir(Document, Option<String>, Option<Box<TextContext>>),
+    Hir(
+        Document,
+        Option<String>,
+        Option<Box<TextContext>>,
+        Option<Box<TextLayoutContext>>,
+    ),
     Themed(Box<ThemedMir>),
     Compiled(Box<CompiledMir>),
 }
@@ -94,6 +102,13 @@ pub(crate) fn read(path: &Path, theme: Option<String>, options: TextOptions) -> 
     } else {
         None
     };
+    let layout = if let Some(path) = &options.text_layout {
+        let bytes = read_bounded_regular(path, MAX_JSON_INPUT_BYTES, "text layout")?;
+        resource_paths.push(path.clone());
+        Some(parse_text_layout_context_json(&bytes)?)
+    } else {
+        None
+    };
     let source = if path
         .extension()
         .and_then(|s| s.to_str())
@@ -128,6 +143,11 @@ pub(crate) fn read(path: &Path, theme: Option<String>, options: TextOptions) -> 
                 {
                     return Err(context_conflict("--text-profile"));
                 }
+                if let Some(layout) = &layout
+                    && mir.context.text_layout.as_ref() != Some(layout)
+                {
+                    return Err(context_conflict("--text-layout"));
+                }
                 Source::Compiled(Box::new(mir))
             }
             Some(_) => {
@@ -140,22 +160,36 @@ pub(crate) fn read(path: &Path, theme: Option<String>, options: TextOptions) -> 
                 if profile.is_some() {
                     return Err(context_conflict("--text-profile"));
                 }
+                if layout.is_some() {
+                    return Err(context_conflict("--text-layout"));
+                }
                 Source::Themed(Box::new(mir))
             }
             None => Source::Hir(
                 serde_json::from_slice(&bytes)?,
                 theme,
                 profile.map(Box::new),
+                layout.map(Box::new),
             ),
         }
     } else {
-        Source::Hir(parse_document(path)?, theme, profile.map(Box::new))
+        Source::Hir(
+            parse_document(path)?,
+            theme,
+            profile.map(Box::new),
+            layout.map(Box::new),
+        )
     };
     let has_text = match &source {
-        Source::Hir(_, _, profile) => profile.is_some(),
+        Source::Hir(_, _, profile, _) => profile.is_some(),
         Source::Themed(_) => false,
         Source::Compiled(mir) => mir.context.text.is_some(),
     };
+    if !has_text && options.text_layout.is_some() {
+        return Err(VizError::Diagnostic(
+            "VIZ-CONTEXT-0006: --text-layout requires a measured --text-profile or persisted measured context".to_owned(),
+        ));
+    }
     if !has_text && !options.fonts.is_empty() {
         return Err(VizError::Diagnostic("VIZ-CONTEXT-0006: --font requires a measured --text-profile or persisted measured context".to_owned()));
     }
@@ -207,7 +241,7 @@ impl Input {
 
     pub fn validate(&self) -> VizResult<String> {
         match &self.source {
-            Source::Hir(document, None, None) => {
+            Source::Hir(document, None, None, None) => {
                 validate_document(document).map_err(|d| VizError::validation(&d))?;
                 Ok(format!(
                     "valid: {} (VizHIR {}, {} views)",
@@ -230,6 +264,13 @@ impl Input {
                 {
                     context.push_str(&format!(", text {}", text.profile));
                 }
+                if let Some(layout) = compiled
+                    .mir
+                    .context()
+                    .and_then(|context| context.text_layout.as_ref())
+                {
+                    context.push_str(&format!(", text layout {}", layout.profile));
+                }
                 Ok(format!(
                     "valid: {} (VizHIR {}, {} views{})",
                     mir.document_id,
@@ -243,24 +284,27 @@ impl Input {
 
     pub fn compile(&self, refresh: bool) -> VizResult<Compiled> {
         match &self.source {
-            Source::Hir(document, None, None) => {
+            Source::Hir(document, None, None, None) => {
                 let compiled = compile(document)?;
                 Ok(Compiled {
                     mir: Normalized::Legacy(Box::new(compiled.mir)),
                     scene: compiled.scene,
                 })
             }
-            Source::Hir(document, Some(name), None) => {
+            Source::Hir(document, Some(name), None, None) => {
                 let compiled = compile_with_theme(document, name)?;
                 Ok(Compiled {
                     mir: Normalized::Themed(Box::new(compiled.mir)),
                     scene: compiled.scene,
                 })
             }
-            Source::Hir(document, theme, Some(text)) => {
+            Source::Hir(document, theme, Some(text), layout) => {
                 let mut context = CompilationContext::new().with_text(text.as_ref().clone());
                 if let Some(theme) = theme {
                     context = context.with_theme(ThemeContext::resolve(theme)?);
+                }
+                if let Some(layout) = layout {
+                    context = context.with_text_layout(layout.as_ref().clone());
                 }
                 let compiled = compile_with_context(document, &context, &self.resources)?;
                 Ok(Compiled {
@@ -268,6 +312,9 @@ impl Input {
                     scene: compiled.scene,
                 })
             }
+            Source::Hir(_, _, None, Some(_)) => Err(VizError::Diagnostic(
+                "VIZ-CONTEXT-0006: text_layout requires measured text context".to_owned(),
+            )),
             Source::Themed(mir) => {
                 let mir = if refresh {
                     rematerialize_themed_mir(mir)?

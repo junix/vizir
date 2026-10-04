@@ -1,4 +1,4 @@
-# Measured single-line text compilation context
+# Measured text compilation context
 
 Measured outline text is an explicit, opt-in compiler profile. Default HIR,
 MIR, Scene2D and SVG artifacts stay unchanged. `--theme` by itself retains the
@@ -26,8 +26,10 @@ optional theme uses one reusable envelope instead of stacking feature wrappers:
 ```
 
 This illustrative envelope elides the required MIR and full theme defaults;
-actual output includes both. The theme and text entries are independently
-optional. `schema compiled-mir` emits the complete schema. Every persisted
+actual output includes both. Theme and text are optional. The additional optional
+`text_layout` entry enables explicit geometry-only wrapping and requires `text`;
+see [wrapping.md](wrapping.md) for its pinned policy and source-ID contract. `schema compiled-mir` emits the complete schema. Every
+persisted
 theme is checked against the canonical pinned registry, including its defaults.
 `schema themed-mir` and `schema mir` retain their previous contracts.
 
@@ -50,9 +52,9 @@ vizir render measured.mir.json --format svg -o measured.svg --manifest measured.
   --font "$BOLD_SHA=fonts/bold.ttf"
 ```
 
-`validate`, `normalize`, `lower`, `render` and `explain` all accept the profile
-and repeated resource flags. The profile stores exact engine, locale, font
-hash, collection face index and weight identities. `declared_locale` is declared font/content
+`validate`, `normalize`, `lower`, `render` and `explain` all accept the profile,
+optional `--text-layout PATH`, and repeated resource flags. The profile stores
+exact engine, locale, font hash, collection face index and weight identities. `declared_locale` is declared font/content
 provenance in this first profile; shaping uses the pinned library’s default
 language behavior, not locale-selected OpenType language substitution. The
 required persisted `shaping_language: "default"` makes this fixed behavior explicit;
@@ -66,15 +68,17 @@ resource hash is supplied once, even if multiple faces refer to one collection.
 A font hash mismatch, missing resource, incorrect face weight/index, unsupported
 font, missing glyph or exceeded budget is an error. `--font` without measured
 context is also an error. The first unit requires static normal-width upright
-faces with exact 400/500/700 weights. Single-line shaping rejects line breaks,
-tabs and control characters. Overflow/colliding labels are diagnosed; edit the
-original HIR frame or strings to fix them. Wrapping, automatic fallback and
-font synthesis are outside this profile.
+faces with exact 400/500/700 weights. Without `text_layout`, single-line shaping
+rejects line breaks, tabs and control characters. The separate opt-in wrapping policy permits supported hard breaks
+only on its explicit geometry text targets. Overflow/colliding labels are
+diagnosed; edit the original HIR frame or strings to fix them. Automatic
+fallback and font synthesis remain unsupported.
 
 A persisted envelope has already made its layout decisions. A repeated
 `--text-profile` is accepted only if it exactly matches the persisted identity.
 Adding measured text to a themed MIR, changing its profile, or adding/changing
-its theme fails with an instruction to compile the original HIR. A legacy
+its theme or text-layout policy fails with an instruction to compile the original
+HIR. A repeated layout policy must exactly match its persisted identity. A legacy
 `ThemedMir` remains a theme-only adapter, not a feature container.
 
 Composition remains an independent source step: `compose` produces normal HIR,
@@ -101,7 +105,7 @@ shaped/emitted glyphs, outline commands, cached outlines, collision checks and
 serialized output. Measured Scene2D, compiled MIR JSON and SVG outputs are
 limited to 32 MiB each; limits are not a total process-memory guarantee. Reads are capped, regular files are checked before and after
 open, and Unix nonblocking opens prevent a swapped-in FIFO from waiting for a
-writer. Output/manifest collision checks also protect profile and font sources,
+writer. Output/manifest collision checks also protect profile, text-layout and font sources,
 including symlink and hard-link aliases. Existing staged transactional
 publication remains in use. These safeguards do not promise universal I/O
 latency or process-memory bounds, or confinement against hostile filesystem races.
@@ -118,7 +122,8 @@ enabled, and compiler materialization/text work budgets remain independent.
 ## Rust APIs
 
 `CompilationContext::new().with_theme(...).with_text(...)` creates a reusable
-identity-only context. `FontResources::new()` and `insert(hash, bytes)` supply
+identity-only context. `.with_text_layout(...)` adds an explicit geometry wrapping
+policy alongside measured text. `FontResources::new()` and `insert(hash, bytes)` supply
 verified resources separately. `compile_with_context`,
 `lower_to_compiled_mir`, `build_compiled_scene`, and
 `rematerialize_compiled_mir` are additive APIs; their `_with_limits` variants
@@ -129,8 +134,8 @@ HIR compilation and persisted refresh each use one text session across their
 phases, so text budgets are whole-call budgets. Existing theme-arrow reservations
 and materializer preflight occur before large MIR clones. New public context
 structs are non-exhaustive and offer constructors. `CompiledMir::from_themed`
-provides a theme-only legacy adapter without changing existing APIs. `parse_compiled_mir_json`
-and `parse_text_context_json` are the bounded byte readers; generic serde
-callers must impose their own byte-input cap, then use compiler APIs to check
+provides a theme-only legacy adapter without changing existing APIs.
+`parse_compiled_mir_json`, `parse_text_context_json`, and
+`parse_text_layout_context_json` are the bounded byte readers; generic serde callers must impose their own byte-input cap, then use compiler APIs to check
 identity and executable semantics. Resources and paths never serialize into
 compilation context.

@@ -6,6 +6,7 @@ mod lower;
 mod materialize;
 mod scene_builder;
 mod text;
+mod text_layout;
 mod theme;
 mod theme_wire;
 mod tick_format;
@@ -50,4 +51,9 @@ pub use context_wire::{
 pub use text::{
     FontFace, FontResources, TEXT_ENGINE, TEXT_MAX_FONT_BYTES, TEXT_MAX_FONT_TOTAL_BYTES,
     TEXT_MAX_OUTPUT_BYTES, TEXT_PROFILE, TextContext, TextFaces, TextLimits,
+};
+
+pub use context_wire::parse_text_layout_context_json;
+pub use text_layout::{
+    TEXT_LAYOUT_ENGINE, TEXT_LAYOUT_PROFILE, TextLayoutContext, TextLayoutTarget,
 };
