@@ -22,7 +22,7 @@ use vizir_core::{
     Scene2D, SceneNode, TextAnchor, Transform2D, VizError, VizResult,
 };
 
-use crate::text_layout::{self, TextLayoutContext, TextLayoutTarget};
+use crate::text_layout::{self, SemanticTextLayoutTarget, TextLayoutContext, TextLayoutTarget};
 
 pub const TEXT_PROFILE: &str = "vizir-text-outlines/1";
 pub const TEXT_ENGINE: &str = "cosmic-text/0.19.0;harfrust/0.5.2;skrifa/0.40.0";
@@ -296,6 +296,7 @@ struct WrappedOutline {
     bounds: Rect,
     logical: Rect,
     details: String,
+    glyphs: usize,
 }
 fn union_rect(previous: Option<Rect>, next: Rect) -> Rect {
     if let Some(p) = previous {
@@ -310,6 +311,20 @@ fn union_rect(previous: Option<Rect>, next: Rect) -> Rect {
     } else {
         next
     }
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct TitlePlanKey {
+    view: String,
+    source: String,
+    text_identity: String,
+    layout_profile: String,
+    dimensions: [u64; 7],
+    max_lines: u32,
+    weight: u16,
+}
+struct TitlePlan {
+    block: WrappedOutline,
+    losses: Vec<LossRecord>,
 }
 struct State {
     system: FontSystem,
@@ -326,12 +341,18 @@ struct State {
     layout_lines: usize,
     wrap_candidates: usize,
     used_targets: BTreeSet<(String, String)>,
+    title_plans: BTreeMap<TitlePlanKey, Arc<TitlePlan>>,
+    title_nodes: BTreeMap<String, (String, Arc<TitlePlan>)>,
+    used_title_targets: BTreeSet<String>,
 }
 pub(crate) struct TextSession {
     limits: TextLimits,
     state: RefCell<State>,
     targets: BTreeMap<String, BTreeMap<String, TextLayoutTarget>>,
     face_metrics: BTreeMap<u16, (f64, f64)>,
+    title_targets: BTreeMap<String, SemanticTextLayoutTarget>,
+    text_identity: String,
+    layout_profile: String,
 }
 impl TextSession {
     pub(crate) fn new_with_layout(
@@ -341,9 +362,15 @@ impl TextSession {
         layout: Option<&TextLayoutContext>,
     ) -> VizResult<Self> {
         context.validate()?;
+        let mut title_targets = BTreeMap::new();
         let mut targets: BTreeMap<String, BTreeMap<String, TextLayoutTarget>> = BTreeMap::new();
         if let Some(layout) = layout {
             layout.validate()?;
+            if let Some(semantic) = &layout.semantic_targets {
+                for t in semantic {
+                    title_targets.insert(t.view_id.clone(), t.clone());
+                }
+            }
             for t in &layout.targets {
                 targets
                     .entry(t.view_id.clone())
@@ -442,6 +469,9 @@ impl TextSession {
             limits: limits.bounded(),
             targets,
             face_metrics,
+            title_targets,
+            text_identity: digest(&serde_json::to_vec(context)?),
+            layout_profile: layout.map(|l| l.profile.clone()).unwrap_or_default(),
             state: RefCell::new(State {
                 system,
                 selected,
@@ -457,6 +487,9 @@ impl TextSession {
                 layout_lines: 0,
                 wrap_candidates: 0,
                 used_targets: BTreeSet::new(),
+                title_plans: BTreeMap::new(),
+                title_nodes: BTreeMap::new(),
+                used_title_targets: BTreeSet::new(),
             }),
         })
     }
@@ -464,10 +497,16 @@ impl TextSession {
         let mut strings = SourceText::new(self.limits);
         let mut geometry = Vec::new();
         let mut found_targets = BTreeSet::new();
+        let mut found_titles = BTreeSet::new();
         for view in &document.views {
             match view {
                 vizir_core::View::Scatter(c) => {
-                    strings.add_all(c.title.as_deref())?;
+                    self.preflight_title(
+                        &mut strings,
+                        &c.id,
+                        c.title.as_deref(),
+                        &mut found_titles,
+                    )?;
                     strings.add(c.x.label.as_deref().unwrap_or(&c.x.field))?;
                     strings.add(c.y.label.as_deref().unwrap_or(&c.y.field))?;
                     if let Some(color) = &c.color
@@ -481,7 +520,12 @@ impl TextSession {
                     }
                 }
                 vizir_core::View::Line(c) => {
-                    strings.add_all(c.title.as_deref())?;
+                    self.preflight_title(
+                        &mut strings,
+                        &c.id,
+                        c.title.as_deref(),
+                        &mut found_titles,
+                    )?;
                     strings.add(c.x.label.as_deref().unwrap_or(&c.x.field))?;
                     strings.add(c.y.label.as_deref().unwrap_or(&c.y.field))?;
                     if let Some(color) = &c.series
@@ -495,7 +539,12 @@ impl TextSession {
                     }
                 }
                 vizir_core::View::Bar(c) => {
-                    strings.add_all(c.title.as_deref())?;
+                    self.preflight_title(
+                        &mut strings,
+                        &c.id,
+                        c.title.as_deref(),
+                        &mut found_titles,
+                    )?;
                     strings.add(c.category.label.as_deref().unwrap_or(&c.category.field))?;
                     strings.add(c.value.label.as_deref().unwrap_or(&c.value.field))?;
                     if let Some(data) = document.datasets.get(&c.dataset) {
@@ -550,21 +599,30 @@ impl TextSession {
                     }
                     geometry.extend(children.iter().map(|n| (n, depth + 1, view_id)))
                 }
-                vizir_core::GeometryNode::Text { text, .. } => strings.add_scoped(text, target)?,
+                vizir_core::GeometryNode::Text { text, .. } => {
+                    strings.add_scoped(text, target.map(|t| t.max_lines))?
+                }
                 _ => {}
             }
         }
         self.check_targets(&found_targets)?;
+        self.check_title_targets(&found_titles)?;
         Ok(())
     }
     pub(crate) fn preflight_mir(&self, mir: &vizir_core::VizMir) -> VizResult<()> {
         let mut strings = SourceText::new(self.limits);
         let mut geometry = Vec::new();
         let mut found_targets = BTreeSet::new();
+        let mut found_titles = BTreeSet::new();
         for view in &mir.views {
             match view {
                 vizir_core::MirView::Chart(c) => {
-                    strings.add_all(c.title.as_deref())?;
+                    self.preflight_title(
+                        &mut strings,
+                        &c.id,
+                        c.title.as_deref(),
+                        &mut found_titles,
+                    )?;
                     for guide in &c.guides {
                         strings.add(&guide.label)?;
                     }
@@ -619,14 +677,268 @@ impl TextSession {
                     geometry.extend(children.iter().map(|n| (n, depth + 1, view_id)))
                 }
                 vizir_core::MirGeometryNode::Text { text, .. } => {
-                    strings.add_scoped(text, target)?
+                    strings.add_scoped(text, target.map(|t| t.max_lines))?
                 }
                 _ => {}
             }
         }
         self.check_targets(&found_targets)?;
+        self.check_title_targets(&found_titles)?;
         Ok(())
     }
+    fn preflight_title(
+        &self,
+        strings: &mut SourceText,
+        view: &str,
+        title: Option<&str>,
+        found: &mut BTreeSet<String>,
+    ) -> VizResult<()> {
+        if let Some(target) = self.title_targets.get(view) {
+            let title = title.ok_or_else(|| {
+                text_layout::error(format!(
+                    "chart.title target {view:?} requires an existing source title"
+                ))
+            })?;
+            if !found.insert(view.to_owned()) {
+                return Err(text_layout::error("ambiguous chart.title source view"));
+            }
+            strings.add_scoped(title, Some(target.max_lines))
+        } else {
+            strings.add_all(title)
+        }
+    }
+    fn check_title_targets(&self, found: &BTreeSet<String>) -> VizResult<()> {
+        for view in self.title_targets.keys() {
+            if !found.contains(view) {
+                return Err(text_layout::error(format!(
+                    "chart.title target {view:?} must name one existing title in a bar, line or scatter source view"
+                )));
+            }
+        }
+        Ok(())
+    }
+    fn emit_glyphs(&self, count: usize) -> VizResult<()> {
+        let mut state = self.state.borrow_mut();
+        state.emitted_glyphs = state
+            .emitted_glyphs
+            .checked_add(count)
+            .filter(|n| *n <= self.limits.max_glyphs)
+            .ok_or_else(|| error("0003", "whole-call emitted glyph limit exceeded"))?;
+        Ok(())
+    }
+    pub(crate) fn single_line_box(
+        &self,
+        source: &str,
+        size: f64,
+        weight: FontWeight,
+        position: Point,
+    ) -> VizResult<Rect> {
+        let run = self.shape(source, size, weight)?;
+        let (commands, ink) = self.project(&run, position, TextAnchor::Start)?;
+        let (ascent, descent) = self.face_metrics[&crate::text::weight(weight)];
+        let mut logical = Rect {
+            x: svg_number(position.x),
+            y: svg_number(position.y - ascent * size),
+            width: svg_number(position.x + run.advance) - svg_number(position.x),
+            height: svg_number(position.y - descent * size)
+                - svg_number(position.y - ascent * size),
+        };
+        if !commands.is_empty() {
+            logical = union_rect(Some(logical), ink);
+        }
+        Ok(logical)
+    }
+
+    pub(crate) fn chart_title_bounds(
+        &self,
+        view: &str,
+        title: Option<&str>,
+        frame: vizir_core::Frame,
+    ) -> VizResult<Option<Rect>> {
+        Ok(self
+            .chart_title_plan(view, title, frame)?
+            .map(|plan| plan.block.logical))
+    }
+    fn chart_title_plan(
+        &self,
+        view: &str,
+        title: Option<&str>,
+        frame: vizir_core::Frame,
+    ) -> VizResult<Option<Arc<TitlePlan>>> {
+        let Some(target) = self.title_targets.get(view) else {
+            return Ok(None);
+        };
+        let source =
+            title.ok_or_else(|| text_layout::error("chart.title target has no source title"))?;
+        if source.len() > self.limits.max_label_bytes {
+            return Err(error("0003", "label byte limit exceeded"));
+        }
+        // Repeated lookups remain bounded work, even when the resolved block is cached.
+        {
+            let mut state = self.state.borrow_mut();
+            state.labels = state
+                .labels
+                .checked_add(1)
+                .filter(|n| *n <= self.limits.max_labels)
+                .ok_or_else(|| error("0003", "whole-call label operation limit exceeded"))?;
+            state.text_bytes = state
+                .text_bytes
+                .checked_add(source.len())
+                .filter(|n| *n <= self.limits.max_text_bytes)
+                .ok_or_else(|| error("0003", "whole-call text byte limit exceeded"))?;
+        }
+        let key = TitlePlanKey {
+            view: view.into(),
+            source: source.into(),
+            text_identity: self.text_identity.clone(),
+            layout_profile: self.layout_profile.clone(),
+            dimensions: [
+                frame.x.to_bits(),
+                frame.y.to_bits(),
+                frame.width.to_bits(),
+                frame.height.to_bits(),
+                target.max_width.to_bits(),
+                target.line_height.to_bits(),
+                18.0f64.to_bits(),
+            ],
+            max_lines: target.max_lines,
+            weight: 700,
+        };
+        if let Some(plan) = self.state.borrow().title_plans.get(&key) {
+            return Ok(Some(plan.clone()));
+        }
+        let bounds = TextLayoutTarget::new(
+            view,
+            "chart.title",
+            target.max_width,
+            target.max_lines,
+            target.line_height,
+        );
+        let mut losses = Vec::new();
+        let block = self.wrapped_outline(
+            &bounds,
+            source,
+            18.,
+            FontWeight::Bold,
+            Point {
+                x: frame.x + 18.,
+                y: frame.y + 28.,
+            },
+            TextAnchor::Start,
+            view,
+            &mut losses,
+        )?;
+        contain(
+            block.logical,
+            serialized_rect(Rect {
+                x: frame.x,
+                y: frame.y,
+                width: frame.width,
+                height: frame.height,
+            }),
+            view,
+        )?;
+        let bytes = block
+            .commands
+            .len()
+            .checked_mul(std::mem::size_of::<PathCommand>())
+            .and_then(|n| n.checked_add(block.details.len()))
+            .and_then(|n| {
+                n.checked_add(
+                    source.len()
+                        + view.len()
+                        + self.text_identity.len()
+                        + self.layout_profile.len()
+                        + std::mem::size_of::<TitlePlan>()
+                        + std::mem::size_of::<TitlePlanKey>()
+                        + 128,
+                )
+            })
+            .and_then(|n| {
+                n.checked_add(
+                    losses
+                        .iter()
+                        .map(|l| {
+                            l.source.len()
+                                + l.target.len()
+                                + l.reason.len()
+                                + std::mem::size_of::<LossRecord>()
+                        })
+                        .sum::<usize>(),
+                )
+            })
+            .ok_or_else(|| error("0003", "title plan cache size overflow"))?;
+        let mut state = self.state.borrow_mut();
+        state.cache_bytes = state
+            .cache_bytes
+            .checked_add(bytes)
+            .filter(|n| *n <= self.limits.max_cache_bytes)
+            .ok_or_else(|| {
+                error(
+                    "0003",
+                    "whole-call text outline cache limit exceeded by title plan",
+                )
+            })?;
+        let plan = Arc::new(TitlePlan { block, losses });
+        state.title_plans.insert(key, plan.clone());
+        Ok(Some(plan))
+    }
+    /// Register the semantic role where the chart builder creates it. Neither
+    /// user selectors nor later passes parse a generated Scene ID.
+    pub(crate) fn register_chart_title(
+        &self,
+        view: &str,
+        node: &SceneNode,
+        frame: vizir_core::Frame,
+    ) -> VizResult<()> {
+        let SceneNode::Text {
+            id,
+            text,
+            position,
+            font_size,
+            anchor,
+            weight,
+            ..
+        } = node
+        else {
+            return Err(text_layout::error("chart title registration requires text"));
+        };
+        let Some(plan) = self.chart_title_plan(view, Some(text), frame)? else {
+            return Ok(());
+        };
+        if *font_size != 18.
+            || *weight != FontWeight::Bold
+            || *anchor != TextAnchor::Start
+            || position.x != frame.x + 18.
+            || position.y != frame.y + 28.
+        {
+            return Err(text_layout::error(
+                "chart title emission differs from its measured source role",
+            ));
+        }
+        let mut state = self.state.borrow_mut();
+        if state.title_nodes.contains_key(id) {
+            return Err(text_layout::error(
+                "chart title scene identity is ambiguous",
+            ));
+        }
+        state.cache_bytes = state
+            .cache_bytes
+            .checked_add(id.len() + view.len() + 128)
+            .filter(|n| *n <= self.limits.max_cache_bytes)
+            .ok_or_else(|| {
+                error(
+                    "0003",
+                    "whole-call text cache limit exceeded by title registration",
+                )
+            })?;
+        state.title_nodes.insert(id.clone(), (view.into(), plan));
+        Ok(())
+    }
+    fn registered_title(&self, id: &str) -> Option<(String, Arc<TitlePlan>)> {
+        self.state.borrow().title_nodes.get(id).cloned()
+    }
+
     fn target(&self, view: &str, node: &str) -> Option<&TextLayoutTarget> {
         self.targets.get(view)?.get(node)
     }
@@ -881,8 +1193,12 @@ impl TextSession {
                     anchor,
                     ..
                 } => {
-                    let r = self.shape(text, *font_size, *weight)?;
-                    let (_, b) = self.project(&r, *position, *anchor)?;
+                    let b = if let Some((_, plan)) = self.registered_title(id) {
+                        plan.block.logical
+                    } else {
+                        let r = self.shape(text, *font_size, *weight)?;
+                        self.project(&r, *position, *anchor)?.1
+                    };
                     if b.x < plot[2]
                         && b.x + b.width > plot[0]
                         && b.y < plot[3]
@@ -1077,14 +1393,6 @@ impl TextSession {
                         "text {id:?} has vertically overlapping line ink; increase explicit line_height"
                     )));
                 }
-                {
-                    let mut state = self.state.borrow_mut();
-                    state.emitted_glyphs = state
-                        .emitted_glyphs
-                        .checked_add(selected.run.glyphs)
-                        .filter(|n| *n <= self.limits.max_glyphs)
-                        .ok_or_else(|| error("0003", "whole-call emitted glyph limit exceeded"))?;
-                }
                 lines.push(selected);
                 start = end;
                 if last {
@@ -1096,7 +1404,9 @@ impl TextSession {
         let mut logical = None;
         let mut commands = Vec::new();
         let mut details = Vec::new();
+        let mut glyphs = 0;
         for line in lines {
+            glyphs += line.run.glyphs;
             if line.source.start != cursor || line.source.end != line.separator.start {
                 return Err(text_layout::error(
                     "internal wrapping source coverage is not contiguous",
@@ -1126,6 +1436,7 @@ impl TextSession {
             bounds,
             logical: logical.expect("one or more logical lines"),
             details: details.join("; "),
+            glyphs,
         })
     }
     fn reserve_lines(&self, count: usize) -> VizResult<()> {
@@ -1184,6 +1495,7 @@ impl TextSession {
             )?;
         }
         self.check_targets(&self.state.borrow().used_targets)?;
+        self.check_title_targets(&self.state.borrow().used_title_targets)?;
         scene.losses.extend(contour_losses);
         scene.losses.push(LossRecord{source:"text".into(),target:"scene2d".into(),fidelity:LoweringFidelity::VisuallyApproximate,reason:"Opt-in measured text was converted to font-independent outlines at SVG four-decimal precision (path coordinates and group-transform scalars round by at most 0.00005; transformed error depends on the transform). Original strings remain in source/MIR; SVG text selection, search and text editing are unavailable.".into()});
         vizir_core::validate_scene(&scene).map_err(|d| VizError::validation(&d))?;
@@ -1247,8 +1559,27 @@ impl TextSession {
         };
         coordinate(position.x)?;
         coordinate(position.y)?;
-        let (commands, bounds, explanation) = if let Some(target) =
-            self.target(view_id, &origin.hir_node)
+        let (commands, bounds, explanation) = if let Some((owner, plan)) = self.registered_title(id)
+        {
+            if owner != view_id || !self.state.borrow_mut().used_title_targets.insert(owner) {
+                return Err(text_layout::error(
+                    "chart title emitted with wrong or repeated semantic owner",
+                ));
+            }
+            self.emit_glyphs(plan.block.glyphs)?;
+            let logical = parent.bounds(plan.block.logical)?;
+            contain(logical, frame, id)?;
+            contain(logical, canvas, id)?;
+            contour_losses.extend(plan.losses.clone());
+            (
+                plan.block.commands.clone(),
+                plan.block.bounds,
+                format!(
+                    "exact-face bounded chart.title wrapping {}; source byte coverage [{}]; original text: {text}",
+                    self.layout_profile, plan.block.details
+                ),
+            )
+        } else if let Some(target) = self.target(view_id, &origin.hir_node)
             && id == &format!("{view_id}/{}", target.node_id)
         {
             if !self
@@ -1271,6 +1602,7 @@ impl TextSession {
                 id,
                 contour_losses,
             )?;
+            self.emit_glyphs(wrapped.glyphs)?;
             let logical = parent.bounds(wrapped.logical)?;
             contain(logical, frame, id)?;
             contain(logical, canvas, id)?;
@@ -1682,7 +2014,7 @@ impl SourceText {
     fn add(&mut self, s: &str) -> VizResult<()> {
         self.add_scoped(s, None)
     }
-    fn add_scoped(&mut self, s: &str, target: Option<&TextLayoutTarget>) -> VizResult<()> {
+    fn add_scoped(&mut self, s: &str, target: Option<u32>) -> VizResult<()> {
         self.count += 1;
         if self.count > 1_000_000 || s.len() > self.limits.max_label_bytes {
             return Err(error(
@@ -1696,7 +2028,7 @@ impl SourceText {
             .filter(|n| *n <= self.limits.max_text_bytes)
             .ok_or_else(|| error("0003", "source text exceeds whole-call byte limit"))?;
         if let Some(target) = target {
-            if text_layout::paragraphs(s)?.len() > target.max_lines as usize {
+            if text_layout::paragraphs(s)?.len() > target as usize {
                 return Err(text_layout::error("hard breaks exceed target max_lines"));
             }
             return Ok(());
@@ -2092,5 +2424,72 @@ mod precision_tests {
             PathCommand::Close,
         ];
         assert_eq!(dimensional_contours_grid(&diagonal), 0);
+    }
+    #[test]
+    fn title_measurements_reuse_plan_without_charging_emitted_glyphs() {
+        let context: TextContext = serde_json::from_str(include_str!(
+            "../../../examples/text/wrapping-font-profile.json"
+        ))
+        .unwrap();
+        let mut resources = FontResources::new();
+        for (face, bytes) in [
+            (
+                &context.faces.regular,
+                include_bytes!(
+                    "../tests/fixtures/wrapping-fonts/VizIRWrappingFixtureSC-Regular.otf"
+                )
+                .as_slice(),
+            ),
+            (
+                &context.faces.medium,
+                include_bytes!(
+                    "../tests/fixtures/wrapping-fonts/VizIRWrappingFixtureSC-Medium.otf"
+                )
+                .as_slice(),
+            ),
+            (
+                &context.faces.bold,
+                include_bytes!("../tests/fixtures/wrapping-fonts/VizIRWrappingFixtureSC-Bold.otf")
+                    .as_slice(),
+            ),
+        ] {
+            resources.insert(&face.sha256, bytes.to_vec()).unwrap();
+        }
+        let layout = TextLayoutContext::new(vec![]).with_semantic_targets(vec![
+            SemanticTextLayoutTarget::chart_title("c", 180., 5, 30.),
+        ]);
+        let mut limits = TextLimits::new();
+        limits.max_wrap_candidates = 1;
+        limits.max_layout_lines = 1;
+        let session =
+            TextSession::new_with_layout(&context, &resources, limits, Some(&layout)).unwrap();
+        let frame = vizir_core::Frame {
+            x: 0.,
+            y: 0.,
+            width: 600.,
+            height: 400.,
+        };
+        let first = session
+            .chart_title_plan("c", Some("AV"), frame)
+            .unwrap()
+            .unwrap();
+        let second = session
+            .chart_title_plan("c", Some("AV"), frame)
+            .unwrap()
+            .unwrap();
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(session.state.borrow().emitted_glyphs, 0);
+        assert_eq!(session.state.borrow().layout_lines, 1);
+        assert_eq!(session.state.borrow().wrap_candidates, 1);
+        assert_eq!(first.block.glyphs, 2);
+        session.emit_glyphs(first.block.glyphs).unwrap();
+        assert_eq!(session.state.borrow().emitted_glyphs, 2);
+        // Cache hits consume label-operation work and cannot be repeated forever.
+        for _ in 0..4096 {
+            if session.chart_title_plan("c", Some("AV"), frame).is_err() {
+                return;
+            }
+        }
+        panic!("unbounded title cache hits");
     }
 }

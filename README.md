@@ -333,3 +333,10 @@ Use exact supplied font bytes with the durable compilation context for font-inde
 ### Explicit geometry text wrapping (opt-in)
 
 Add a source-targeted `--text-layout` policy to measured text for bounded Latin/CJK paragraphs, preserved whitespace and explicit hard breaks. See [the executable three-panel composition, font resources, and exact wrapping contract](docs/wrapping.md). Chart and diagram text retain their single-line behavior.
+
+### Measured chart-title blocks (explicit role)
+
+`vizir-text-wrap/2` adds `chart.title` semantic targets for bar, line and scatter
+charts. Titles reserve their full measured height before plot ranges and legend
+positions are fixed. See [the narrow three-chart composition](examples/composition/wrapped-chart-titles.compose.yaml)
+and [versioned policy/CLI instructions](docs/wrapping.md#semantic-chart-titles-vizir-text-wrap2).

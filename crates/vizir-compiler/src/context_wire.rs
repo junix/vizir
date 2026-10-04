@@ -176,8 +176,8 @@ pub fn parse_text_context_json(source: &[u8]) -> VizResult<TextContext> {
     Ok(profile)
 }
 
-/// Decode a strict, bounded geometry text-layout policy. It names source IDs
-/// and layout dimensions only; resource paths are never accepted here.
+/// Decode a strict, bounded text-layout policy. It names explicit geometry or
+/// semantic source targets and dimensions; resource paths are never accepted here.
 pub fn parse_text_layout_context_json(source: &[u8]) -> VizResult<TextLayoutContext> {
     if source.len() > MAX_COMPILED_MIR_JSON_BYTES {
         return Err(context_error(

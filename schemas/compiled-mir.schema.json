@@ -789,6 +789,34 @@
       ],
       "type": "object"
     },
+    "GeometryTextLayoutContext": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+          "type": "string"
+        },
+        "profile": {
+          "const": "vizir-text-wrap/1",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "targets"
+      ],
+      "type": "object"
+    },
     "GuideKind": {
       "enum": [
         "axis",
@@ -1924,6 +1952,83 @@
       ],
       "type": "object"
     },
+    "SemanticTextLayoutContext": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+          "type": "string"
+        },
+        "profile": {
+          "const": "vizir-text-wrap/2",
+          "type": "string"
+        },
+        "semantic_targets": {
+          "items": {
+            "$ref": "#/$defs/SemanticTextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "targets",
+        "semantic_targets"
+      ],
+      "type": "object"
+    },
+    "SemanticTextLayoutTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "line_height": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "max_lines": {
+          "format": "uint32",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_width": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "role": {
+          "$ref": "#/$defs/TextLayoutRole"
+        },
+        "view_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_id",
+        "role",
+        "max_width",
+        "max_lines",
+        "line_height"
+      ],
+      "type": "object"
+    },
     "ShapeStyle": {
       "additionalProperties": false,
       "properties": {
@@ -2045,32 +2150,21 @@
       "type": "object"
     },
     "TextLayoutContext": {
-      "additionalProperties": false,
-      "properties": {
-        "engine": {
-          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
-          "type": "string"
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GeometryTextLayoutContext"
         },
-        "profile": {
-          "const": "vizir-text-wrap/1",
-          "type": "string"
-        },
-        "targets": {
-          "items": {
-            "$ref": "#/$defs/TextLayoutTarget"
-          },
-          "maxItems": 256,
-          "minItems": 1,
-          "type": "array",
-          "uniqueItems": true
+        {
+          "$ref": "#/$defs/SemanticTextLayoutContext"
         }
-      },
-      "required": [
-        "profile",
-        "engine",
-        "targets"
+      ]
+    },
+    "TextLayoutRole": {
+      "description": "A supported semantic text slot, resolved against original source fields.",
+      "enum": [
+        "chart.title"
       ],
-      "type": "object"
+      "type": "string"
     },
     "TextLayoutTarget": {
       "additionalProperties": false,

@@ -1,11 +1,13 @@
-# Explicit geometry text wrapping
+# Explicit source-targeted text wrapping
 
 `vizir-text-wrap/1` adds opt-in wrapping to the measured-outline compiler path.
 It applies only to explicitly named text nodes in `geometry.scene` views,
 including text nested in geometry groups. It does not change HIR, MIR, Scene2D,
 the legacy themed envelope, or output from compilation without this policy.
-Charts, chart titles, axes, legends, diagram labels, and generated labels retain
-the existing measured single-line behavior.
+Under v1, charts, chart titles, axes, legends, diagram labels, and generated
+labels retain the existing measured single-line behavior. The separate v2
+profile below opts supported chart titles into wrapping; it does not reinterpret
+or add fields to the frozen v1 wire shape.
 
 ## Policy and exact identities
 
@@ -46,6 +48,84 @@ resources. `context.text_layout` supplements `context.text`; it cannot operate
 with native SVG text or without the measured profile. Policy files contain no
 font paths, resource URLs, fallback lists, or filesystem lookup instructions.
 Unknown fields and duplicate JSON object keys at any depth are rejected.
+
+## Semantic chart titles: `vizir-text-wrap/2`
+
+V2 adds exactly one semantic role, `chart.title`, for the existing authored
+`title` field on `chart.bar`, `chart.line`, and `chart.scatter` views. It does
+not target chart categories, axes, legends, diagram labels, document titles,
+geometry view titles, or arbitrary generated scene IDs. For example:
+
+```json
+{
+  "profile": "vizir-text-wrap/2",
+  "engine": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+  "targets": [],
+  "semantic_targets": [
+    {
+      "view_id": "chart",
+      "role": "chart.title",
+      "max_width": 210,
+      "max_lines": 12,
+      "line_height": 32
+    }
+  ]
+}
+```
+
+`view_id` is the original chart view ID. The role resolves its original title
+field, never a matching string or a generated `chart/title` path name. An absent
+title is an error; an explicitly present empty title is one valid empty logical
+line. Each `(view_id, role)` must resolve exactly once. Missing views, unsupported
+view kinds or roles, duplicate semantic targets, and unused targets fail.
+
+V2 requires a present, non-null, nonempty `semantic_targets` array and a `targets`
+array. `targets` can be empty or contain the same geometry targets supported by
+v1. V1 rejects the `semantic_targets` field in every form, including `[]` and
+`null`; omission alone retains the old contract. There is no implicit upgrade
+based on a target's contents. Both profiles retain the exact same pinned
+Unicode break engine, font identity requirements, source-byte preservation,
+first-overflow greedy wrapping, grapheme safety, and failure behavior.
+
+A wrapped chart title retains its existing 18px Bold face and first baseline at
+`frame.y + 28`, with its start anchor at `frame.x + 18`. Subsequent baselines add
+`line_height`; this value must cover the selected Bold face's actual scaled
+ascent and descent. `max_width` bounds the union of advance and emitted ink,
+including side bearings, rather than a count of characters. It is used exactly
+as supplied, without being silently clamped to the frame. Both the wrapped
+block and its actual ink must fit the chart and canvas; the existing header
+width check also requires the title width to fit `frame.width - 36`.
+
+The full title envelope includes face ascent/descent, actual ink, and all visual
+lines, including blank and terminal empty lines. The initial header bottom is
+`max(32.5, title_envelope_bottom - frame.y)`. Existing compact legends can remain
+to the right only when every actual swatch and single-line label envelope fits
+inside the frame and clears the complete title envelope by at least 8px.
+Otherwise, source-order legend rows begin 8px below the reserved title block, using
+measured ascent/descent, 16px horizontal gaps between entries, and 8px gaps
+between rows. The final header bottom includes every title and legend footprint.
+
+Without a y-axis title, the plot top is
+`frame.y + max(header_bottom + 12, 50)`. With a y-axis title whose measured
+logical/ink top relative to its baseline is `axis_top`, it is
+`frame.y + max(header_bottom + 6 - axis_top + 12, 50)`. That title's baseline
+remains `plot_top - 12`, and its descender must remain above the plot. At least
+64px of plot width and height must remain. Existing numeric tick and minimum
+plot-height checks run before final scale ranges are selected. Allocation
+failure is a diagnostic, not permission to shrink the title, overlap text,
+clip, or reflow persisted MIR. Untargeted titles retain the old layout branch.
+
+The original UTF-8 title, including hard-break separators, remains unchanged in
+HIR and MIR. The complete title outline retains the existing `view_id/title`
+Scene2D identity, and its provenance includes original text and byte ranges for
+lines and separators. SVG and PNG consume that same outline. There are no new
+line IDs or renderer-native multiline text nodes.
+
+The CLI flag, measured-text profile, and replay commands below are shared by
+both versions. An equal repeated policy is accepted on replay; adding or
+changing semantic targets, widths, line counts, or line heights requires
+compiling the original HIR again. Refresh retains the persisted policy and
+layout allocation.
 
 ## CLI and durable replay
 
@@ -148,11 +228,14 @@ existing loss of selectable/searchable/editable SVG text.
 
 ## Limits and failure behavior
 
-A policy must contain 1–256 targets. Each source ID contains 1–256 UTF-8 bytes.
+A policy must contain 1–256 targets in total across geometry and semantic
+arrays. V1 requires at least one geometry target; v2 requires at least one
+semantic target. Each source ID contains 1–256 UTF-8 bytes.
 `max_width` and `line_height` must be finite values in 0.25–1,000,000;
 `max_lines` is an integer in 1–256. JSON Schema can bound ID character length,
-while executable validation also enforces the UTF-8 byte limit and source-ID
-resolution. It also checks duplicate target identities and actual text fitting.
+and independently bound each target array; executable validation additionally
+enforces the combined 256-target cap, UTF-8 byte limit, and source-ID resolution.
+It also checks duplicate target identities and actual text fitting.
 
 The default `TextLimits.max_layout_lines` and `max_wrap_candidates` cap whole-call
 visual lines and candidate shaping attempts at 4,096 each. Existing measured-text budgets independently cap input label bytes,
@@ -173,9 +256,18 @@ or filesystem-race isolation guarantee.
 ## Rust API
 
 `TextLayoutTarget::new(view_id, node_id, max_width, max_lines, line_height)` builds
-an explicit source target. `TextLayoutContext::new(targets)` pins the profile and
-Unicode engine identity. The public structs are non-exhaustive and retain
-`PartialEq`; the existing `TextContext` keeps its `Eq` contract.
+an explicit geometry source target. `TextLayoutContext::new(targets)` continues
+to pin v1 and the Unicode engine, with `semantic_targets: None` omitted from
+serialization. `TEXT_LAYOUT_PROFILE` remains `vizir-text-wrap/1`.
+
+`SemanticTextLayoutTarget::chart_title(view_id, max_width, max_lines, line_height)`
+constructs a semantic target with `TextLayoutRole::ChartTitle`.
+`TextLayoutContext::new(vec![]).with_semantic_targets(targets)` explicitly pins
+`TEXT_LAYOUT_SEMANTIC_PROFILE` (`vizir-text-wrap/2`); using this builder on a
+geometry policy retains its geometry targets. `semantic_targets` is
+`Option<Vec<SemanticTextLayoutTarget>>`; only `None` is omitted, and a present
+JSON null is rejected. The public structs and role enum are non-exhaustive and
+retain `PartialEq`; the existing `TextContext` keeps its `Eq` contract.
 
 Add the policy with
 `CompilationContext::new().with_text(text).with_text_layout(layout)`, then use
@@ -218,3 +310,30 @@ paragraphs, ligatures and combining marks, real Chinese punctuation, blank and
 terminal lines, all three exact weights, a centered anchor, and transparent
 raster output. Source strings and their source byte ranges remain inspectable
 in the compiled artifact and explanations.
+
+## Executable narrow chart-title dashboard
+
+[wrapped-chart-titles.compose.yaml](../examples/composition/wrapped-chart-titles.compose.yaml)
+uses the same exact wrapping fixture fonts as the geometry example above. The
+[chart-title policy](../examples/text/chart-title-layout.json) selects three
+source views by role, demonstrating bar/line/scatter, CJK punctuation, Latin
+ligatures and accents, blank/terminal title lines, a compact side legend and
+legends moved below complete title blocks. With the REGULAR, MEDIUM and BOLD
+explicit font mappings from the geometry example:
+
+```sh
+mkdir -p /tmp/vizir-chart-titles
+vizir compose examples/composition/wrapped-chart-titles.compose.yaml \
+  -o /tmp/vizir-chart-titles/source.json
+vizir normalize /tmp/vizir-chart-titles/source.json --theme azure \
+  --text-profile examples/text/wrapping-font-profile.json \
+  --text-layout examples/text/chart-title-layout.json \
+  --font "$REGULAR" --font "$MEDIUM" --font "$BOLD" \
+  -o /tmp/vizir-chart-titles/compiled.json
+vizir render /tmp/vizir-chart-titles/compiled.json --format svg \
+  --font "$REGULAR" --font "$MEDIUM" --font "$BOLD" \
+  -o /tmp/vizir-chart-titles/titles.svg
+vizir render /tmp/vizir-chart-titles/compiled.json --format png --background transparent \
+  --font "$REGULAR" --font "$MEDIUM" --font "$BOLD" \
+  -o /tmp/vizir-chart-titles/titles.png
+```

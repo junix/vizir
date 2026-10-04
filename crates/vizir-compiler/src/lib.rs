@@ -57,3 +57,5 @@ pub use context_wire::parse_text_layout_context_json;
 pub use text_layout::{
     TEXT_LAYOUT_ENGINE, TEXT_LAYOUT_PROFILE, TextLayoutContext, TextLayoutTarget,
 };
+
+pub use text_layout::{SemanticTextLayoutTarget, TEXT_LAYOUT_SEMANTIC_PROFILE, TextLayoutRole};

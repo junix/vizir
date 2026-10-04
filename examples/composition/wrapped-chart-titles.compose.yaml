@@ -1,0 +1,37 @@
+schema: vizir-composition/0.1
+id: wrapped-chart-titles
+width: 1240
+height: 620
+background: transparent
+layout: {kind: grid, columns: 3, gap: 20, padding: 24}
+datasets:
+  readings:
+    key: id
+    rows:
+      - {id: bj, city: 北京, minute: 0, value: 2, group: Alpha}
+      - {id: sh, city: 上海, minute: 1, value: 4, group: Alpha}
+      - {id: sz, city: 深圳, minute: 0, value: 3, group: Beta}
+      - {id: gz, city: 广州, minute: 1, value: 5, group: Beta}
+panels:
+  - kind: chart.bar
+    id: cities
+    title: "中文（字体测量），保留标点。\n窄列布局\n"
+    dataset: readings
+    category: {field: city, label: 城市}
+    value: {field: value, label: 均值}
+    color: {field: group}
+  - kind: chart.line
+    id: latency
+    title: "Production latency with measured titles\n\nAV office ffi, Café Å"
+    dataset: readings
+    x: {field: minute, label: minute}
+    y: {field: value, label: value}
+    series: {field: group}
+    show_points: true
+  - kind: chart.scatter
+    id: compact
+    title: "中文测试\nAV office\n"
+    dataset: readings
+    x: {field: minute, label: minute}
+    y: {field: value, label: value}
+    color: {field: group}

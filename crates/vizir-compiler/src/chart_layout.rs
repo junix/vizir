@@ -1,5 +1,5 @@
 use crate::text::TextSession;
-use vizir_core::{FontWeight, Frame, MirScale, Point};
+use vizir_core::{FontWeight, Frame, MirScale, Point, Rect};
 fn text_width(
     text: &str,
     size: f64,
@@ -166,9 +166,17 @@ impl ChartLayout {
             )
         };
         let available = frame.width - 36.0;
-        let title_width = title
-            .map(|label| text_width(label, 18.0, FontWeight::Bold, text))
-            .transpose()?;
+        let title_block = text
+            .map(|text| text.chart_title_bounds(id, title, frame))
+            .transpose()
+            .map_err(|e| e.to_string())?
+            .flatten();
+        let title_width = match title_block {
+            Some(block) => Some(block.width),
+            None => title
+                .map(|label| text_width(label, 18.0, FontWeight::Bold, text))
+                .transpose()?,
+        };
         for (kind, width) in title_width.map(|width| ("title", width)).into_iter().chain(
             y_title
                 .map(|label| text_width(label, 12.5, FontWeight::Medium, text))
@@ -201,6 +209,17 @@ impl ChartLayout {
                     "legend label {index} needs {width:.1}px, but only {available:.1}px is available"
                 )));
             }
+        }
+
+        if let Some(block) = title_block {
+            return Self::with_title_block(
+                id,
+                frame,
+                block,
+                y_title,
+                labels,
+                text.expect("measured title"),
+            );
         }
 
         // Retain the existing compact placements only when their envelopes fit.
@@ -266,6 +285,131 @@ impl ChartLayout {
             ));
         }
         Ok(Self { plot, legend })
+    }
+    fn with_title_block(
+        id: &str,
+        frame: Frame,
+        title: Rect,
+        y_title: Option<&str>,
+        labels: &[String],
+        text: &TextSession,
+    ) -> Result<Self, String> {
+        let fail = |detail: &str| {
+            format!(
+                "VIZ-LAYOUT-0004: chart {id:?} {detail}; enlarge its frame or revise the explicit title layout in original HIR"
+            )
+        };
+        let footprint = |label: &str, position: Point| -> Result<Rect, String> {
+            let b = text
+                .single_line_box(
+                    label,
+                    10.5,
+                    FontWeight::Regular,
+                    Point {
+                        x: position.x + 13.,
+                        y: position.y + 4.,
+                    },
+                )
+                .map_err(|e| e.to_string())?;
+            let x = b.x.min(position.x);
+            let y = b.y.min(position.y - 5.);
+            Ok(Rect {
+                x,
+                y,
+                width: (b.x + b.width).max(position.x + 10.) - x,
+                height: (b.y + b.height).max(position.y + 5.) - y,
+            })
+        };
+        let columns = labels.len().clamp(1, 3);
+        let start_x = frame.width - (columns as f64 * 78. + 18.);
+        let mut compact = true;
+        let mut positions = Vec::with_capacity(labels.len());
+        let mut boxes = Vec::with_capacity(labels.len());
+        for (i, label) in labels.iter().enumerate() {
+            let p = Point {
+                x: frame.x + start_x + (i % 3) as f64 * 78.,
+                y: frame.y + 17. + (i / 3) as f64 * 18.,
+            };
+            let b = footprint(label, p)?;
+            compact &= b.x >= frame.x + 18.
+                && b.x + b.width <= frame.x + frame.width - 18.
+                && (i % 3 == 2 || i + 1 == labels.len() || b.x + b.width + 8. <= p.x + 78.)
+                && b.x >= title.x + title.width + 8.;
+            positions.push(p);
+            boxes.push(b);
+        }
+        let mut bottom = (title.y + title.height - frame.y).max(32.5);
+        if !compact {
+            positions.clear();
+            boxes.clear();
+            // Probe the unchanged single-line legend footprints to reserve their
+            // real ascenders/descenders around the existing swatch-center origin.
+            let metrics = labels
+                .iter()
+                .map(|label| footprint(label, Point { x: 0., y: 0. }))
+                .collect::<Result<Vec<_>, _>>()?;
+            let top = metrics.iter().map(|b| b.y).fold(-5.0, f64::min);
+            let mut x = frame.x + 18.;
+            let mut y = frame.y + bottom + 8. - top;
+            let mut row_bottom = y + 5.;
+            for (label, metric) in labels.iter().zip(&metrics) {
+                if x > frame.x + 18. && x + metric.x + metric.width > frame.x + frame.width - 18. {
+                    x = frame.x + 18.;
+                    y = row_bottom + 8. - top;
+                    row_bottom = y + 5.;
+                }
+                let p = Point { x, y };
+                let b = footprint(label, p)?;
+                if b.x < frame.x + 8. || b.x + b.width > frame.x + frame.width - 8. {
+                    return Err(fail(
+                        "cannot fit a complete legend entry below its wrapped title",
+                    ));
+                }
+                row_bottom = row_bottom.max(b.y + b.height);
+                x = b.x + b.width + 16.;
+                positions.push(p);
+                boxes.push(b);
+            }
+        }
+        for b in boxes {
+            bottom = bottom.max(b.y + b.height - frame.y);
+        }
+        // Reserve the actual measured y-axis title top and bottom at the same
+        // existing baseline relation (plot top - 12), rather than an em proxy.
+        let top = if let Some(label) = y_title {
+            let b = text
+                .single_line_box(
+                    label,
+                    12.5,
+                    FontWeight::Medium,
+                    Point {
+                        x: frame.x + 16.,
+                        y: 0.,
+                    },
+                )
+                .map_err(|e| e.to_string())?;
+            if b.y + b.height > 12. {
+                return Err(fail("y-axis title descender reaches the plot"));
+            }
+            (bottom + 6. - b.y + 12.).max(50.)
+        } else {
+            (bottom + 12.).max(50.)
+        };
+        let plot = [
+            frame.x + 64.,
+            frame.y + top,
+            frame.x + frame.width - 30.,
+            frame.y + frame.height - 62.,
+        ];
+        if plot[2] - plot[0] < 64. || plot[3] - plot[1] < 64. {
+            return Err(fail(
+                "cannot fit its wrapped title, legend and a 64px by 64px plot",
+            ));
+        }
+        Ok(Self {
+            plot,
+            legend: positions,
+        })
     }
 }
 

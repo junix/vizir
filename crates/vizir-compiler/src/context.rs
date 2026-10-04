@@ -336,26 +336,59 @@ pub fn compiled_mir_schema() -> serde_json::Value {
         schema["$defs"]["TextFaces"]["properties"][role]["properties"]["weight"]["const"] =
             weight.into();
     }
-    schema["$defs"]["TextLayoutContext"]["properties"]["profile"]["const"] =
+    let mut geometry_layout = schema["$defs"]["TextLayoutContext"].clone();
+    geometry_layout["properties"]
+        .as_object_mut()
+        .expect("properties object")
+        .remove("semantic_targets");
+    geometry_layout["properties"]["profile"]["const"] =
         crate::text_layout::TEXT_LAYOUT_PROFILE.into();
-    schema["$defs"]["TextLayoutContext"]["properties"]["engine"]["const"] =
+    geometry_layout["properties"]["engine"]["const"] =
         crate::text_layout::TEXT_LAYOUT_ENGINE.into();
-    schema["$defs"]["TextLayoutContext"]["properties"]["targets"]["minItems"] = 1.into();
-    schema["$defs"]["TextLayoutContext"]["properties"]["targets"]["maxItems"] =
-        crate::text_layout::MAX_TARGETS.into();
-    schema["$defs"]["TextLayoutContext"]["properties"]["targets"]["uniqueItems"] = true.into();
-    for id in ["view_id", "node_id"] {
-        schema["$defs"]["TextLayoutTarget"]["properties"][id]["minLength"] = 1.into();
-        // JSON Schema counts Unicode characters; the runtime also caps UTF-8 bytes.
-        schema["$defs"]["TextLayoutTarget"]["properties"][id]["maxLength"] = 256.into();
+    geometry_layout["properties"]["targets"]["minItems"] = 1.into();
+    geometry_layout["properties"]["targets"]["maxItems"] = crate::text_layout::MAX_TARGETS.into();
+    geometry_layout["properties"]["targets"]["uniqueItems"] = true.into();
+    let mut semantic_layout = geometry_layout.clone();
+    semantic_layout["properties"]["profile"]["const"] =
+        crate::text_layout::TEXT_LAYOUT_SEMANTIC_PROFILE.into();
+    semantic_layout["properties"]["targets"]["minItems"] = 0.into();
+    semantic_layout["properties"]["targets"]["maxItems"] = crate::text_layout::MAX_TARGETS.into();
+    semantic_layout["properties"]["semantic_targets"] = serde_json::json!({
+        "type": "array",
+        "items": {"$ref": "#/$defs/SemanticTextLayoutTarget"},
+        "minItems": 1,
+        "maxItems": crate::text_layout::MAX_TARGETS,
+        "uniqueItems": true
+    });
+    semantic_layout["required"]
+        .as_array_mut()
+        .expect("required array")
+        .push("semantic_targets".into());
+    // The combined array length, source identity duplicates and UTF-8 byte ID
+    // limits are executable checks; the schema bounds each array independently.
+    schema["$defs"]["TextLayoutContext"] = serde_json::json!({"oneOf": [
+        {"$ref": "#/$defs/GeometryTextLayoutContext"},
+        {"$ref": "#/$defs/SemanticTextLayoutContext"}
+    ]});
+    schema["$defs"]["GeometryTextLayoutContext"] = geometry_layout;
+    schema["$defs"]["SemanticTextLayoutContext"] = semantic_layout;
+    for (definition, ids) in [
+        ("TextLayoutTarget", &["view_id", "node_id"][..]),
+        ("SemanticTextLayoutTarget", &["view_id"][..]),
+    ] {
+        for id in ids {
+            schema["$defs"][definition]["properties"][*id]["minLength"] = 1.into();
+            // JSON Schema counts Unicode characters; runtime also caps UTF-8 bytes.
+            schema["$defs"][definition]["properties"][*id]["maxLength"] = 256.into();
+        }
+        for dimension in ["max_width", "line_height"] {
+            schema["$defs"][definition]["properties"][dimension]["minimum"] = 0.25.into();
+            schema["$defs"][definition]["properties"][dimension]["maximum"] = 1_000_000.into();
+        }
+        schema["$defs"][definition]["properties"]["max_lines"]["minimum"] = 1.into();
+        schema["$defs"][definition]["properties"]["max_lines"]["maximum"] =
+            crate::text_layout::MAX_LINES.into();
     }
-    for dimension in ["max_width", "line_height"] {
-        schema["$defs"]["TextLayoutTarget"]["properties"][dimension]["minimum"] = 0.25.into();
-        schema["$defs"]["TextLayoutTarget"]["properties"][dimension]["maximum"] = 1_000_000.into();
-    }
-    schema["$defs"]["TextLayoutTarget"]["properties"]["max_lines"]["minimum"] = 1.into();
-    schema["$defs"]["TextLayoutTarget"]["properties"]["max_lines"]["maximum"] =
-        crate::text_layout::MAX_LINES.into();
     // Null is an accepted spelling of absence. A present non-null layout policy
     // requires the measured-text identity rather than just a nullable text key.
     schema["$defs"]["CompilationContext"]["allOf"] = serde_json::json!([{

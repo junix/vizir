@@ -27,8 +27,10 @@ optional theme uses one reusable envelope instead of stacking feature wrappers:
 
 This illustrative envelope elides the required MIR and full theme defaults;
 actual output includes both. Theme and text are optional. The additional optional
-`text_layout` entry enables explicit geometry-only wrapping and requires `text`;
-see [wrapping.md](wrapping.md) for its pinned policy and source-ID contract. `schema compiled-mir` emits the complete schema. Every
+`text_layout` entry requires `text` and enables explicit source-targeted
+wrapping: v1 names geometry text nodes, while v2 adds the `chart.title` semantic
+role on bar, line, and scatter charts. See [wrapping.md](wrapping.md) for the
+pinned profiles, unchanged source-byte contract, and title allocation rules. `schema compiled-mir` emits the complete schema. Every
 persisted
 theme is checked against the canonical pinned registry, including its defaults.
 `schema themed-mir` and `schema mir` retain their previous contracts.
@@ -70,7 +72,7 @@ font, missing glyph or exceeded budget is an error. `--font` without measured
 context is also an error. The first unit requires static normal-width upright
 faces with exact 400/500/700 weights. Without `text_layout`, single-line shaping
 rejects line breaks, tabs and control characters. The separate opt-in wrapping policy permits supported hard breaks
-only on its explicit geometry text targets. Overflow/colliding labels are
+only on its explicit geometry text targets or v2 semantic chart-title targets. Overflow/colliding labels are
 diagnosed; edit the original HIR frame or strings to fix them. Automatic
 fallback and font synthesis remain unsupported.
 
@@ -115,15 +117,19 @@ MIR contents cannot expand filesystem or network access.
 Both compiled envelopes and profiles reject duplicate JSON keys at every
 depth and unknown fields. Compiled-envelope parsing also rejects fields that
 legacy nested MIR deserializers would discard. Arbitrary supported inline data
-metadata remains allowed. Optional context entries can be absent or null;
-canonical serialization omits absent entries. JSON's recursion limit stays
+metadata remains allowed. Optional top-level context entries can be absent or null;
+canonical serialization omits absent entries. This does not make nested layout
+fields nullable: v1 rejects any `semantic_targets` field, including null or an
+empty array, and v2 requires a non-null, nonempty semantic target array. JSON's recursion limit stays
 enabled, and compiler materialization/text work budgets remain independent.
 
 ## Rust APIs
 
 `CompilationContext::new().with_theme(...).with_text(...)` creates a reusable
-identity-only context. `.with_text_layout(...)` adds an explicit geometry wrapping
-policy alongside measured text. `FontResources::new()` and `insert(hash, bytes)` supply
+identity-only context. `.with_text_layout(...)` adds an explicit wrapping
+policy alongside measured text. `TextLayoutContext::new(targets)` retains the
+v1 geometry-only API and serialized bytes. Adding `.with_semantic_targets(...)`
+explicitly selects v2 while retaining existing geometry targets. `FontResources::new()` and `insert(hash, bytes)` supply
 verified resources separately. `compile_with_context`,
 `lower_to_compiled_mir`, `build_compiled_scene`, and
 `rematerialize_compiled_mir` are additive APIs; their `_with_limits` variants

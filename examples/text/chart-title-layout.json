@@ -1,0 +1,10 @@
+{
+  "profile": "vizir-text-wrap/2",
+  "engine": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+  "targets": [],
+  "semantic_targets": [
+    {"view_id": "cities", "role": "chart.title", "max_width": 250, "max_lines": 8, "line_height": 30},
+    {"view_id": "latency", "role": "chart.title", "max_width": 280, "max_lines": 8, "line_height": 30},
+    {"view_id": "compact", "role": "chart.title", "max_width": 150, "max_lines": 8, "line_height": 30}
+  ]
+}

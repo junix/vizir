@@ -400,12 +400,11 @@ fn build_chart(
         defaults,
     ));
     if let Some(title) = &chart.title {
-        children.push(header_text_envelope(title_node(
-            &chart.id,
-            title,
-            chart.frame,
-            defaults,
-        )));
+        let node = header_text_envelope(title_node(&chart.id, title, chart.frame, defaults));
+        if let Some(text) = text {
+            text.register_chart_title(&chart.id, &node, chart.frame)?;
+        }
+        children.push(node);
     }
 
     if let Some(text) = text {
