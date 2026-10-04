@@ -1,3 +1,4 @@
+mod chart_layout;
 mod layout;
 mod lower;
 mod scene_builder;

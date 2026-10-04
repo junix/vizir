@@ -6,6 +6,7 @@ use vizir_core::{
     ShapeStyle, TextAnchor, Transform2D, VizError, VizMir, VizResult, map_linear,
 };
 
+use crate::chart_layout::{ChartLayout, header_text_width, legend_domain};
 use crate::layout::{LayeredLayoutProvider, LayoutProvider};
 
 const INK: &str = "#1C2736";
@@ -35,7 +36,61 @@ pub fn build_scene(mir: &VizMir) -> VizResult<Scene2D> {
 
 fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
     let mut children = Vec::new();
-    let plot = chart_plot_bounds(chart.frame);
+    let color_scale_id = match &chart.mark {
+        ChartMark::Symbol { color, .. }
+        | ChartMark::Line { color, .. }
+        | ChartMark::Bar { color, .. } => color.as_ref().map(|binding| binding.scale.as_str()),
+    };
+    let color_scale =
+        color_scale_id.and_then(|id| chart.scales.iter().find(|scale| scale.id() == id));
+    let x_title = chart.guides.iter().find(|guide| {
+        guide.kind == vizir_core::GuideKind::Axis && guide.orient == vizir_core::GuideOrient::Bottom
+    });
+    let y_title = chart.guides.iter().find(|guide| {
+        guide.kind == vizir_core::GuideKind::Axis && guide.orient == vizir_core::GuideOrient::Left
+    });
+    let layout = ChartLayout::new(
+        &chart.id,
+        chart.frame,
+        chart.title.as_deref(),
+        x_title.map(|guide| guide.label.as_str()),
+        y_title.map(|guide| guide.label.as_str()),
+        legend_domain(color_scale),
+    )
+    .map_err(VizError::Diagnostic)?;
+    let plot = layout.plot;
+    let (x_range, y_range) = match &chart.mark {
+        ChartMark::Symbol { x, y, .. } | ChartMark::Line { x, y, .. } => (
+            linear_scale(chart, &x.scale)?.1,
+            linear_scale(chart, &y.scale)?.1,
+        ),
+        ChartMark::Bar {
+            category, value, ..
+        } => (
+            band_scale(chart, &category.scale)?.1,
+            linear_scale(chart, &value.scale)?.1,
+        ),
+    };
+    if !ranges_match(
+        x_range,
+        [plot[0], plot[2]],
+        chart.frame.x,
+        chart.frame.width,
+    ) || !ranges_match(
+        y_range,
+        [plot[3], plot[1]],
+        chart.frame.y,
+        chart.frame.height,
+    ) {
+        return Err(VizError::Diagnostic(format!(
+            "VIZ-LAYOUT-0005: chart {:?} scale ranges do not match its header layout; normalize again from VizHIR before building the scene",
+            chart.id
+        )));
+    }
+
+    // Once checked, use the stored endpoints for guides as well as marks. A
+    // serialized MIR may differ from recomputed layout by a rounding bit.
+    let plot = [x_range[0], y_range[1], x_range[1], y_range[0]];
     children.extend(build_grid_and_axes(chart, plot)?);
     match &chart.mark {
         ChartMark::Symbol {
@@ -88,10 +143,6 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                     },
                 });
             }
-            children.extend(build_legend(
-                chart,
-                color.as_ref().map(|binding| binding.scale.as_str()),
-            ));
         }
         ChartMark::Line {
             id: mark_id,
@@ -183,10 +234,6 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                     }
                 }
             }
-            children.extend(build_legend(
-                chart,
-                color.as_ref().map(|binding| binding.scale.as_str()),
-            ));
         }
         ChartMark::Bar {
             id: mark_id,
@@ -247,15 +294,16 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
                     },
                 });
             }
-            children.extend(build_legend(
-                chart,
-                color.as_ref().map(|binding| binding.scale.as_str()),
-            ));
         }
     }
 
+    children.extend(build_legend(chart, color_scale_id, &layout));
     if let Some(title) = &chart.title {
-        children.push(title_node(&chart.id, title, chart.frame));
+        children.push(header_text_envelope(title_node(
+            &chart.id,
+            title,
+            chart.frame,
+        )));
     }
 
     Ok(SceneNode::Group {
@@ -272,6 +320,24 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
         transform: Transform2D::default(),
         opacity: 1.0,
         children,
+    })
+}
+
+// JSON parsing and layout recomputation can round independently. Permit only
+// a few floating-point rounding units at the axis-coordinate scale, including
+// its operands so translations near zero do not amplify cancellation error.
+// This is not a visual/layout tolerance (about 7e-13 for a 760px frame).
+fn ranges_match(actual: [f64; 2], expected: [f64; 2], origin: f64, extent: f64) -> bool {
+    actual.into_iter().zip(expected).all(|(actual, expected)| {
+        let magnitude = actual
+            .abs()
+            .max(expected.abs())
+            .max(origin.abs())
+            .max(extent.abs())
+            .max(1.0);
+        actual.is_finite()
+            && expected.is_finite()
+            && (actual - expected).abs() <= 4.0 * f64::EPSILON * magnitude
     })
 }
 
@@ -407,7 +473,7 @@ fn build_grid_and_axes(chart: &MirChart, plot: [f64; 4]) -> VizResult<Vec<SceneN
             continue;
         }
         match guide.orient {
-            vizir_core::GuideOrient::Bottom => nodes.push(text_node(
+            vizir_core::GuideOrient::Bottom => nodes.push(header_text_envelope(text_node(
                 format!("{}/axis/x/title", chart.id),
                 Point {
                     x: (plot[0] + plot[2]) / 2.0,
@@ -420,12 +486,12 @@ fn build_grid_and_axes(chart: &MirChart, plot: [f64; 4]) -> VizResult<Vec<SceneN
                 FontWeight::Medium,
                 &chart.id,
                 "axis title emitted from explicit MIR guide",
-            )),
-            vizir_core::GuideOrient::Left => nodes.push(text_node(
+            ))),
+            vizir_core::GuideOrient::Left => nodes.push(header_text_envelope(text_node(
                 format!("{}/axis/y/title", chart.id),
                 Point {
                     x: chart.frame.x + 16.0,
-                    y: plot[1] - 10.0,
+                    y: plot[1] - 12.0,
                 },
                 guide.label.clone(),
                 12.5,
@@ -434,7 +500,7 @@ fn build_grid_and_axes(chart: &MirChart, plot: [f64; 4]) -> VizResult<Vec<SceneN
                 FontWeight::Medium,
                 &chart.id,
                 "axis title emitted from explicit MIR guide",
-            )),
+            ))),
             vizir_core::GuideOrient::Right => {}
         }
     }
@@ -442,7 +508,7 @@ fn build_grid_and_axes(chart: &MirChart, plot: [f64; 4]) -> VizResult<Vec<SceneN
     Ok(nodes)
 }
 
-fn build_legend(chart: &MirChart, scale_id: Option<&str>) -> Vec<SceneNode> {
+fn build_legend(chart: &MirChart, scale_id: Option<&str>, layout: &ChartLayout) -> Vec<SceneNode> {
     let Some(scale_id) = scale_id else {
         return Vec::new();
     };
@@ -452,12 +518,8 @@ fn build_legend(chart: &MirChart, scale_id: Option<&str>) -> Vec<SceneNode> {
         return Vec::new();
     };
     let mut nodes = Vec::new();
-    let columns = domain.len().clamp(1, 3);
-    let start_x = chart.frame.x + chart.frame.width - (columns as f64 * 78.0 + 18.0);
-    let start_y = chart.frame.y + 17.0;
     for (index, (label, color)) in domain.iter().zip(range).enumerate() {
-        let x = start_x + (index % 3) as f64 * 78.0;
-        let y = start_y + (index / 3) as f64 * 18.0;
+        let Point { x, y } = layout.legend[index];
         nodes.push(SceneNode::Circle {
             id: format!("{}/legend/{index}/swatch", chart.id),
             bounds: Rect {
@@ -483,7 +545,7 @@ fn build_legend(chart: &MirChart, scale_id: Option<&str>) -> Vec<SceneNode> {
                 opacity: 1.0,
             },
         });
-        nodes.push(text_node(
+        nodes.push(header_text_envelope(text_node(
             format!("{}/legend/{index}/label", chart.id),
             Point {
                 x: x + 13.0,
@@ -496,7 +558,7 @@ fn build_legend(chart: &MirChart, scale_id: Option<&str>) -> Vec<SceneNode> {
             FontWeight::Regular,
             &chart.id,
             "legend label generated from ordinal color scale",
-        ));
+        )));
     }
     nodes
 }
@@ -971,13 +1033,25 @@ fn band_scale<'a>(chart: &'a MirChart, id: &str) -> VizResult<(&'a [String], [f6
         .ok_or_else(|| VizError::Diagnostic(format!("VIZ-SCENE-0003: missing band scale {id:?}")))
 }
 
-fn chart_plot_bounds(frame: vizir_core::Frame) -> [f64; 4] {
-    [
-        frame.x + 64.0,
-        frame.y + 50.0,
-        frame.x + frame.width - 30.0,
-        frame.y + frame.height - 62.0,
-    ]
+// Header allocation and scene metadata use the same conservative envelopes.
+fn header_text_envelope(mut node: SceneNode) -> SceneNode {
+    if let SceneNode::Text {
+        bounds,
+        text,
+        font_size,
+        position,
+        anchor,
+        ..
+    } = &mut node
+    {
+        bounds.width = header_text_width(text, *font_size);
+        bounds.x = match anchor {
+            TextAnchor::Start => position.x,
+            TextAnchor::Middle => position.x - bounds.width / 2.0,
+            TextAnchor::End => position.x - bounds.width,
+        };
+    }
+    node
 }
 
 fn frame_rect(frame: vizir_core::Frame) -> Rect {

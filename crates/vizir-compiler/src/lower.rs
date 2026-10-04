@@ -10,6 +10,8 @@ use vizir_core::{
     VizError, VizMir, VizResult, type_expression, value_as_key,
 };
 
+use crate::chart_layout::{ChartLayout, legend_domain};
+
 const DEFAULT_PALETTE: [&str; 8] = [
     "#3B6EF5", "#EB5E55", "#18A999", "#F2A541", "#7A5AF8", "#D94891", "#4B8B3B", "#65758B",
 ];
@@ -159,12 +161,20 @@ fn lower_scatter(
             )
         })
         .transpose()?;
-    let plot = chart_plot_bounds(chart.frame);
     let x_values = numeric_values(&dataset.rows, &chart.x.field)?;
     let y_values = numeric_values(&dataset.rows, &chart.y.field)?;
     let x_domain = nice_domain(extent(&x_values), false);
     let y_domain = nice_domain(extent(&y_values), false);
     let color_scale = color_scale(&chart.id, chart.color.as_ref(), &dataset.rows)?;
+    let plot = ChartLayout::new(
+        &chart.id,
+        chart.frame,
+        chart.title.as_deref(),
+        Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
+        Some(chart.y.label.as_deref().unwrap_or(&chart.y.field)),
+        legend_domain(color_scale.as_ref()),
+    )?
+    .plot;
     let mut items = Vec::with_capacity(dataset.rows.len());
     for row in &dataset.rows {
         items.push(MirPointItem {
@@ -274,12 +284,20 @@ fn lower_line(
             )
         })
         .transpose()?;
-    let plot = chart_plot_bounds(chart.frame);
     let x_values = numeric_values(&dataset.rows, &chart.x.field)?;
     let y_values = numeric_values(&dataset.rows, &chart.y.field)?;
     let x_domain = nice_domain(extent(&x_values), false);
     let y_domain = nice_domain(extent(&y_values), false);
     let color_scale = color_scale(&chart.id, chart.series.as_ref(), &dataset.rows)?;
+    let plot = ChartLayout::new(
+        &chart.id,
+        chart.frame,
+        chart.title.as_deref(),
+        Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
+        Some(chart.y.label.as_deref().unwrap_or(&chart.y.field)),
+        legend_domain(color_scale.as_ref()),
+    )?
+    .plot;
     let mut grouped: BTreeMap<String, Vec<MirPointItem>> = BTreeMap::new();
     for row in &dataset.rows {
         let series =
@@ -432,7 +450,6 @@ fn lower_bar(
             )
         })
         .transpose()?;
-    let plot = chart_plot_bounds(chart.frame);
     let values = numeric_values(&dataset.rows, &chart.value.field)?;
     let categories = dataset
         .rows
@@ -446,6 +463,21 @@ fn lower_bar(
         }
     }
     let color_scale = color_scale(&chart.id, chart.color.as_ref(), &dataset.rows)?;
+    let plot = ChartLayout::new(
+        &chart.id,
+        chart.frame,
+        chart.title.as_deref(),
+        Some(
+            chart
+                .category
+                .label
+                .as_deref()
+                .unwrap_or(&chart.category.field),
+        ),
+        Some(chart.value.label.as_deref().unwrap_or(&chart.value.field)),
+        legend_domain(color_scale.as_ref()),
+    )?
+    .plot;
     let mut items = Vec::with_capacity(dataset.rows.len());
     for row in &dataset.rows {
         items.push(MirBarItem {
@@ -858,15 +890,6 @@ fn lower_style(
         stroke_width: style.stroke_width,
         opacity: style.opacity,
     }
-}
-
-fn chart_plot_bounds(frame: vizir_core::Frame) -> [f64; 4] {
-    [
-        frame.x + 64.0,
-        frame.y + 50.0,
-        frame.x + frame.width - 30.0,
-        frame.y + frame.height - 62.0,
-    ]
 }
 
 fn dataset<'a>(document: &'a Document, name: &str) -> Result<&'a vizir_core::Dataset, String> {

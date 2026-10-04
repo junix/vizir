@@ -534,3 +534,37 @@ fn background_accepts_exact_hex_lengths_and_rejects_off_by_one() {
         }
     }
 }
+
+#[test]
+fn rejected_chart_headers_preserve_output_and_manifest() {
+    let temporary = tempfile::tempdir().unwrap();
+    let input = temporary.path().join("narrow.viz.yaml");
+    let source =
+        std::fs::read_to_string(workspace().join("examples/chart/service-health.viz.yaml"))
+            .unwrap();
+    std::fs::write(&input, source.replace("width: 520", "width: 120")).unwrap();
+    for format in ["svg", "png"] {
+        let output = temporary.path().join(format!("existing.{format}"));
+        let manifest = temporary.path().join(format!("{format}.manifest.json"));
+        std::fs::write(&output, b"existing artifact").unwrap();
+        std::fs::write(&manifest, b"existing manifest").unwrap();
+        let result = vizir()
+            .arg("render")
+            .arg(&input)
+            .args(["--format", format, "--output"])
+            .arg(&output)
+            .arg("--manifest")
+            .arg(&manifest)
+            .output()
+            .unwrap();
+        assert!(!result.status.success());
+        assert!(stderr_of(&result).contains("VIZ-LAYOUT-0004"));
+        assert_eq!(std::fs::read(&output).unwrap(), b"existing artifact");
+        assert_eq!(std::fs::read(&manifest).unwrap(), b"existing manifest");
+    }
+    assert_eq!(
+        std::fs::read_dir(temporary.path()).unwrap().count(),
+        5,
+        "no staging debris"
+    );
+}

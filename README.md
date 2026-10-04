@@ -182,6 +182,28 @@ vizir schema scene-patch --output schemas/scene-patch.schema.json
 vizir schema capability --output schemas/capability.schema.json
 ```
 
+### Chart header layout
+
+Chart titles, legends, and axis titles reserve space before scales are resolved.
+Short legends retain the compact positions when they fit; otherwise all entries
+flow onto width-aware rows below the title. Plot ranges and Scene2D use the same
+layout, and stable label IDs, full text, category order, and colors are retained.
+
+Header widths use conservative, deterministic advance estimates for the default
+sans-serif stack, not measured glyph bounds or font shaping. Wide Latin letters
+reserve more space than narrow ones; each non-ASCII code point, including a
+combining mark, reserves 1.2 em. Font substitution can still affect rendered
+metrics, so inspect the final artifact at delivery size. Text is never silently
+truncated, hidden, or reduced to make a header fit.
+
+An individual overwide title/legend/axis title, or a frame that cannot retain a
+64-by-64 scene-unit plot after header and axis insets, fails with
+`VIZ-LAYOUT-0004`. Enlarge the frame or edit the text. This happens before output
+publication. Persisted MIR whose scale ranges no longer match this layout fails
+with `VIZ-LAYOUT-0005`; normalize it again from its VizHIR source. Range checks
+allow only floating-point roundoff from serialization and recomputation; guides
+then use the same stored endpoints as marks.
+
 ## Current boundary
 
 VizIR owns schema validation, normalization, lowering, layout, stable identity,
