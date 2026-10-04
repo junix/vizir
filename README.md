@@ -213,6 +213,27 @@ with `VIZ-LAYOUT-0005`; normalize it again from its VizHIR source. Range checks
 allow only floating-point roundoff from serialization and recomputation; guides
 then use the same stored endpoints as marks.
 
+## Explicit MIR guide references
+
+`MirGuide.scale` selects the axis or legend scale by its exact ID; IDs have no
+required suffix. A guide may refer to a different scale from the mark, so its
+own domain supplies tick/category labels or legend labels and swatches. Spatial
+guide ranges must match the chart's resolved plot, with the same roundoff-only
+allowance as mark ranges. Explicit legend scales also own header allocation.
+
+Missing guide-scale references fail with `VIZ-RESOLVE-0006`, and incompatible
+scale kinds fail with `VIZ-TYPE-0203`. The static scene builder supports one
+bottom linear/band axis, one left linear axis, and one right-oriented color
+legend (using the existing header placement). Unsupported combinations or
+multiple guides in one slot fail with `VIZ-SCENE-0004`; this does not add top or
+right axes, left band axes, or new legend placement styles.
+
+An absent axis guide emits no corresponding axis or grid. For compatibility,
+0.1 MIR without an explicit legend retains its implicit mark-color legend;
+line/bar normalization currently uses this form. An explicit legend always
+takes precedence over that fallback. Canonical VizHIR and generated MIR/schema
+bytes are unchanged by this reference-resolution rule.
+
 ## Current boundary
 
 VizIR owns schema validation, normalization, lowering, layout, stable identity,

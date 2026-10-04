@@ -5,9 +5,9 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::{
-    ChartMark, Color, Diagnostic, DiagramLayout, Document, GeometryNode, MirChart, MirScale,
-    MirView, PathCommand, Point, ShapeStyle, TypeEnvironment, ValueType, View, VizError, VizMir,
-    VizResult, type_expression,
+    ChartMark, Color, Diagnostic, DiagramLayout, Document, GeometryNode, GuideKind, MirChart,
+    MirScale, MirView, PathCommand, Point, ShapeStyle, TypeEnvironment, ValueType, View, VizError,
+    VizMir, VizResult, type_expression,
 };
 
 pub fn parse_document(path: impl AsRef<Path>) -> VizResult<Document> {
@@ -414,6 +414,25 @@ fn validate_mir_chart(
                 Diagnostic::new(
                     "VIZ-RESOLVE-0006",
                     format!("guide references unknown scale {:?}", guide.scale),
+                )
+                .at(format!("{source}.guides[{index}].scale")),
+            );
+        } else if let Some(scale) = chart.scales.iter().find(|scale| scale.id() == guide.scale)
+            && !matches!(
+                (&guide.kind, scale),
+                (
+                    GuideKind::Axis,
+                    MirScale::Linear { .. } | MirScale::Band { .. }
+                ) | (GuideKind::Legend, MirScale::OrdinalColor { .. })
+            )
+        {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-TYPE-0203",
+                    format!(
+                        "guide {:?} has an incompatible scale {:?}",
+                        guide.id, guide.scale
+                    ),
                 )
                 .at(format!("{source}.guides[{index}].scale")),
             );

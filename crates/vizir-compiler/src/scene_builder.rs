@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
 use vizir_core::{
-    ChartMark, Color, FontWeight, MirChart, MirDiagram, MirGeometry, MirGeometryNode, MirScale,
-    MirShapeStyle, MirView, Origin, PathCommand, Point, Rect, ResolvedStyle, Scene2D, SceneNode,
-    ShapeStyle, TextAnchor, Transform2D, VizError, VizMir, VizResult, map_linear,
+    ChartMark, Color, FontWeight, GuideKind, GuideOrient, MirChart, MirDiagram, MirGeometry,
+    MirGeometryNode, MirGuide, MirScale, MirShapeStyle, MirView, Origin, PathCommand, Point, Rect,
+    ResolvedStyle, Scene2D, SceneNode, ShapeStyle, TextAnchor, Transform2D, VizError, VizMir,
+    VizResult, map_linear,
 };
 
 use crate::chart_layout::{ChartLayout, header_text_width, legend_domain};
@@ -36,26 +37,27 @@ pub fn build_scene(mir: &VizMir) -> VizResult<Scene2D> {
 
 fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
     let mut children = Vec::new();
-    let color_scale_id = match &chart.mark {
-        ChartMark::Symbol { color, .. }
-        | ChartMark::Line { color, .. }
-        | ChartMark::Bar { color, .. } => color.as_ref().map(|binding| binding.scale.as_str()),
-    };
-    let color_scale =
-        color_scale_id.and_then(|id| chart.scales.iter().find(|scale| scale.id() == id));
-    let x_title = chart.guides.iter().find(|guide| {
-        guide.kind == vizir_core::GuideKind::Axis && guide.orient == vizir_core::GuideOrient::Bottom
-    });
-    let y_title = chart.guides.iter().find(|guide| {
-        guide.kind == vizir_core::GuideKind::Axis && guide.orient == vizir_core::GuideOrient::Left
+    let guides = ChartGuides::resolve(chart)?;
+    // Static 0.1 line/bar MIR may omit a legend guide. Preserve that legacy
+    // implicit legend, but an explicit guide always owns its scale and layout.
+    let legend_scale = guides.legend.map(|(_, scale)| scale).or_else(|| {
+        let binding = match &chart.mark {
+            ChartMark::Symbol { color, .. }
+            | ChartMark::Line { color, .. }
+            | ChartMark::Bar { color, .. } => color.as_ref(),
+        }?;
+        chart
+            .scales
+            .iter()
+            .find(|scale| scale.id() == binding.scale)
     });
     let layout = ChartLayout::new(
         &chart.id,
         chart.frame,
         chart.title.as_deref(),
-        x_title.map(|guide| guide.label.as_str()),
-        y_title.map(|guide| guide.label.as_str()),
-        legend_domain(color_scale),
+        guides.bottom.map(|(guide, _)| guide.label.as_str()),
+        guides.left.map(|(guide, _)| guide.label.as_str()),
+        legend_domain(legend_scale),
     )
     .map_err(VizError::Diagnostic)?;
     let plot = layout.plot;
@@ -91,7 +93,8 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
     // Once checked, use the stored endpoints for guides as well as marks. A
     // serialized MIR may differ from recomputed layout by a rounding bit.
     let plot = [x_range[0], y_range[1], x_range[1], y_range[0]];
-    children.extend(build_grid_and_axes(chart, plot)?);
+    guides.check_ranges(chart, plot)?;
+    children.extend(build_grid_and_axes(chart, plot, &guides));
     match &chart.mark {
         ChartMark::Symbol {
             id: mark_id,
@@ -297,7 +300,12 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
         }
     }
 
-    children.extend(build_legend(chart, color_scale_id, &layout));
+    children.extend(build_legend(
+        chart,
+        guides.legend.map(|(guide, _)| guide),
+        legend_scale,
+        &layout,
+    ));
     if let Some(title) = &chart.title {
         children.push(header_text_envelope(title_node(
             &chart.id,
@@ -341,46 +349,132 @@ fn ranges_match(actual: [f64; 2], expected: [f64; 2], origin: f64, extent: f64) 
     })
 }
 
-fn build_grid_and_axes(chart: &MirChart, plot: [f64; 4]) -> VizResult<Vec<SceneNode>> {
-    let mut nodes = Vec::new();
-    let x_scale = chart
-        .scales
-        .iter()
-        .find(|scale| scale.id().ends_with("/x") || scale.id().ends_with("/category"));
-    let y_scale = chart
-        .scales
-        .iter()
-        .find(|scale| scale.id().ends_with("/y") || scale.id().ends_with("/value"));
+// Guide IDs and scale IDs are opaque references, not naming conventions.
+#[derive(Default)]
+struct ChartGuides<'a> {
+    bottom: Option<(&'a MirGuide, &'a MirScale)>,
+    left: Option<(&'a MirGuide, &'a MirScale)>,
+    legend: Option<(&'a MirGuide, &'a MirScale)>,
+}
 
-    for index in 0..=5 {
-        let fraction = index as f64 / 5.0;
-        let y = plot[1] + (plot[3] - plot[1]) * fraction;
-        nodes.push(line_node(
-            format!("{}/grid/y/{index}", chart.id),
-            Point { x: plot[0], y },
-            Point { x: plot[2], y },
-            Color::hex(GRID),
-            1.0,
-            0.7,
-            &chart.id,
-            "axis guide generated from normalized scale",
-        ));
-        if let Some(MirScale::Linear { domain, .. }) = y_scale {
-            let value = domain[1] + (domain[0] - domain[1]) * fraction;
-            nodes.push(text_node(
-                format!("{}/axis/y/label/{index}", chart.id),
-                Point {
-                    x: plot[0] - 10.0,
-                    y: y + 4.0,
-                },
-                format_number(value),
-                11.0,
-                TextAnchor::End,
-                Color::hex(MUTED),
-                FontWeight::Regular,
+impl<'a> ChartGuides<'a> {
+    fn resolve(chart: &'a MirChart) -> VizResult<Self> {
+        let mut guides = Self::default();
+        for guide in &chart.guides {
+            let scale = chart
+                .scales
+                .iter()
+                .find(|scale| scale.id() == guide.scale)
+                .ok_or_else(|| {
+                    VizError::Diagnostic(format!(
+                        "VIZ-RESOLVE-0006: guide {:?} references unknown scale {:?}",
+                        guide.id, guide.scale
+                    ))
+                })?;
+            let compatible = matches!(
+                (&guide.kind, scale),
+                (
+                    GuideKind::Axis,
+                    MirScale::Linear { .. } | MirScale::Band { .. }
+                ) | (GuideKind::Legend, MirScale::OrdinalColor { .. })
+            );
+            if !compatible {
+                return Err(VizError::Diagnostic(format!(
+                    "VIZ-TYPE-0203: guide {:?} has an incompatible scale {:?}",
+                    guide.id, guide.scale
+                )));
+            }
+            let slot = match (&guide.kind, &guide.orient, scale) {
+                (GuideKind::Axis, GuideOrient::Bottom, _) => &mut guides.bottom,
+                (GuideKind::Axis, GuideOrient::Left, MirScale::Linear { .. }) => &mut guides.left,
+                (GuideKind::Legend, GuideOrient::Right, _) => &mut guides.legend,
+                _ => {
+                    return Err(VizError::Diagnostic(format!(
+                        "VIZ-SCENE-0004: guide {:?} has an unsupported kind, orientation, or scale combination",
+                        guide.id
+                    )));
+                }
+            };
+            if slot.is_some() {
+                return Err(VizError::Diagnostic(format!(
+                    "VIZ-SCENE-0004: guide {:?} duplicates a guide slot; only one bottom axis, left axis, and right legend are supported",
+                    guide.id
+                )));
+            }
+            *slot = Some((guide, scale));
+        }
+        Ok(guides)
+    }
+
+    fn check_ranges(&self, chart: &MirChart, plot: [f64; 4]) -> VizResult<()> {
+        for (resolved, expected, origin, extent) in [
+            (
+                self.bottom,
+                [plot[0], plot[2]],
+                chart.frame.x,
+                chart.frame.width,
+            ),
+            (
+                self.left,
+                [plot[3], plot[1]],
+                chart.frame.y,
+                chart.frame.height,
+            ),
+        ] {
+            if let Some((guide, MirScale::Linear { range, .. } | MirScale::Band { range, .. })) =
+                resolved
+                && !ranges_match(*range, expected, origin, extent)
+            {
+                return Err(VizError::Diagnostic(format!(
+                    "VIZ-LAYOUT-0005: guide {:?} scale {:?} range does not match its chart plot; normalize again from VizHIR before building the scene",
+                    guide.id, guide.scale
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn build_grid_and_axes(
+    chart: &MirChart,
+    plot: [f64; 4],
+    guides: &ChartGuides<'_>,
+) -> Vec<SceneNode> {
+    let mut nodes = Vec::new();
+    let x_scale = guides.bottom.map(|(_, scale)| scale);
+    let y_scale = guides.left.map(|(_, scale)| scale);
+
+    if y_scale.is_some() {
+        for index in 0..=5 {
+            let fraction = index as f64 / 5.0;
+            let y = plot[1] + (plot[3] - plot[1]) * fraction;
+            nodes.push(line_node(
+                format!("{}/grid/y/{index}", chart.id),
+                Point { x: plot[0], y },
+                Point { x: plot[2], y },
+                Color::hex(GRID),
+                1.0,
+                0.7,
                 &chart.id,
-                "tick label generated from linear scale domain",
+                "axis guide generated from normalized scale",
             ));
+            if let Some(MirScale::Linear { domain, .. }) = y_scale {
+                let value = domain[1] + (domain[0] - domain[1]) * fraction;
+                nodes.push(text_node(
+                    format!("{}/axis/y/label/{index}", chart.id),
+                    Point {
+                        x: plot[0] - 10.0,
+                        y: y + 4.0,
+                    },
+                    format_number(value),
+                    11.0,
+                    TextAnchor::End,
+                    Color::hex(MUTED),
+                    FontWeight::Regular,
+                    &chart.id,
+                    "tick label generated from linear scale domain",
+                ));
+            }
         }
     }
     if let Some(MirScale::Band { domain, range, .. }) = x_scale {
@@ -403,70 +497,76 @@ fn build_grid_and_axes(chart: &MirChart, plot: [f64; 4]) -> VizResult<Vec<SceneN
             ));
         }
     }
-    for index in 0..=5 {
-        let fraction = index as f64 / 5.0;
-        let x = plot[0] + (plot[2] - plot[0]) * fraction;
-        nodes.push(line_node(
-            format!("{}/grid/x/{index}", chart.id),
-            Point { x, y: plot[1] },
-            Point { x, y: plot[3] },
-            Color::hex(GRID),
-            1.0,
-            0.45,
-            &chart.id,
-            "axis guide generated from normalized scale",
-        ));
-        if let Some(MirScale::Linear { domain, .. }) = x_scale {
-            let value = domain[0] + (domain[1] - domain[0]) * fraction;
-            nodes.push(text_node(
-                format!("{}/axis/x/label/{index}", chart.id),
-                Point {
-                    x,
-                    y: plot[3] + 20.0,
-                },
-                format_number(value),
-                11.0,
-                TextAnchor::Middle,
-                Color::hex(MUTED),
-                FontWeight::Regular,
+    if x_scale.is_some() {
+        for index in 0..=5 {
+            let fraction = index as f64 / 5.0;
+            let x = plot[0] + (plot[2] - plot[0]) * fraction;
+            nodes.push(line_node(
+                format!("{}/grid/x/{index}", chart.id),
+                Point { x, y: plot[1] },
+                Point { x, y: plot[3] },
+                Color::hex(GRID),
+                1.0,
+                0.45,
                 &chart.id,
-                "tick label generated from linear scale domain",
+                "axis guide generated from normalized scale",
             ));
+            if let Some(MirScale::Linear { domain, .. }) = x_scale {
+                let value = domain[0] + (domain[1] - domain[0]) * fraction;
+                nodes.push(text_node(
+                    format!("{}/axis/x/label/{index}", chart.id),
+                    Point {
+                        x,
+                        y: plot[3] + 20.0,
+                    },
+                    format_number(value),
+                    11.0,
+                    TextAnchor::Middle,
+                    Color::hex(MUTED),
+                    FontWeight::Regular,
+                    &chart.id,
+                    "tick label generated from linear scale domain",
+                ));
+            }
         }
     }
 
-    nodes.push(line_node(
-        format!("{}/axis/x", chart.id),
-        Point {
-            x: plot[0],
-            y: plot[3],
-        },
-        Point {
-            x: plot[2],
-            y: plot[3],
-        },
-        Color::hex(MUTED),
-        1.4,
-        1.0,
-        &chart.id,
-        "bottom axis emitted from explicit MIR guide",
-    ));
-    nodes.push(line_node(
-        format!("{}/axis/y", chart.id),
-        Point {
-            x: plot[0],
-            y: plot[1],
-        },
-        Point {
-            x: plot[0],
-            y: plot[3],
-        },
-        Color::hex(MUTED),
-        1.4,
-        1.0,
-        &chart.id,
-        "left axis emitted from explicit MIR guide",
-    ));
+    if x_scale.is_some() {
+        nodes.push(line_node(
+            format!("{}/axis/x", chart.id),
+            Point {
+                x: plot[0],
+                y: plot[3],
+            },
+            Point {
+                x: plot[2],
+                y: plot[3],
+            },
+            Color::hex(MUTED),
+            1.4,
+            1.0,
+            &chart.id,
+            "bottom axis emitted from explicit MIR guide",
+        ));
+    }
+    if y_scale.is_some() {
+        nodes.push(line_node(
+            format!("{}/axis/y", chart.id),
+            Point {
+                x: plot[0],
+                y: plot[1],
+            },
+            Point {
+                x: plot[0],
+                y: plot[3],
+            },
+            Color::hex(MUTED),
+            1.4,
+            1.0,
+            &chart.id,
+            "left axis emitted from explicit MIR guide",
+        ));
+    }
 
     for guide in &chart.guides {
         if guide.kind != vizir_core::GuideKind::Axis {
@@ -505,16 +605,16 @@ fn build_grid_and_axes(chart: &MirChart, plot: [f64; 4]) -> VizResult<Vec<SceneN
         }
     }
 
-    Ok(nodes)
+    nodes
 }
 
-fn build_legend(chart: &MirChart, scale_id: Option<&str>, layout: &ChartLayout) -> Vec<SceneNode> {
-    let Some(scale_id) = scale_id else {
-        return Vec::new();
-    };
-    let Some(MirScale::OrdinalColor { domain, range, .. }) =
-        chart.scales.iter().find(|scale| scale.id() == scale_id)
-    else {
+fn build_legend(
+    chart: &MirChart,
+    guide: Option<&MirGuide>,
+    scale: Option<&MirScale>,
+    layout: &ChartLayout,
+) -> Vec<SceneNode> {
+    let Some(MirScale::OrdinalColor { domain, range, .. }) = scale else {
         return Vec::new();
     };
     let mut nodes = Vec::new();
@@ -530,7 +630,9 @@ fn build_legend(chart: &MirChart, scale_id: Option<&str>, layout: &ChartLayout) 
             },
             origin: Origin {
                 hir_node: chart.id.clone(),
-                mir_node: format!("{}/guides/color-legend", chart.id),
+                mir_node: guide
+                    .map(|guide| guide.id.clone())
+                    .unwrap_or_else(|| format!("{}/guides/color-legend", chart.id)),
                 data_key: None,
                 data_lineage: vec![chart.source.clone()],
                 generated_by: "build-legend".to_owned(),
