@@ -1,0 +1,34 @@
+version: "0.2"
+id: scientific-magnitudes
+width: 800
+height: 480
+background: transparent
+
+datasets:
+  samples:
+    key: sample_id
+    rows:
+      - {sample_id: s1, energy: 1.0e150, response: 1.0e-120}
+      - {sample_id: s2, energy: 2.0e150, response: 1.7e-120}
+      - {sample_id: s3, energy: 3.0e150, response: 2.2e-120}
+      - {sample_id: s4, energy: 4.0e150, response: 3.5e-120}
+      - {sample_id: s5, energy: 5.0e150, response: 4.0e-120}
+      - {sample_id: s6, energy: 6.0e150, response: 5.8e-120}
+
+views:
+  - kind: chart.scatter
+    id: magnitude-response
+    title: Readable axes across extreme magnitudes
+    frame: {x: 0, y: 0, width: 800, height: 480}
+    dataset: samples
+    x:
+      field: energy
+      label: energy proxy (arbitrary units)
+      axis:
+        number_format: {notation: scientific, precision: 2}
+    y:
+      field: response
+      label: response proxy (arbitrary units)
+      axis:
+        number_format: {notation: scientific, precision: 2}
+    point_size: 8

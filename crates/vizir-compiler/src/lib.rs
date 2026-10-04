@@ -2,8 +2,9 @@ mod chart_layout;
 mod layout;
 mod lower;
 mod scene_builder;
+mod tick_format;
 
-use vizir_core::{Document, Scene2D, VizError, VizMir, VizResult, validate_document, validate_mir};
+use vizir_core::{Document, Scene2D, VizMir, VizResult};
 
 pub use layout::{LayeredLayoutProvider, LayoutProvider, LayoutResult};
 pub use lower::lower_to_mir;
@@ -16,9 +17,7 @@ pub struct Compilation {
 }
 
 pub fn compile(document: &Document) -> VizResult<Compilation> {
-    validate_document(document).map_err(|diagnostics| VizError::validation(&diagnostics))?;
     let mir = lower_to_mir(document)?;
-    validate_mir(&mir).map_err(|diagnostics| VizError::validation(&diagnostics))?;
     let scene = build_scene(&mir)?;
     Ok(Compilation { mir, scene })
 }

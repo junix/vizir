@@ -11,6 +11,7 @@ use vizir_core::{
 };
 
 use crate::chart_layout::{ChartLayout, legend_domain};
+use crate::tick_format::NumericTickLabels;
 
 const DEFAULT_PALETTE: [&str; 8] = [
     "#3B6EF5", "#EB5E55", "#18A999", "#F2A541", "#7A5AF8", "#D94891", "#4B8B3B", "#65758B",
@@ -19,6 +20,8 @@ const DEFAULT_PALETTE: [&str; 8] = [
 const DOCUMENT_SPACE: &str = "space/document";
 
 pub fn lower_to_mir(document: &Document) -> VizResult<VizMir> {
+    vizir_core::validate_document(document)
+        .map_err(|diagnostics| VizError::validation(&diagnostics))?;
     let data = lower_data(document).map_err(lowering_error)?;
     let mut expressions = BTreeMap::new();
     let mut spaces = BTreeMap::from([(
@@ -96,7 +99,7 @@ pub fn lower_to_mir(document: &Document) -> VizResult<VizMir> {
     }
 
     Ok(VizMir {
-        version: "0.1".to_owned(),
+        version: document.version.clone(),
         source_hir_version: document.version.clone(),
         document_id: document.id.clone(),
         width: document.width,
@@ -166,6 +169,10 @@ fn lower_scatter(
     let x_domain = nice_domain(extent(&x_values), false);
     let y_domain = nice_domain(extent(&y_values), false);
     let color_scale = color_scale(&chart.id, chart.color.as_ref(), &dataset.rows)?;
+    let ticks = NumericTickLabels::new(
+        Some((x_domain, chart.x.number_format())),
+        Some((y_domain, chart.y.number_format())),
+    )?;
     let plot = ChartLayout::new(
         &chart.id,
         chart.frame,
@@ -173,6 +180,12 @@ fn lower_scatter(
         Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
         Some(chart.y.label.as_deref().unwrap_or(&chart.y.field)),
         legend_domain(color_scale.as_ref()),
+    )?
+    .with_numeric_ticks(
+        &chart.id,
+        chart.frame,
+        Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
+        ticks.as_ref(),
     )?
     .plot;
     let mut items = Vec::with_capacity(dataset.rows.len());
@@ -289,6 +302,10 @@ fn lower_line(
     let x_domain = nice_domain(extent(&x_values), false);
     let y_domain = nice_domain(extent(&y_values), false);
     let color_scale = color_scale(&chart.id, chart.series.as_ref(), &dataset.rows)?;
+    let ticks = NumericTickLabels::new(
+        Some((x_domain, chart.x.number_format())),
+        Some((y_domain, chart.y.number_format())),
+    )?;
     let plot = ChartLayout::new(
         &chart.id,
         chart.frame,
@@ -296,6 +313,12 @@ fn lower_line(
         Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
         Some(chart.y.label.as_deref().unwrap_or(&chart.y.field)),
         legend_domain(color_scale.as_ref()),
+    )?
+    .with_numeric_ticks(
+        &chart.id,
+        chart.frame,
+        Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
+        ticks.as_ref(),
     )?
     .plot;
     let mut grouped: BTreeMap<String, Vec<MirPointItem>> = BTreeMap::new();
@@ -365,6 +388,7 @@ fn lower_line(
                     .clone()
                     .unwrap_or_else(|| chart.x.field.clone()),
                 orient: GuideOrient::Bottom,
+                number_format: chart.x.number_format().copied(),
             },
             MirGuide {
                 id: format!("{}/guides/y-axis", chart.id),
@@ -376,6 +400,7 @@ fn lower_line(
                     .clone()
                     .unwrap_or_else(|| chart.y.field.clone()),
                 orient: GuideOrient::Left,
+                number_format: chart.y.number_format().copied(),
             },
         ],
         mark: ChartMark::Line {
@@ -462,6 +487,9 @@ fn lower_bar(
             return Err(format!("bar category {category:?} is duplicated"));
         }
     }
+    let raw = extent(&values);
+    let domain = nice_domain([raw[0].min(0.0), raw[1].max(0.0)], true);
+    let ticks = NumericTickLabels::new(None, Some((domain, chart.value.number_format())))?;
     let color_scale = color_scale(&chart.id, chart.color.as_ref(), &dataset.rows)?;
     let plot = ChartLayout::new(
         &chart.id,
@@ -477,6 +505,18 @@ fn lower_bar(
         Some(chart.value.label.as_deref().unwrap_or(&chart.value.field)),
         legend_domain(color_scale.as_ref()),
     )?
+    .with_numeric_ticks(
+        &chart.id,
+        chart.frame,
+        Some(
+            chart
+                .category
+                .label
+                .as_deref()
+                .unwrap_or(&chart.category.field),
+        ),
+        ticks.as_ref(),
+    )?
     .plot;
     let mut items = Vec::with_capacity(dataset.rows.len());
     for row in &dataset.rows {
@@ -487,8 +527,6 @@ fn lower_bar(
             color_category: optional_category(row, chart.color.as_ref())?,
         });
     }
-    let raw = extent(&values);
-    let domain = nice_domain([raw[0].min(0.0), raw[1].max(0.0)], true);
     let mut scales = vec![
         MirScale::Band {
             id: format!("{}/category", chart.id),
@@ -529,6 +567,7 @@ fn lower_bar(
                     .clone()
                     .unwrap_or_else(|| chart.category.field.clone()),
                 orient: GuideOrient::Bottom,
+                number_format: chart.category.number_format().copied(),
             },
             MirGuide {
                 id: format!("{}/guides/value-axis", chart.id),
@@ -540,6 +579,7 @@ fn lower_bar(
                     .clone()
                     .unwrap_or_else(|| chart.value.field.clone()),
                 orient: GuideOrient::Left,
+                number_format: chart.value.number_format().copied(),
             },
         ],
         mark: ChartMark::Bar {
@@ -570,6 +610,7 @@ fn chart_guides(chart: &ScatterChart, color: Option<&ColorEncoding>) -> Vec<MirG
                 .clone()
                 .unwrap_or_else(|| chart.x.field.clone()),
             orient: GuideOrient::Bottom,
+            number_format: chart.x.number_format().copied(),
         },
         MirGuide {
             id: format!("{}/guides/y-axis", chart.id),
@@ -581,6 +622,7 @@ fn chart_guides(chart: &ScatterChart, color: Option<&ColorEncoding>) -> Vec<MirG
                 .clone()
                 .unwrap_or_else(|| chart.y.field.clone()),
             orient: GuideOrient::Left,
+            number_format: chart.y.number_format().copied(),
         },
     ];
     if let Some(color) = color {
@@ -590,6 +632,7 @@ fn chart_guides(chart: &ScatterChart, color: Option<&ColorEncoding>) -> Vec<MirG
             scale: format!("{}/color", chart.id),
             label: color.field.clone(),
             orient: GuideOrient::Right,
+            number_format: None,
         });
     }
     guides

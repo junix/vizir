@@ -82,6 +82,40 @@ vizir schema capability --output schemas/capability.schema.json
 
 Tests reject schema drift.
 
+## Numeric-guide extension in 0.2
+
+VizHIR and VizMIR 0.2 add typed, optional numeric-axis formatting without
+changing Scene2D, ScenePatch, or Capability versions. A HIR field encoding's
+`axis.number_format` lowers to the matching `MirGuide.number_format`. The
+format is `{notation, precision}`: `scientific` or `fixed`, with 0–12 decimal
+places. The format belongs to the guide, not the scale, data, or target
+backend. Direct VizMIR authors use the same contract and validation.
+
+Only an axis guide referencing a numeric linear scale may carry a format.
+Category axes and legends reject it. Guides resolve scales by their explicit
+`scale` references; scale ID spelling does not determine axis orientation or
+format. Mixed x/y notations are independent. Identical adjacent tick
+labels on an explicitly formatted axis produce `VIZ-FORMAT-0001`; the
+compiler does not silently increase precision. Scene2D receives final text and
+bounds; SVG and PNG do not reinterpret precision or infer a notation.
+
+Normalization and scene construction share deterministic numeric tick text and
+conservative text envelopes for charts with explicit formats. Their resolved
+scale ranges account for the resulting insets. Direct MIR must supply ranges
+consistent with those same layout constraints; stale ranges are diagnosed
+rather than letting marks drift away from their guides. A frame that cannot
+fit the full ticks is rejected instead of truncating, omitting, or shrinking
+labels. The layout guarantee concerns these deterministic envelopes, not
+backend-dependent font shaping.
+
+Both 0.1 and 0.2 documents remain accepted. Explicit axis options require HIR
+0.2, and an explicit `MirGuide.number_format` requires MIR 0.2. HIR 0.2 lowers
+to MIR 0.2 and preserves `source_hir_version`; HIR 0.1 still lowers to MIR 0.1.
+Omitted options serialize as absent, and unformatted documents retain their
+legacy text and layout. This wire compatibility is distinct from Rust source
+compatibility: existing `FieldEncoding` literals need `axis: None`, and
+existing `MirGuide` literals need `number_format: None`.
+
 ## Deliberate compatibility seam
 
 `MirView::{Chart, Diagram, Geometry}` and `ChartMark` remain a small static-2D

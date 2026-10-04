@@ -5,12 +5,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    Color, DiagramEdge, DiagramLayout, DiagramNode, FontWeight, Frame, PathCommand, Point,
-    SpatialUnit, TextAnchor, Transform2D, TypedExpression, ValueType,
+    Color, DiagramEdge, DiagramLayout, DiagramNode, FontWeight, Frame, NumberFormat, PathCommand,
+    Point, SpatialUnit, TextAnchor, Transform2D, TypedExpression, ValueType,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = versioned_mir_schema)]
 pub struct VizMir {
     pub version: String,
     pub source_hir_version: String,
@@ -157,12 +158,20 @@ impl MirScale {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = numeric_guide_schema)]
 pub struct MirGuide {
     pub id: String,
     pub kind: GuideKind,
     pub scale: String,
     pub label: String,
     pub orient: GuideOrient,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    #[schemars(with = "NumberFormat")]
+    pub number_format: Option<NumberFormat>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -392,6 +401,35 @@ pub struct LossRecord {
     pub target: String,
     pub fidelity: LoweringFidelity,
     pub reason: String,
+}
+
+fn numeric_guide_schema(schema: &mut schemars::Schema) {
+    schema.insert(
+        "allOf".to_owned(),
+        serde_json::json!([{
+            "if": { "required": ["number_format"] },
+            "then": { "properties": { "kind": { "const": "axis" } } }
+        }]),
+    );
+}
+
+// Structural version boundary complements validate_mir's semantic reference
+// checks. Keep this on the type so schema_for!(VizMir) has the same contract.
+fn versioned_mir_schema(schema: &mut schemars::Schema) {
+    schema
+        .as_object_mut()
+        .expect("VizMIR schema is an object")
+        .get_mut("properties")
+        .expect("VizMIR has properties")["version"]["enum"] = serde_json::json!(["0.1", "0.2"]);
+    schema.insert(
+        "allOf".to_owned(),
+        serde_json::json!([{
+            "if": { "properties": { "version": { "const": "0.1" } }, "required": ["version"] },
+            "then": { "properties": { "views": { "items": { "properties": {
+                "guides": { "items": { "not": { "required": ["number_format"] } } }
+            } } } } }
+        }]),
+    );
 }
 
 pub fn mir_schema() -> serde_json::Value {

@@ -41,6 +41,23 @@ cargo run -p vizir-cli -- render \
 Use `vizir explain <file> --node <stable-id>` to inspect why a Scene2D node
 exists, and `vizir capabilities <backend>` to inspect output support.
 
+### Numeric axes in VizHIR 0.2
+
+Use `version: "0.2"` and `axis.number_format: {notation: scientific, precision: 2}`
+on a numeric field encoding to request exact, locale-independent tick text.
+`fixed` notation and 0–12 decimal places are also supported. Different x/y
+policies lower to typed MIR guides, then ordinary Scene2D text. Full tick
+labels receive shared layout envelopes; ambiguous rounded labels or an
+impossible frame produce a diagnostic instead of changing precision or
+clipping text. Existing documents with no format keep their legacy formatting.
+
+See the [wire contract](docs/wire-format.md#numeric-axis-formats-in-02) and
+executable examples:
+
+- [Scientific magnitudes](examples/chart/scientific-magnitudes.viz.yaml)
+- [Measurement precision](examples/chart/measurement-precision.viz.yaml)
+- [Mixed axis formats](examples/chart/mixed-axis-formats.viz.yaml)
+
 ### Output path safety
 
 `normalize`, `lower`, and `render` reject an output that refers to their input.

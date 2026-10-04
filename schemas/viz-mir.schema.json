@@ -1203,6 +1203,22 @@
     },
     "MirGuide": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "number_format"
+            ]
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "const": "axis"
+              }
+            }
+          }
+        }
+      ],
       "properties": {
         "id": {
           "type": "string"
@@ -1212,6 +1228,9 @@
         },
         "label": {
           "type": "string"
+        },
+        "number_format": {
+          "$ref": "#/$defs/NumberFormat"
         },
         "orient": {
           "$ref": "#/$defs/GuideOrient"
@@ -1603,6 +1622,33 @@
           "type": "object"
         }
       ]
+    },
+    "NumberFormat": {
+      "additionalProperties": false,
+      "description": "Locale-independent numeric tick formatting; precision is decimal places.",
+      "properties": {
+        "notation": {
+          "$ref": "#/$defs/NumberNotation"
+        },
+        "precision": {
+          "format": "uint8",
+          "maximum": 12,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "notation",
+        "precision"
+      ],
+      "type": "object"
+    },
+    "NumberNotation": {
+      "enum": [
+        "scientific",
+        "fixed"
+      ],
+      "type": "string"
     },
     "PathCommand": {
       "oneOf": [
@@ -2002,6 +2048,39 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "version": {
+            "const": "0.1"
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "then": {
+        "properties": {
+          "views": {
+            "items": {
+              "properties": {
+                "guides": {
+                  "items": {
+                    "not": {
+                      "required": [
+                        "number_format"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "background": {
       "type": "string"
@@ -2041,6 +2120,10 @@
       "type": "object"
     },
     "version": {
+      "enum": [
+        "0.1",
+        "0.2"
+      ],
       "type": "string"
     },
     "views": {

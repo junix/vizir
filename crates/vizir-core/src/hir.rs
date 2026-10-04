@@ -104,6 +104,94 @@ pub struct FieldEncoding {
     pub field: String,
     #[serde(default)]
     pub label: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    pub axis: Option<AxisOptions>,
+}
+
+/// Opt-in axis semantics, available starting with VizHIR 0.2.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AxisOptions {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schemars(with = "NumberFormat")]
+    pub number_format: Option<NumberFormat>,
+}
+
+/// Locale-independent numeric tick formatting; precision is decimal places.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct NumberFormat {
+    pub notation: NumberNotation,
+    #[serde(deserialize_with = "deserialize_precision")]
+    #[schemars(range(min = 0, max = 12))]
+    pub precision: u8,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum NumberNotation {
+    Scientific,
+    Fixed,
+}
+
+// JSON Schema integers include integral numeric spellings such as 2.0 and
+// 2e0. Preserve the typed u8 API while accepting those equivalent values;
+// semantic validation still supplies the precise 0..=12 diagnostic.
+fn deserialize_precision<'de, D>(deserializer: D) -> Result<u8, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct PrecisionVisitor;
+    impl serde::de::Visitor<'_> for PrecisionVisitor {
+        type Value = u8;
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("an integer-valued precision number")
+        }
+        fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<u8, E> {
+            u8::try_from(value)
+                .map_err(|_| E::custom("precision is outside the supported integer range"))
+        }
+        fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<u8, E> {
+            u8::try_from(value)
+                .map_err(|_| E::custom("precision is outside the supported integer range"))
+        }
+        fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<u8, E> {
+            if value.is_finite() && value.fract() == 0.0 && (0.0..=255.0).contains(&value) {
+                Ok(value as u8)
+            } else {
+                Err(E::custom(
+                    "precision must be a finite integer-valued number in the supported integer range",
+                ))
+            }
+        }
+    }
+    deserializer.deserialize_any(PrecisionVisitor)
+}
+
+// Optional means absent, not an explicit null carrying no semantics. This also
+// keeps generated schemas aligned with the strict wire reader.
+pub(crate) fn deserialize_present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
+
+impl FieldEncoding {
+    pub fn number_format(&self) -> Option<&NumberFormat> {
+        self.axis
+            .as_ref()
+            .and_then(|axis| axis.number_format.as_ref())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -404,4 +492,57 @@ pub enum FontWeight {
     Regular,
     Medium,
     Bold,
+}
+
+#[cfg(test)]
+mod number_format_tests {
+    use super::*;
+
+    #[test]
+    fn json_and_yaml_integral_precision_spellings_are_equivalent() {
+        for (spelling, expected) in [
+            ("0", 0),
+            ("0.0", 0),
+            ("-0.0", 0),
+            ("2", 2),
+            ("2.0", 2),
+            ("2e0", 2),
+            ("12.0", 12),
+        ] {
+            let json = format!(r#"{{"notation":"fixed","precision":{spelling}}}"#);
+            let yaml = format!("notation: fixed\nprecision: {spelling}\n");
+            for format in [
+                serde_json::from_str::<NumberFormat>(&json).unwrap(),
+                serde_yaml::from_str::<NumberFormat>(&yaml).unwrap(),
+            ] {
+                assert_eq!(format.precision, expected, "{spelling}");
+                let canonical = serde_json::to_value(format).unwrap();
+                assert_eq!(canonical["precision"].as_u64(), Some(u64::from(expected)));
+                assert!(!canonical["precision"].is_f64());
+            }
+        }
+    }
+
+    #[test]
+    fn precision_rejects_nonintegral_nonnumeric_and_nonfinite_input() {
+        for spelling in [
+            "2.5", "-1", "-1.0", "256", "256.0", "true", "false", "null", "\"2\"", "NaN",
+            "Infinity",
+        ] {
+            let json = format!(r#"{{"notation":"fixed","precision":{spelling}}}"#);
+            assert!(
+                serde_json::from_str::<NumberFormat>(&json).is_err(),
+                "{spelling}"
+            );
+        }
+        for spelling in [
+            "2.5", "-1.0", "256.0", "true", "null", "\"2\"", ".nan", ".inf", "-.inf",
+        ] {
+            let yaml = format!("notation: fixed\nprecision: {spelling}\n");
+            assert!(
+                serde_yaml::from_str::<NumberFormat>(&yaml).is_err(),
+                "{spelling}"
+            );
+        }
+    }
 }

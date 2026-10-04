@@ -31,14 +31,14 @@ pub fn parse_document(path: impl AsRef<Path>) -> VizResult<Document> {
 pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
-    if document.version != "0.1" {
+    if !matches!(document.version.as_str(), "0.1" | "0.2") {
         diagnostics.push(
             Diagnostic::new(
                 "VIZ-SCHEMA-0001",
                 format!("unsupported VizHIR version {:?}", document.version),
             )
             .at("version")
-            .with_help("use version \"0.1\" or run a schema migration"),
+            .with_help("use version \"0.1\" or \"0.2\""),
         );
     }
 
@@ -94,6 +94,20 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
         validate_frame(view.frame(), &format!("{source}.frame"), &mut diagnostics);
         match view {
             View::Scatter(chart) => {
+                validate_axis_options(
+                    document,
+                    &chart.x,
+                    true,
+                    &format!("{source}.x.axis"),
+                    &mut diagnostics,
+                );
+                validate_axis_options(
+                    document,
+                    &chart.y,
+                    true,
+                    &format!("{source}.y.axis"),
+                    &mut diagnostics,
+                );
                 validate_chart_fields(
                     document,
                     &chart.dataset,
@@ -118,6 +132,20 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
                 );
             }
             View::Line(chart) => {
+                validate_axis_options(
+                    document,
+                    &chart.x,
+                    true,
+                    &format!("{source}.x.axis"),
+                    &mut diagnostics,
+                );
+                validate_axis_options(
+                    document,
+                    &chart.y,
+                    true,
+                    &format!("{source}.y.axis"),
+                    &mut diagnostics,
+                );
                 validate_chart_fields(
                     document,
                     &chart.dataset,
@@ -142,6 +170,20 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
                 );
             }
             View::Bar(chart) => {
+                validate_axis_options(
+                    document,
+                    &chart.category,
+                    false,
+                    &format!("{source}.category.axis"),
+                    &mut diagnostics,
+                );
+                validate_axis_options(
+                    document,
+                    &chart.value,
+                    true,
+                    &format!("{source}.value.axis"),
+                    &mut diagnostics,
+                );
                 validate_chart_fields(
                     document,
                     &chart.dataset,
@@ -250,9 +292,60 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
     }
 }
 
+fn validate_axis_options(
+    document: &Document,
+    encoding: &crate::FieldEncoding,
+    numeric: bool,
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(axis) = &encoding.axis else {
+        return;
+    };
+    if document.version != "0.2" {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-SCHEMA-0002",
+                "axis options require VizHIR version \"0.2\"",
+            )
+            .at(source)
+            .with_help("set version to \"0.2\" to enable number_format"),
+        );
+    }
+    if let Some(format) = &axis.number_format {
+        let source = format!("{source}.number_format");
+        validate_number_format(format, &source, diagnostics);
+        if !numeric {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-TYPE-0108",
+                    "number_format is supported only on numeric axes, not categorical axes",
+                )
+                .at(source),
+            );
+        }
+    }
+}
+
+fn validate_number_format(
+    format: &crate::NumberFormat,
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if format.precision > 12 {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-TYPE-0107",
+                "number_format precision must be between 0 and 12 decimal places",
+            )
+            .at(format!("{source}.precision")),
+        );
+    }
+}
+
 pub fn validate_mir(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    if mir.version != "0.1" {
+    if !matches!(mir.version.as_str(), "0.1" | "0.2") {
         diagnostics.push(
             Diagnostic::new(
                 "VIZ-MIR-0001",
@@ -409,6 +502,33 @@ fn validate_mir_chart(
         );
     }
     for (index, guide) in chart.guides.iter().enumerate() {
+        if let Some(format) = &guide.number_format {
+            let format_source = format!("{source}.guides[{index}].number_format");
+            if mir.version != "0.2" {
+                diagnostics.push(
+                    Diagnostic::new(
+                        "VIZ-MIR-0007",
+                        "number_format requires VizMIR version \"0.2\"",
+                    )
+                    .at(&format_source),
+                );
+            }
+            validate_number_format(format, &format_source, diagnostics);
+            if guide.kind != crate::GuideKind::Axis
+                || !chart
+                    .scales
+                    .iter()
+                    .any(|scale| matches!(scale, MirScale::Linear { id, .. } if id == &guide.scale))
+            {
+                diagnostics.push(
+                    Diagnostic::new(
+                        "VIZ-TYPE-0108",
+                        "number_format is supported only on numeric axes with linear scales",
+                    )
+                    .at(&format_source),
+                );
+            }
+        }
         if !scale_ids.contains(guide.scale.as_str()) {
             diagnostics.push(
                 Diagnostic::new(

@@ -1,5 +1,7 @@
 use vizir_core::{Frame, MirScale, Point};
 
+use crate::tick_format::NumericTickLabels;
+
 /// Deterministic header allocation, shared by MIR scale resolution and Scene2D.
 /// These are conservative advance estimates for the default sans-serif stack,
 /// not font shaping or measured glyph bounds. Non-ASCII code points (including
@@ -34,6 +36,72 @@ pub(crate) struct ChartLayout {
 }
 
 impl ChartLayout {
+    /// Reserve the same conservative envelopes used for emitted numeric text.
+    /// Keep legacy 0.1/absent-format charts byte-identical by opting in explicitly.
+    pub fn with_numeric_ticks(
+        mut self,
+        id: &str,
+        frame: Frame,
+        x_title: Option<&str>,
+        ticks: Option<&NumericTickLabels>,
+    ) -> Result<Self, String> {
+        let Some(ticks) = ticks else {
+            return Ok(self);
+        };
+        let fail = |detail: String| {
+            format!(
+                "VIZ-LAYOUT-0006: chart {id:?} {detail}; enlarge its frame or choose a shorter number_format"
+            )
+        };
+        let x_widths = ticks
+            .x
+            .iter()
+            .map(|text| header_text_width(text, 11.0))
+            .collect::<Vec<_>>();
+        let y_width = ticks
+            .y
+            .iter()
+            .map(|text| header_text_width(text, 11.0))
+            .fold(0.0, f64::max);
+        let left = 64.0_f64
+            .max(if ticks.y.is_empty() {
+                0.0
+            } else {
+                y_width + 18.0
+            })
+            .max(x_widths.first().copied().unwrap_or(0.0) / 2.0 + 8.0);
+        let right = 30.0_f64.max(x_widths.last().copied().unwrap_or(0.0) / 2.0 + 8.0);
+        self.plot[0] = frame.x + left;
+        self.plot[2] = frame.x + frame.width - right;
+        let required_width = x_widths
+            .windows(2)
+            .map(|pair| ((pair[0] + pair[1]) / 2.0 + 8.0) * 5.0)
+            .fold(64.0, f64::max);
+        let required_height = if ticks.y.is_empty() {
+            64.0
+        } else {
+            (11.0 * 1.25 + 4.0) * 5.0
+        };
+        let width = self.plot[2] - self.plot[0];
+        let height = self.plot[3] - self.plot[1];
+        if width < required_width || height < required_height {
+            return Err(fail(format!(
+                "numeric tick labels need a {required_width:.1}px by {required_height:.1}px plot after {left:.1}px/{right:.1}px insets, but only {width:.1}px by {height:.1}px is available"
+            )));
+        }
+        if let Some(title) = x_title {
+            let center = (self.plot[0] + self.plot[2]) / 2.0 - frame.x;
+            let available = 2.0 * center.min(frame.width - center) - 16.0;
+            let needed = header_text_width(title, 12.5);
+            if needed > available {
+                return Err(fail(format!(
+                    "x-axis title needs {needed:.1}px after numeric tick allocation, but only {available:.1}px is available"
+                )));
+            }
+        }
+        Ok(self)
+    }
+
     pub fn new(
         id: &str,
         frame: Frame,

@@ -1,0 +1,35 @@
+version: "0.2"
+id: measurement-precision
+width: 800
+height: 480
+background: transparent
+
+datasets:
+  samples:
+    key: sample_id
+    rows:
+      - {sample_id: s0, second: 0, reading: 0.119}
+      - {sample_id: s1, second: 1, reading: 0.122}
+      - {sample_id: s2, second: 2, reading: 0.121}
+      - {sample_id: s3, second: 3, reading: 0.126}
+      - {sample_id: s4, second: 4, reading: 0.124}
+      - {sample_id: s5, second: 5, reading: 0.123}
+
+views:
+  - kind: chart.line
+    id: precision-trace
+    title: Small changes, consistent decimal precision
+    frame: {x: 0, y: 0, width: 800, height: 480}
+    dataset: samples
+    x:
+      field: second
+      label: elapsed time (s)
+      axis:
+        number_format: {notation: fixed, precision: 1}
+    y:
+      field: reading
+      label: sensor reading (V)
+      axis:
+        number_format: {notation: fixed, precision: 3}
+    line_width: 3
+    show_points: true

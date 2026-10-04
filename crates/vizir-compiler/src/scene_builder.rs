@@ -9,6 +9,7 @@ use vizir_core::{
 
 use crate::chart_layout::{ChartLayout, header_text_width, legend_domain};
 use crate::layout::{LayeredLayoutProvider, LayoutProvider};
+use crate::tick_format::{NumericTickLabels, format_number};
 
 const INK: &str = "#1C2736";
 const MUTED: &str = "#596579";
@@ -17,6 +18,7 @@ const BLUE: &str = "#3B6EF5";
 const SURFACE: &str = "#F7F9FC";
 
 pub fn build_scene(mir: &VizMir) -> VizResult<Scene2D> {
+    vizir_core::validate_mir(mir).map_err(|diagnostics| VizError::validation(&diagnostics))?;
     let mut nodes = Vec::new();
     for view in &mir.views {
         nodes.push(match view {
@@ -38,6 +40,17 @@ pub fn build_scene(mir: &VizMir) -> VizResult<Scene2D> {
 fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
     let mut children = Vec::new();
     let guides = ChartGuides::resolve(chart)?;
+    let ticks = NumericTickLabels::new(
+        guides.bottom.and_then(|(guide, scale)| match scale {
+            MirScale::Linear { domain, .. } => Some((*domain, guide.number_format.as_ref())),
+            _ => None,
+        }),
+        guides.left.and_then(|(guide, scale)| match scale {
+            MirScale::Linear { domain, .. } => Some((*domain, guide.number_format.as_ref())),
+            _ => None,
+        }),
+    )
+    .map_err(VizError::Diagnostic)?;
     // Static 0.1 line/bar MIR may omit a legend guide. Preserve that legacy
     // implicit legend, but an explicit guide always owns its scale and layout.
     let legend_scale = guides.legend.map(|(_, scale)| scale).or_else(|| {
@@ -58,6 +71,13 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
         guides.bottom.map(|(guide, _)| guide.label.as_str()),
         guides.left.map(|(guide, _)| guide.label.as_str()),
         legend_domain(legend_scale),
+    )
+    .map_err(VizError::Diagnostic)?
+    .with_numeric_ticks(
+        &chart.id,
+        chart.frame,
+        guides.bottom.map(|(guide, _)| guide.label.as_str()),
+        ticks.as_ref(),
     )
     .map_err(VizError::Diagnostic)?;
     let plot = layout.plot;
@@ -94,7 +114,7 @@ fn build_chart(chart: &MirChart) -> VizResult<SceneNode> {
     // serialized MIR may differ from recomputed layout by a rounding bit.
     let plot = [x_range[0], y_range[1], x_range[1], y_range[0]];
     guides.check_ranges(chart, plot)?;
-    children.extend(build_grid_and_axes(chart, plot, &guides));
+    children.extend(build_grid_and_axes(chart, plot, &guides, ticks.as_ref()));
     match &chart.mark {
         ChartMark::Symbol {
             id: mark_id,
@@ -439,6 +459,7 @@ fn build_grid_and_axes(
     chart: &MirChart,
     plot: [f64; 4],
     guides: &ChartGuides<'_>,
+    ticks: Option<&NumericTickLabels>,
 ) -> Vec<SceneNode> {
     let mut nodes = Vec::new();
     let x_scale = guides.bottom.map(|(_, scale)| scale);
@@ -460,19 +481,24 @@ fn build_grid_and_axes(
             ));
             if let Some(MirScale::Linear { domain, .. }) = y_scale {
                 let value = domain[1] + (domain[0] - domain[1]) * fraction;
-                nodes.push(text_node(
-                    format!("{}/axis/y/label/{index}", chart.id),
-                    Point {
-                        x: plot[0] - 10.0,
-                        y: y + 4.0,
-                    },
-                    format_number(value),
-                    11.0,
-                    TextAnchor::End,
-                    Color::hex(MUTED),
-                    FontWeight::Regular,
-                    &chart.id,
-                    "tick label generated from linear scale domain",
+                nodes.push(numeric_tick_envelope(
+                    text_node(
+                        format!("{}/axis/y/label/{index}", chart.id),
+                        Point {
+                            x: plot[0] - 10.0,
+                            y: y + 4.0,
+                        },
+                        ticks
+                            .map(|ticks| ticks.y[index].clone())
+                            .unwrap_or_else(|| format_number(value, None)),
+                        11.0,
+                        TextAnchor::End,
+                        Color::hex(MUTED),
+                        FontWeight::Regular,
+                        &chart.id,
+                        "tick label generated from linear scale domain",
+                    ),
+                    ticks,
                 ));
             }
         }
@@ -513,19 +539,24 @@ fn build_grid_and_axes(
             ));
             if let Some(MirScale::Linear { domain, .. }) = x_scale {
                 let value = domain[0] + (domain[1] - domain[0]) * fraction;
-                nodes.push(text_node(
-                    format!("{}/axis/x/label/{index}", chart.id),
-                    Point {
-                        x,
-                        y: plot[3] + 20.0,
-                    },
-                    format_number(value),
-                    11.0,
-                    TextAnchor::Middle,
-                    Color::hex(MUTED),
-                    FontWeight::Regular,
-                    &chart.id,
-                    "tick label generated from linear scale domain",
+                nodes.push(numeric_tick_envelope(
+                    text_node(
+                        format!("{}/axis/x/label/{index}", chart.id),
+                        Point {
+                            x,
+                            y: plot[3] + 20.0,
+                        },
+                        ticks
+                            .map(|ticks| ticks.x[index].clone())
+                            .unwrap_or_else(|| format_number(value, None)),
+                        11.0,
+                        TextAnchor::Middle,
+                        Color::hex(MUTED),
+                        FontWeight::Regular,
+                        &chart.id,
+                        "tick label generated from linear scale domain",
+                    ),
+                    ticks,
                 ));
             }
         }
@@ -1300,14 +1331,10 @@ fn bounds_for_points(points: &[Point]) -> Rect {
     }
 }
 
-fn format_number(value: f64) -> String {
-    if value.abs() >= 1000.0 {
-        format!("{:.1}k", value / 1000.0)
-    } else if value.fract().abs() < 0.001 {
-        format!("{value:.0}")
-    } else if value.abs() < 10.0 {
-        format!("{value:.1}")
+fn numeric_tick_envelope(node: SceneNode, ticks: Option<&NumericTickLabels>) -> SceneNode {
+    if ticks.is_some() {
+        header_text_envelope(node)
     } else {
-        format!("{value:.0}")
+        node
     }
 }

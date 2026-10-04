@@ -1,0 +1,34 @@
+version: "0.2"
+id: mixed-axis-formats
+width: 800
+height: 480
+background: transparent
+
+datasets:
+  samples:
+    key: sample_id
+    rows:
+      - {sample_id: s0, fraction: 0.00, residual: -2.0e9}
+      - {sample_id: s1, fraction: 0.20, residual: -1.0e9}
+      - {sample_id: s2, fraction: 0.40, residual: 0}
+      - {sample_id: s3, fraction: 0.60, residual: 2.0e9}
+      - {sample_id: s4, fraction: 0.80, residual: 3.0e9}
+      - {sample_id: s5, fraction: 1.00, residual: 5.0e9}
+
+views:
+  - kind: chart.scatter
+    id: mixed-formats
+    title: One chart, independently formatted axes
+    frame: {x: 0, y: 0, width: 800, height: 480}
+    dataset: samples
+    x:
+      field: fraction
+      label: mixture fraction
+      axis:
+        number_format: {notation: fixed, precision: 2}
+    y:
+      field: residual
+      label: signed residual (arbitrary units)
+      axis:
+        number_format: {notation: scientific, precision: 2}
+    point_size: 8
