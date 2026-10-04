@@ -8,7 +8,7 @@ target_dir := env("CARGO_TARGET_DIR", justfile_directory() / "target")
 stamp := `git rev-parse --short HEAD` + `(git diff --quiet && git diff --cached --quiet) >/dev/null 2>&1 || printf .dirty`
 
 build:
-    PM_BUILD_SHA="g{{stamp}}" cargo build --release -p vizir-cli
+    PM_BUILD_SHA="g{{stamp}}" cargo build --release -p vizir-cli --bins
 
 test:
     cargo test --workspace
@@ -44,8 +44,7 @@ inspect:
 
 install: build
     mkdir -p "{{ install_bin }}"
-    @set -eu; dest="{{ install_bin }}/vizir"; mkdir -p "$(dirname "$dest")"; tmp="$(mktemp "{{ install_bin }}/.vizir.XXXXXX")"; trap 'rm -f "$tmp"' EXIT; cp "{{ target_dir }}/release/vizir" "$tmp"; chmod 755 "$tmp"; if [ "$(uname -s)" = "Darwin" ]; then xattr -c "$tmp" 2>/dev/null || true; codesign --force --sign - "$tmp"; fi; mv -f "$tmp" "$dest"
-    @echo "installed {{ install_bin }}/vizir"
+    @set -eu; for name in vizir plot-provider-vizir; do dest="{{ install_bin }}/$name"; mkdir -p "$(dirname "$dest")"; tmp="$(mktemp "{{ install_bin }}/.$name.XXXXXX")"; trap 'rm -f "$tmp"' EXIT; cp "{{ target_dir }}/release/$name" "$tmp"; chmod 755 "$tmp"; if [ "$(uname -s)" = "Darwin" ]; then xattr -c "$tmp" 2>/dev/null || true; codesign --force --sign - "$tmp"; fi; mv -f "$tmp" "$dest"; echo "installed $dest"; done
 
 # Composition is an independent source contract; emit HIR before rendering it.
 composition-demo:

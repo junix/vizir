@@ -418,3 +418,12 @@ wrap and center their complete measured blocks inside the existing nodes.
 See [the mixed-role composition](examples/composition/wrapped-diagram-nodes.compose.yaml),
 [explicit policy](examples/text/diagram-node-layout.json), and
 [wrapping contract](docs/wrapping.md#selected-diagram-node-labels-vizir-text-wrap4).
+
+## Prepared-bundle provider
+
+The optional [native compiled SVG provider](docs/plot-provider.md),
+`plot-provider-vizir`, replays a complete measured MIR 0.4 bundle with explicit
+raw resource pins and emits SVG plus a mandatory path-free native receipt.
+It reuses the existing compiler/backend; independent Hub receipt verification
+is a separate integration requirement. Build/install now includes both binaries;
+`cargo run -p vizir-cli -- ...` continues to select `vizir`.

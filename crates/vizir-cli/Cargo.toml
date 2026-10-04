@@ -1,5 +1,6 @@
 [package]
 name = "vizir-cli"
+default-run = "vizir"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,6 +9,10 @@ license.workspace = true
 [[bin]]
 name = "vizir"
 path = "src/main.rs"
+
+[[bin]]
+name = "plot-provider-vizir"
+path = "src/provider_main.rs"
 
 [dependencies]
 clap.workspace = true

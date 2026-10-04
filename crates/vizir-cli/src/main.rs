@@ -18,6 +18,7 @@ mod input;
 mod paths;
 mod process;
 mod publication;
+mod resource_io;
 
 #[derive(Debug, Parser)]
 #[command(name = "vizir", version = version(), about = "Compile semantic visualization IR")]
