@@ -19,6 +19,33 @@ const MAX_PROFILE_BYTES: usize = 256 * 1024;
 const MAX_PINS_BYTES: usize = 4 * 1024;
 const MAX_FONT_TOTAL_BYTES: usize = 96 * 1024 * 1024;
 
+/// Explicit, non-overlapping version contracts sharing the same verified I/O.
+#[derive(Clone, Copy)]
+pub(crate) enum Profile {
+    V1,
+    V2,
+}
+impl Profile {
+    pub(crate) fn ir_version(self) -> &'static str {
+        match self {
+            Self::V1 => "0.4",
+            Self::V2 => "0.5",
+        }
+    }
+    pub(crate) fn implementation(self) -> &'static str {
+        match self {
+            Self::V1 => super::PROFILE,
+            Self::V2 => super::PROFILE_V2,
+        }
+    }
+    pub(crate) fn receipt_schema(self) -> &'static str {
+        match self {
+            Self::V1 => "vizir.render-receipt/v1",
+            Self::V2 => "vizir.render-receipt/v2",
+        }
+    }
+}
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Options {
     pub input: PathBuf,
@@ -223,6 +250,14 @@ fn check_output_size(bytes: usize) -> VizResult<()> {
 }
 
 pub(crate) fn run(options: Options) -> VizResult<()> {
+    run_with_profile(options, Profile::V1)
+}
+
+pub(crate) fn run_v2(options: Options) -> VizResult<()> {
+    run_with_profile(options, Profile::V2)
+}
+
+fn run_with_profile(options: Options, profile: Profile) -> VizResult<()> {
     if options.font_3.is_some() && options.font_2.is_none() {
         return Err(error("font slots must be contiguous from font_1"));
     }
@@ -292,14 +327,15 @@ pub(crate) fn run(options: Options) -> VizResult<()> {
         }
     }
     if mir.format != COMPILED_MIR_FORMAT
-        || mir.mir.version != "0.4"
-        || mir.mir.source_hir_version != "0.4"
+        || mir.mir.version != profile.ir_version()
+        || mir.mir.source_hir_version != profile.ir_version()
         || mir.context.theme.is_none()
         || mir.context.text.is_none()
     {
-        return Err(error(
-            "require compiled-MIR/1 with matching MIR/HIR 0.4, canonical theme and measured text",
-        ));
+        return Err(error(format!(
+            "require compiled-MIR/1 with matching MIR/HIR {}, canonical theme and measured text",
+            profile.ir_version()
+        )));
     }
     let text = parse_text_context_json(&resource("text_profile").bytes)?;
     if mir.context.text.as_ref() != Some(&text) {
@@ -343,6 +379,7 @@ pub(crate) fn run(options: Options) -> VizResult<()> {
     let svg = vizir_backend_svg::render(&compilation.scene)?;
     check_output_size(svg.len())?;
     let receipt = super::provider_receipt::build(
+        profile,
         resources.iter().map(Resource::receipt).collect(),
         &compilation.mir,
         &compilation.scene,

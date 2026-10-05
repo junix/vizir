@@ -130,7 +130,8 @@ HIR/MIR 0.5 adds optional `value_labels: {}` for every present cell; composition
 0.4 emits that version. Numeric labels preserve typed Int64 precision, use exact
 cell-fill contrast, and fail if fixed-size text cannot fit. Missing pairs remain
 empty. The direct CLI and measured-font paths share the existing renderer.
-Hub-v1 remains 0.4-only.
+The original provider v1 remains 0.4-only; separate provider v2 replays exact
+measured 0.5 bundles (see [native provider contracts](docs/plot-provider.md)).
 
 Existing HIR/MIR 0.1–0.4 and composition 0.1–0.3 keep their versioned contracts.
 New runtime enum variants may require updates to exhaustive Rust matches; use
@@ -429,7 +430,9 @@ See [the mixed-role composition](examples/composition/wrapped-diagram-nodes.comp
 ## Prepared-bundle provider
 
 The optional [native compiled SVG provider](docs/plot-provider.md),
-`plot-provider-vizir`, replays a complete measured MIR 0.4 bundle with explicit
+`plot-provider-vizir`, replays a complete measured MIR 0.4 bundle via
+`render-compiled-svg`, or a MIR 0.5 bundle via the separate
+`render-compiled-svg-v2` command, with explicit
 raw resource pins and emits SVG plus a mandatory path-free native receipt.
 It reuses the existing compiler/backend; independent Hub receipt verification
 is a separate integration requirement. Build/install now includes both binaries;

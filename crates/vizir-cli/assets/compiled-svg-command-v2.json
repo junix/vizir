@@ -1,0 +1,236 @@
+{
+  "name": "render-compiled-svg-v2",
+  "capability_id": "visualization.vizir.render-compiled-svg-v2",
+  "title": "Render prepared VizIR 0.5 with exact heatmap labels",
+  "description": "Render a local persisted vizir-compiled-mir/1 document with matching MIR/HIR 0.5, including exact optional heatmap value labels, canonical theme, explicit measured fonts and native wrapping; validate saved caches without refresh and publish outlined SVG plus a mandatory path-free versioned fidelity receipt.",
+  "primitive": "render",
+  "input_kinds": [
+    "json"
+  ],
+  "output_kinds": [
+    "svg",
+    "json"
+  ],
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "description": "Read the complete local vizir-compiled-mir/1 JSON envelope with matching MIR/HIR 0.5 from this explicit path confined to its bundle directory, limited to 32 MiB.",
+        "x-acme-role": "input-file"
+      },
+      "text_profile": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "description": "Read the exact source text profile from this explicit local path confined to the compiled input bundle directory, limited to 256 KiB, and require typed equality with persisted context.text.",
+        "x-acme-role": "input-file"
+      },
+      "text_layout": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "description": "Read the optional exact source wrapping policy from this explicit local path confined to the compiled input bundle directory, limited to 256 KiB, and require typed equality with persisted context.text_layout.",
+        "x-acme-role": "input-file"
+      },
+      "font_1": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "description": "Read the first explicitly supplied font file from this explicit local path confined to the compiled input bundle directory, limited to 32 MiB.",
+        "x-acme-role": "input-file"
+      },
+      "font_2": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "description": "Read the optional second explicitly supplied font file from this explicit local path confined to the compiled input bundle directory, limited to 32 MiB.",
+        "x-acme-role": "input-file"
+      },
+      "font_3": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "description": "Read the optional third explicitly supplied font file from this explicit local path confined to the compiled input bundle directory, limited to 32 MiB.",
+        "x-acme-role": "input-file"
+      },
+      "resource_pins": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Pin the exact bytes of the explicit local input resource with lowercase SHA-256."
+          },
+          "text_profile": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Pin the exact bytes of the explicit local text_profile resource with lowercase SHA-256."
+          },
+          "text_layout": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Pin the exact bytes of the explicit local text_layout resource with lowercase SHA-256."
+          },
+          "font_1": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Pin the exact bytes of the explicit local font_1 resource with lowercase SHA-256."
+          },
+          "font_2": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Pin the exact bytes of the explicit local font_2 resource with lowercase SHA-256."
+          },
+          "font_3": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Pin the exact bytes of the explicit local font_3 resource with lowercase SHA-256."
+          }
+        },
+        "required": [
+          "input",
+          "text_profile",
+          "font_1"
+        ],
+        "additionalProperties": false,
+        "description": "Bind each supplied input-file role to its expected SHA-256, with exactly the same role set and no resource paths."
+      },
+      "output": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Write the primary outlined SVG to this explicit local .svg destination, which the Hub may stage before publication.",
+        "x-acme-role": "output-file"
+      },
+      "receipt": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Write the mandatory local path-free vizir.render-receipt/v2 JSON with source version 0.5, primary artifact identity, exact input hashes, full native context, capability decisions and ordered loss records.",
+        "x-acme-role": "output-file",
+        "x-acme-receipt-core": {
+          "schema_version": "plot.artifact-receipt-core/v1",
+          "primary_argument": "output",
+          "artifact_id": "figure",
+          "role": "primary"
+        }
+      }
+    },
+    "required": [
+      "input",
+      "text_profile",
+      "font_1",
+      "resource_pins",
+      "output",
+      "receipt"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Locate the local primary SVG artifact published by the Hub after verification."
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "svg"
+        ],
+        "description": "Identify SVG as the verified local primary artifact encoding."
+      }
+    },
+    "required": [
+      "path",
+      "kind"
+    ],
+    "additionalProperties": false
+  },
+  "suggested_command_path": [
+    "visualization",
+    "vizir",
+    "render-compiled-svg-v2"
+  ],
+  "side_effects": {
+    "reads_files": true,
+    "writes_files": true,
+    "creates_artifacts": true,
+    "network": false,
+    "data_egress": false,
+    "downloads_models": false,
+    "uses_gpu": false,
+    "mutates_index": false,
+    "opens_viewer": false
+  },
+  "availability": {
+    "available": true
+  },
+  "determinism": {
+    "level": "environment-dependent",
+    "notes": "Deterministic replay is scoped to the same provider build, exact compiled input and resource bytes; this profile makes no cross-build, cross-platform or cross-provider byte/pixel parity promise."
+  },
+  "cli_spec": {
+    "subcommand": [
+      "render-compiled-svg-v2"
+    ],
+    "positionals": [
+      "input"
+    ],
+    "flags": [
+      {
+        "name": "text_profile",
+        "flag": "--text-profile",
+        "kind": "string",
+        "order": 10
+      },
+      {
+        "name": "text_layout",
+        "flag": "--text-layout",
+        "kind": "string",
+        "order": 20,
+        "optional": true
+      },
+      {
+        "name": "font_1",
+        "flag": "--font-1",
+        "kind": "string",
+        "order": 30
+      },
+      {
+        "name": "font_2",
+        "flag": "--font-2",
+        "kind": "string",
+        "order": 40,
+        "optional": true
+      },
+      {
+        "name": "font_3",
+        "flag": "--font-3",
+        "kind": "string",
+        "order": 50,
+        "optional": true
+      },
+      {
+        "name": "resource_pins",
+        "flag": "--resource-pins",
+        "kind": "json",
+        "order": 60
+      },
+      {
+        "name": "output",
+        "flag": "--output",
+        "kind": "string",
+        "order": 70
+      },
+      {
+        "name": "receipt",
+        "flag": "--receipt",
+        "kind": "string",
+        "order": 80
+      }
+    ]
+  }
+}

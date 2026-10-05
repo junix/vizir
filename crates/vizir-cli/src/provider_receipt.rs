@@ -98,6 +98,7 @@ fn serialize_checked(receipt: &Receipt, limit: usize) -> VizResult<Vec<u8>> {
 }
 
 pub(crate) fn build(
+    profile: super::provider_render::Profile,
     inputs: Vec<InputReceipt>,
     mir: &CompiledMir,
     scene: &Scene2D,
@@ -105,8 +106,8 @@ pub(crate) fn build(
     svg: &[u8],
 ) -> VizResult<Vec<u8>> {
     let receipt = Receipt {
-        schema_version: "vizir.render-receipt/v1".into(),
-        profile: super::PROFILE.into(),
+        schema_version: profile.receipt_schema().into(),
+        profile: profile.implementation().into(),
         provider: Provider {
             id: super::PROVIDER_ID.into(),
             version: super::version().into(),

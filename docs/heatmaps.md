@@ -309,6 +309,10 @@ vizir render /tmp/labels.mir.json --format png --background transparent -o /tmp/
 vizir explain /tmp/labels.mir.json --node coverage/cell-label/jobs-mon
 ```
 
-The published Hub-v1 provider descriptor/profile remains matching MIR/HIR 0.4
-only and rejects 0.5. This engine slice is available through direct CLI/Rust
-compilation; it does not widen request cards or add a Hub capability.
+The original provider descriptor/profile remains matching MIR/HIR 0.4 only
+and rejects 0.5. The separate native `render-compiled-svg-v2` capability replays
+matching MIR/HIR 0.5 with required exact measured-text resources and a closed
+`vizir.render-receipt/v2`; see [provider contracts](plot-provider.md). Direct CLI
+and Rust compilation retain their existing unmeasured and measured modes. A
+provider capability alone does not establish request-card routing or independent
+Hub verification.

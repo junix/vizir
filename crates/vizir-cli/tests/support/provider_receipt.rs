@@ -65,6 +65,42 @@ pub fn verify(
     native: &Value,
     provider_version: &str,
 ) -> Result<(), String> {
+    verify_contract(
+        receipt,
+        resources,
+        svg,
+        native,
+        provider_version,
+        ("0.4", "vizir.render-receipt/v1", "vizir-compiled-svg/1"),
+    )
+}
+
+pub fn verify_v2(
+    receipt: &[u8],
+    resources: &BTreeMap<String, Vec<u8>>,
+    svg: &[u8],
+    native: &Value,
+    provider_version: &str,
+) -> Result<(), String> {
+    verify_contract(
+        receipt,
+        resources,
+        svg,
+        native,
+        provider_version,
+        ("0.5", "vizir.render-receipt/v2", "vizir-compiled-svg/2"),
+    )
+}
+
+fn verify_contract(
+    receipt: &[u8],
+    resources: &BTreeMap<String, Vec<u8>>,
+    svg: &[u8],
+    native: &Value,
+    provider_version: &str,
+    contract: (&str, &str, &str),
+) -> Result<(), String> {
+    let (source_version, receipt_schema, profile) = contract;
     if receipt.len() > 8 * 1024 * 1024 {
         return Err("receipt budget".into());
     }
@@ -80,9 +116,9 @@ pub fn verify(
     let compiled = parse_compiled_mir_json(&resources["input"]).map_err(|e| e.to_string())?;
     let core = &r.artifact_receipt;
     let p = &core.primary;
-    if r.schema_version != "vizir.render-receipt/v1"
-        || r.profile != "vizir-compiled-svg/1"
-        || r.source_ir_version != "0.4"
+    if r.schema_version != receipt_schema
+        || r.profile != profile
+        || r.source_ir_version != source_version
         || r.source_context_format != "vizir-compiled-mir/1"
         || r.compilation_context.theme.is_none()
         || r.compilation_context.text.is_none()

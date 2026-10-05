@@ -1,8 +1,19 @@
 # Native compiled SVG provider
 
-The second binary in `vizir-cli`, `plot-provider-vizir`, offers the fixed capability
-`visualization.vizir.render-compiled-svg-v1` with implementation profile
-`vizir-compiled-svg/1`. It directly links the existing compiler and SVG backend.
+The second binary in `vizir-cli`, `plot-provider-vizir`, offers two disjoint local
+capabilities through the same existing compiler, SVG backend and bounded I/O:
+
+- `render-compiled-svg`: capability `visualization.vizir.render-compiled-svg-v1`,
+  profile `vizir-compiled-svg/1`, matching MIR/HIR **0.4 only**, receipt
+  `vizir.render-receipt/v1`
+- `render-compiled-svg-v2`: capability `visualization.vizir.render-compiled-svg-v2`,
+  profile `vizir-compiled-svg/2`, matching MIR/HIR **0.5 only**, receipt
+  `vizir.render-receipt/v2`
+
+The v1 command descriptor, input/output schemas, receipt schema, and rendering
+behavior remain unchanged. The new command explicitly adds 0.5 replay; neither
+command guesses a version or accepts future versions. The original `vizir` CLI
+and omitted-label behavior are unchanged.
 It does not import data, discover fonts, download resources, use a browser,
 rewrite source, rematerialize stale caches, or change layout policy.
 
@@ -33,8 +44,10 @@ reads, need not exist on a deployment machine, and is absent from receipts.
 Doctor reports only readiness of the built-in renderer; it cannot
 verify resources that have not been supplied.
 
-The immutable command contract is
+The immutable v1 command contract is
 [`compiled-svg-command-v1.json`](../crates/vizir-cli/assets/compiled-svg-command-v1.json).
+The separate 0.5 command contract is
+[`compiled-svg-command-v2.json`](../crates/vizir-cli/assets/compiled-svg-command-v2.json).
 Every actual source file is an explicit, top-level `x-acme-role: input-file`.
 The receipt output declares the fixed `x-acme-receipt-core` relation metadata.
 These fields do not imply that an arbitrary consumer already supports them.
@@ -49,13 +62,13 @@ plot-provider-vizir render-compiled-svg INPUT \
 ```
 
 - Input must be a complete `vizir-compiled-mir/1` envelope with both MIR and
-  source HIR version `0.4`, a valid canonical theme, and exact measured text
+  source HIR version `0.4` for v1 or `0.5` for v2, a valid canonical theme, and exact measured text
   `vizir-text-outlines/1`. HIR, bare MIR, theme-only context and null context
   placeholders are rejected
 - `text_profile` is required and its strictly parsed typed value must equal
   persisted `context.text`. An explicit `text_layout` file is required if and
   only if persisted `context.text_layout` exists, with full typed equality.
-  Native wrapping profiles `vizir-text-wrap/1` through `/4` are supported
+  Native wrapping profiles `vizir-text-wrap/1` through `/4` are supported by both commands
 - One to three contiguous font slots have a distinct SHA256 set exactly equal
   to the profile's face SHA256 set. A collection used for multiple faces is
   supplied once. Missing, duplicate, surplus, malformed or wrong-weight faces
@@ -84,6 +97,22 @@ each font 32 MiB and total fonts 96 MiB; SVG 32 MiB; receipt 8 MiB. The existing
 native traversal, materialization, shaping, outline, collision and text-fit
 limits still apply. Output loss records are never truncated to fit a budget.
 
+## Exact 0.5 label replay
+
+Use `render-compiled-svg-v2` with the same explicit argument names above for a
+prepared MIR/HIR 0.5 bundle. Optional heatmap `value_labels` follow the existing
+[native label contract](heatmaps.md#optional-present-cell-value-labels-in-05).
+No new label engine or layout policy is introduced. `compile_compiled_mir` runs
+with refresh disabled, so authoritative typed values, label keys/text/order/count,
+measured fonts, exact wrapping policies and native fit/contrast/resource limits
+are checked before either output is published. Stale or invalid caches fail;
+the provider never repairs them.
+
+CSV is imported and normalized by the existing CLI before provider execution;
+the provider reads only the prepared compiled document and its declared text
+resources. Exact Int64 label digits, present zero cells, and missing category
+pairs retain the native engine's semantics. There is no CSV path discovery.
+
 ## Path-free receipt and publication
 
 Both SVG and receipt are mandatory. They are completely rendered, typed,
@@ -96,7 +125,12 @@ its guarantee. Existing multiply linked outputs retain shared identity via the
 same established publication semantics as the main CLI.
 
 [`render-receipt.schema.json`](../schemas/render-receipt.schema.json) describes
-`vizir.render-receipt/v1`. The typed receipt includes:
+`vizir.render-receipt/v1`, closed to source 0.4. The separate
+[`render-receipt-v2.schema.json`](../schemas/render-receipt-v2.schema.json)
+describes `vizir.render-receipt/v2`, closed to source 0.5 and profile
+`vizir-compiled-svg/2`. Its native context, capability and loss payloads remain
+complete. The generic `plot.artifact-receipt-core/v1` relation is unchanged in
+both receipts. Each typed receipt includes:
 
 - Exact provider ID/version and implementation profile
 - `artifact_receipt` with fixed schema `plot.artifact-receipt-core/v1`, sorted
@@ -124,4 +158,9 @@ Provider tests use explicitly illustrative source and the checked-in small,
 licensed test font subsets. They verify raw pins, typed context, direct-native
 SVG byte parity, complete context/loss/capability equality, path-free copied-only
 replay, resource/destination alias rejection, limits and preserved old outputs.
+Both profiles run the same resource, alias, limits, copied-bundle, wrapping
+and failure-preservation suite. The 0.5 cases additionally cover inline and
+explicit typed CSV labels, sparse zeros, Int64 extrema, contrast, and stale
+label-cache mutations. Byte-pinned tests protect the old descriptor and receipt
+schema, while cross-version and future-version cases verify disjoint admission.
 The fixtures do not claim to be production fonts or the user's own data.
