@@ -1661,7 +1661,7 @@ impl TextSession {
         for view in self.title_targets.keys() {
             if !found.contains(view) {
                 return Err(text_layout::error(format!(
-                    "chart.title target {view:?} must name one existing title in a bar, line or scatter source view, an area source view under HIR/MIR 0.3/0.4, or a heatmap under HIR/MIR 0.4"
+                    "chart.title target {view:?} must name one existing title in a bar, line or scatter source view, an area source view under HIR/MIR 0.3/0.4/0.5, or a heatmap under HIR/MIR 0.4/0.5"
                 )));
             }
         }
@@ -3008,6 +3008,15 @@ impl OutlinePen for Pen {
         self.current = self.start;
         self.push(PathCommand::Close);
     }
+}
+
+/// Count bytes through a bounded sink before publishing a serialized artifact.
+pub(crate) fn check_serialized_output<T: serde::Serialize>(
+    value: &T,
+    limit: usize,
+) -> VizResult<()> {
+    serde_json::to_writer_pretty(OutputBudget(limit), value)
+        .map_err(|_| error("0003", "serialized output exceeds the output-byte limit"))
 }
 
 struct OutputBudget(usize);

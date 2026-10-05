@@ -1,4 +1,4 @@
-# Categorical heatmaps in VizHIR 0.4
+# Categorical heatmaps in VizHIR 0.4 and 0.5
 
 `chart.heatmap` maps two string categories to a rectangle and one numeric value
 to a quantized color. It is an explicit, keyed matrix contract: it does not
@@ -42,7 +42,7 @@ string `domain`. `color` requires `field` and optionally accepts `label`, a
 numeric two-endpoint `domain`, a `palette` of 2–9 portable colors, and
 `number_format: {notation: fixed|scientific, precision: 0..12}`. Omit optional
 fields rather than assigning `null`. Unknown options fail, including numeric
-axis options on the category encodings and unsupported aggregation, cell-label,
+axis options on the category encodings and unsupported aggregation, 0.4 cell-label,
 interpolation, and padding controls.
 
 ### Categories, values, and identity
@@ -210,9 +210,9 @@ SVG and PNG consume the same resolved scene.
 
 ## Version and Rust source compatibility
 
-Heatmaps require HIR/MIR 0.4; old 0.1, 0.2, and 0.3 documents retain their exact
+Unlabeled heatmaps require HIR/MIR 0.4 or 0.5; old 0.1, 0.2, and 0.3 documents retain their exact
 wire contracts and schema definition closures. The existing themed/compiled
-context envelope names remain at version 1, with matching 0.4 MIR/source pairs.
+context envelope names remain at version 1, with matching MIR/source pairs.
 There is no new theme envelope or implicit canvas paint.
 
 New runtime enum variants, including `View::Heatmap`, `ChartMark::Heatmap`,
@@ -227,4 +227,88 @@ root schema APIs, or
 composition version; the existing V1 APIs remain 0.1-to-HIR-0.2 adapters.
 
 This unit does not add CSV ingestion, request cards, aggregation, clustering,
-cell text, continuous color interpolation, or category/legend wrapping.
+continuous color interpolation, or category/legend wrapping.
+Optional value labels below are a separate 0.5 capability; 0.4 still rejects them.
+
+
+## Optional present-cell value labels in 0.5
+
+Use HIR/MIR `0.5`, or composition `vizir-composition/0.4`, and add a closed
+`value_labels` object to a heatmap chart/panel:
+
+```yaml
+value_labels: {}
+# Or request exact decimal places and an explicit opaque text color:
+# value_labels:
+#   number_format: {notation: fixed, precision: 0}
+#   color: "#000000"
+```
+
+Omitting the object preserves the existing scene and target bytes. Empty `{}`
+enables automatic numeric formatting and contrast. `number_format` uses the
+existing fixed/scientific notation and 0–12 decimal-place precision, independently
+of `color.number_format` (the legend). Both fields are optional, but explicit
+null, unknown properties, templates, `show_labels`, and arbitrary authored label
+text are rejected. HIR/MIR 0.1–0.4 and composition 0.1–0.3 retain their closed
+contracts and full schema reference closures.
+
+Every present cell gets exactly one label from the value driving its color
+expression, before quantization. Zero is `0`; a missing pair still has neither
+rectangle nor label. The MIR keeps `MirHeatmapCell` unchanged and adds a mark-level
+`value_labels` object with optional format/color plus ordered `instances` of
+`{key, text}`. This is a checked derived cache: replay rejects text, key, order,
+or count tampering. Refresh regenerates it from typed source values while keeping
+explicit scales and plan options. Scene IDs are `<view-id>/cell-label/<row-key>`;
+HIR/MIR identity, data key, lineage, and numeric text survive measured outlining.
+
+Automatic Int64 labels retain every integer digit, including values above 2^53
+and both i64 extrema. Fixed Int64 format appends the requested decimal zeros;
+scientific Int64 format uses exact decimal round-to-nearest, ties-to-even, with
+carry and sign handling. Default Float64 labels use shortest round-tripping
+spelling, never abbreviations or rounding that hides a finite nonzero value.
+Explicit Float64 format retains existing numeric formatter rounding. Displayed
+negative zero is normalized; original source/cache numeric bits are retained.
+
+The exact value is the evaluated typed number, not lexical JSON spelling. Mixed
+Int64/Float64 columns infer Float64; digits already lost by that conversion are
+not recoverable. Explicit CSV Float64 conversion is the same authoritative
+boundary. Keep large exact integers in Int64 columns when their digits matter.
+
+Text is centered at a fixed 12 Scene2D units, regular weight, single line, with
+4 units of padding on each cell edge. The existing supplied-font pipeline
+measures logical-plus-ink bounds and outlines that same face. Legacy text uses
+the existing conservative envelope. Both check each actual four-decimal cell
+rectangle and fail the whole compilation if any label cannot fit, identifying
+the chart and row key. There is no shrinking, clipping, wrapping, pruning, or
+silent disappearance. Axes and legend geometry stay unchanged.
+
+Automatic contrast compares black and white using linearized sRGB relative
+luminance of the exact resolved palette color (ties choose black). Opaque
+`#RRGGBB` and `#RRGGBBFF` are supported. For automatic contrast all palette
+entries must be opaque, including unused bins. Transparent/translucent entries require an
+explicit opaque `value_labels.color`; no canvas or embedding background is
+assumed. An explicit color is the author's choice, not a guarantee of contrast.
+
+Labeled compilations additionally cap all charts together at 4,096 generated
+labels, 512 UTF-8 bytes per label, and 1 MiB of label text. Source and stale-cache
+counts are checked before cloning. Measured mode retains all existing text,
+glyph, outline, cache, operation and output budgets; repeated measurements count
+even on cache hits, so 4,096 is a ceiling rather than promised measured capacity.
+MIR, Scene and SVG publication is bounded to 32 MiB in legacy labeled mode too.
+SVG streams through the existing emitter into a bounded writer; PNG retains its
+existing pixel/decoded-byte limits and transactional publication.
+
+Run the existing commands, with the same optional text profile/font arguments:
+
+```sh
+vizir validate examples/chart/labeled-heatmap.viz.yaml
+vizir normalize examples/chart/labeled-heatmap.viz.yaml --theme sage -o /tmp/labels.mir.json
+vizir lower /tmp/labels.mir.json -o /tmp/labels.scene.json
+vizir render /tmp/labels.mir.json --format svg -o /tmp/labels.svg
+vizir render /tmp/labels.mir.json --format png --background transparent -o /tmp/labels.png
+vizir explain /tmp/labels.mir.json --node coverage/cell-label/jobs-mon
+```
+
+The published Hub-v1 provider descriptor/profile remains matching MIR/HIR 0.4
+only and rejects 0.5. This engine slice is available through direct CLI/Rust
+compilation; it does not widen request cards or add a Hub capability.

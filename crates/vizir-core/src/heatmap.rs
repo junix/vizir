@@ -9,6 +9,64 @@ pub const MAX_HEATMAP_CELLS_PER_CALL: usize = 65_536;
 pub const MAX_HEATMAP_LABEL_BYTES: usize = 16_384;
 pub const MAX_HEATMAP_DOMAIN_BYTES: usize = 1_048_576;
 pub const MAX_HEATMAP_GRID_CELLS: usize = 65_536;
+/// Opted-in numeric label limits, independent of older category-label limits.
+pub const MAX_HEATMAP_VALUE_LABELS: usize = 4_096;
+pub const MAX_HEATMAP_VALUE_LABEL_BYTES: usize = 512;
+pub const MAX_HEATMAP_VALUE_LABEL_TOTAL_BYTES: usize = 1_048_576;
+
+/// Portable opaque RGB, including the equivalent explicit FF alpha spelling.
+pub fn heatmap_opaque_rgb(color: &crate::Color) -> Option<[u8; 3]> {
+    let value = color.0.as_bytes();
+    if !matches!(value.len(), 7 | 9)
+        || value[0] != b'#'
+        || !value[1..].iter().all(u8::is_ascii_hexdigit)
+        || (value.len() == 9 && !value[7..].eq_ignore_ascii_case(b"ff"))
+    {
+        return None;
+    }
+    Some([
+        u8::from_str_radix(&color.0[1..3], 16).ok()?,
+        u8::from_str_radix(&color.0[3..5], 16).ok()?,
+        u8::from_str_radix(&color.0[5..7], 16).ok()?,
+    ])
+}
+
+/// Reserve a whole-call label count before allocating or cloning caches.
+pub fn reserve_heatmap_value_labels(total: &mut usize, count: usize) -> VizResult<()> {
+    *total = total
+        .checked_add(count)
+        .ok_or_else(|| invalid("value label count overflow"))?;
+    if *total > MAX_HEATMAP_VALUE_LABELS {
+        return Err(invalid(
+            "heatmap value_labels exceed 4096 labels per compilation",
+        ));
+    }
+    Ok(())
+}
+
+/// Check a generated or supplied label before copying it.
+pub fn reserve_heatmap_value_label_bytes(total: &mut usize, text: &str) -> VizResult<()> {
+    if text.len() > MAX_HEATMAP_VALUE_LABEL_BYTES {
+        return Err(invalid("heatmap value label exceeds 512 UTF-8 bytes"));
+    }
+    *total = total
+        .checked_add(text.len())
+        .ok_or_else(|| invalid("value label byte count overflow"))?;
+    if *total > MAX_HEATMAP_VALUE_LABEL_TOTAL_BYTES {
+        return Err(invalid(
+            "heatmap value labels exceed 1048576 UTF-8 bytes per compilation",
+        ));
+    }
+    Ok(())
+}
+
+/// Whether compilation opted into bounded present-cell value labels.
+pub fn has_heatmap_value_labels(mir: &crate::VizMir) -> bool {
+    mir.views.iter().any(|view| {
+        matches!(view, crate::MirView::Chart(chart)
+        if matches!(chart.mark, crate::ChartMark::Heatmap { value_labels: Some(_), .. }))
+    })
+}
 
 fn invalid(message: &str) -> VizError {
     VizError::Diagnostic(format!("VIZ-HEATMAP-0001: {message}"))

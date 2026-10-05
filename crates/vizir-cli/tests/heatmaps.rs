@@ -910,3 +910,135 @@ fn native_heatmap_png_has_transparent_and_visible_pixels_when_renderer_is_availa
     assert!(pixels.as_chunks::<4>().0.iter().any(|p| p[3] > 0));
     assert_clean(dir.path());
 }
+
+#[test]
+fn labeled_v05_runs_direct_commands_and_measured_replay_without_new_routes() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("labels.json");
+    let mut authored = source();
+    authored["version"] = "0.5".into();
+    authored["views"][0]["color"]["palette"] = json!(["#112233", "#AABBCC"]);
+    authored["views"][0]["value_labels"] = json!({});
+    write(&input, &authored);
+    success(run(&["validate", path(&input)], &[]));
+    let mir = value(&success(run(&["normalize", path(&input)], &[])));
+    assert_eq!(mir["version"], "0.5");
+    assert_eq!(mir["source_hir_version"], "0.5");
+    assert_eq!(
+        mir["views"][0]["mark"]["value_labels"]["instances"],
+        json!([
+            {"key":"api-tue","text":"10"}, {"key":"jobs-mon","text":"0"}, {"key":"api-mon","text":"20"}
+        ])
+    );
+    let scene = value(&success(run(&["lower", path(&input)], &[])));
+    let mut all = Vec::new();
+    flatten(scene["nodes"].as_array().unwrap(), &mut all);
+    assert_eq!(
+        all.iter()
+            .filter(|node| node["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("chart/cell-label/")))
+            .count(),
+        3
+    );
+    let svg = dir.path().join("labels.svg");
+    success(run(
+        &["render", path(&input), "--format", "svg", "-o", path(&svg)],
+        &[],
+    ));
+    let xml = fs::read_to_string(&svg).unwrap();
+    let parsed = roxmltree::Document::parse(&xml).unwrap();
+    assert_eq!(
+        parsed
+            .descendants()
+            .filter(|node| node.has_tag_name("text")
+                && node
+                    .attribute("id")
+                    .is_some_and(|id| id.starts_with("chart/cell-label/")))
+            .count(),
+        3
+    );
+    let explanation = String::from_utf8(success(run(
+        &[
+            "explain",
+            path(&input),
+            "--node",
+            "chart/cell-label/jobs-mon",
+        ],
+        &[],
+    )))
+    .unwrap();
+    assert!(explanation.contains("authoritative typed numeric value label: 0"));
+    let (profile, fonts) = measured(dir.path());
+    let compiled = dir.path().join("compiled.json");
+    success(run(
+        &[
+            "normalize",
+            path(&input),
+            "--theme",
+            "sage",
+            "--text-profile",
+            path(&profile),
+            "-o",
+            path(&compiled),
+        ],
+        &fonts,
+    ));
+    let direct = success(run(
+        &[
+            "lower",
+            path(&input),
+            "--theme",
+            "sage",
+            "--text-profile",
+            path(&profile),
+        ],
+        &fonts,
+    ));
+    assert_eq!(direct, success(run(&["lower", path(&compiled)], &fonts)));
+    let envelope = value(&fs::read(&compiled).unwrap());
+    for version in ["0.1", "0.2", "0.3", "0.4"] {
+        let mut older = envelope.clone();
+        older["mir"]["version"] = version.into();
+        older["mir"]["source_hir_version"] = version.into();
+        write(&compiled, &older);
+        rejected(run(&["lower", path(&compiled)], &fonts));
+    }
+    assert_clean(dir.path());
+}
+
+#[test]
+fn labeled_fit_failure_preserves_artifact_and_manifest_transactionally() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("labels.json");
+    let mut authored = source();
+    authored["version"] = "0.5".into();
+    authored["views"][0]["value_labels"] =
+        json!({"number_format":{"notation":"fixed","precision":12},"color":"#000000"});
+    authored["views"][0]["x"]["domain"] = json!([
+        "Mon", "Tue", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J"
+    ]);
+    write(&input, &authored);
+    let svg = dir.path().join("existing.svg");
+    let manifest = dir.path().join("existing.manifest.json");
+    fs::write(&svg, b"existing svg").unwrap();
+    fs::write(&manifest, b"existing manifest").unwrap();
+    let output = run(
+        &[
+            "render",
+            path(&input),
+            "--format",
+            "svg",
+            "--output",
+            path(&svg),
+            "--manifest",
+            path(&manifest),
+        ],
+        &[],
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("does not fit"));
+    rejected(output);
+    assert_eq!(fs::read(&svg).unwrap(), b"existing svg");
+    assert_eq!(fs::read(&manifest).unwrap(), b"existing manifest");
+    assert_clean(dir.path());
+}

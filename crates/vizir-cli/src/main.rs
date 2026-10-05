@@ -183,11 +183,7 @@ fn run(cli: Cli) -> VizResult<()> {
             let document = input::read(&input, theme, text)?;
             document.check_destinations(&input, output.as_deref(), None)?;
             let compilation = document.compile(true)?;
-            let limit = compilation
-                .mir
-                .context()
-                .and_then(|context| context.text.as_ref())
-                .map(|_| vizir_compiler::TEXT_MAX_OUTPUT_BYTES);
+            let limit = compilation_output_limit(&compilation);
             emit_json_with_limit(&compilation.mir, output.as_deref(), limit)?;
         }
         Commands::Lower {
@@ -199,7 +195,11 @@ fn run(cli: Cli) -> VizResult<()> {
             let document = input::read(&input, theme, text)?;
             document.check_destinations(&input, output.as_deref(), None)?;
             let compilation = document.compile(false)?;
-            emit_json(&compilation.scene, output.as_deref())?;
+            emit_json_with_limit(
+                &compilation.scene,
+                output.as_deref(),
+                compilation_output_limit(&compilation),
+            )?;
         }
         Commands::Render {
             input,
@@ -283,15 +283,8 @@ fn run(cli: Cli) -> VizResult<()> {
             let svg = if format == OutputFormat::Html {
                 String::new()
             } else {
-                vizir_backend_svg::render(&compilation.scene)?
+                render_svg_with_limit(&compilation.scene, compilation_output_limit(&compilation))?
             };
-            if compilation
-                .mir
-                .context()
-                .is_some_and(|context| context.text.is_some())
-            {
-                check_output_size(svg.len(), vizir_compiler::TEXT_MAX_OUTPUT_BYTES)?;
-            }
             let staged_output = publication::StagedFile::new(&output)?;
             let staged_manifest = manifest
                 .as_deref()
@@ -468,6 +461,75 @@ fn png_capabilities() -> BackendCapabilities {
     }
 }
 
+fn compilation_output_limit(compilation: &input::Compiled) -> Option<usize> {
+    (vizir_core::has_heatmap_value_labels(compilation.mir.inner())
+        || compilation
+            .mir
+            .context()
+            .is_some_and(|context| context.text.is_some()))
+    .then_some(vizir_compiler::TEXT_MAX_OUTPUT_BYTES)
+}
+
+fn output_limit_error() -> VizError {
+    VizError::Diagnostic("VIZ-TEXT-0003: serialized output exceeds the 32 MiB limit".into())
+}
+
+struct LimitedBytes {
+    bytes: Vec<u8>,
+    limit: Option<usize>,
+    refused: bool,
+}
+impl LimitedBytes {
+    fn new(limit: Option<usize>) -> Self {
+        Self {
+            bytes: Vec::new(),
+            limit,
+            refused: false,
+        }
+    }
+    fn refused(&self) -> bool {
+        self.refused
+    }
+}
+impl std::io::Write for LimitedBytes {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if self.refused()
+            || self.limit.is_some_and(|limit| {
+                self.bytes
+                    .len()
+                    .checked_add(bytes.len())
+                    .is_none_or(|size| size > limit)
+            })
+        {
+            self.refused = true;
+            return Err(std::io::Error::other("output limit"));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn render_svg_with_limit(scene: &vizir_core::Scene2D, limit: Option<usize>) -> VizResult<String> {
+    struct SvgWriter(LimitedBytes);
+    impl std::fmt::Write for SvgWriter {
+        fn write_str(&mut self, text: &str) -> std::fmt::Result {
+            std::io::Write::write_all(&mut self.0, text.as_bytes()).map_err(|_| std::fmt::Error)
+        }
+    }
+    let mut writer = SvgWriter(LimitedBytes::new(limit));
+    vizir_backend_svg::render_to(scene, &mut writer).map_err(|error| {
+        if writer.0.refused() {
+            output_limit_error()
+        } else {
+            error
+        }
+    })?;
+    Ok(String::from_utf8(writer.0.bytes).expect("SVG emitter produces UTF-8"))
+}
+
 fn emit_json<T: serde::Serialize>(value: &T, output: Option<&Path>) -> VizResult<()> {
     emit_json_with_limit(value, output, None)
 }
@@ -477,10 +539,15 @@ fn emit_json_with_limit<T: serde::Serialize>(
     output: Option<&Path>,
     limit: Option<usize>,
 ) -> VizResult<()> {
-    let rendered = serde_json::to_vec_pretty(value)?;
-    if let Some(limit) = limit {
-        check_output_size(rendered.len(), limit)?;
-    }
+    let mut writer = LimitedBytes::new(limit);
+    serde_json::to_writer_pretty(&mut writer, value).map_err(|error| {
+        if writer.refused() {
+            output_limit_error()
+        } else {
+            error.into()
+        }
+    })?;
+    let rendered = writer.bytes;
     if let Some(output) = output {
         let staged = publication::StagedFile::new(output)?;
         staged.write(&rendered)?;
@@ -488,16 +555,6 @@ fn emit_json_with_limit<T: serde::Serialize>(
         println!("emitted: {}", output.display());
     } else {
         println!("{}", String::from_utf8_lossy(&rendered));
-    }
-    Ok(())
-}
-
-fn check_output_size(bytes: usize, limit: usize) -> VizResult<()> {
-    if bytes > limit {
-        return Err(VizError::Diagnostic(format!(
-            "VIZ-TEXT-0003: measured serialized output exceeds the {} MiB limit",
-            limit / (1024 * 1024)
-        )));
     }
     Ok(())
 }
@@ -798,14 +855,41 @@ mod tests {
     use super::*;
 
     #[test]
+    fn bounded_svg_uses_identical_emitter_and_refuses_boundary_plus_one() {
+        let scene = vizir_core::Scene2D {
+            document_id: "bounded & exact".into(),
+            width: 10.,
+            height: 10.,
+            background: Color::transparent(),
+            nodes: Vec::new(),
+            losses: Vec::new(),
+        };
+        let legacy = vizir_backend_svg::render(&scene).unwrap();
+        assert_eq!(render_svg_with_limit(&scene, None).unwrap(), legacy);
+        assert_eq!(
+            render_svg_with_limit(&scene, Some(legacy.len())).unwrap(),
+            legacy
+        );
+        assert!(
+            render_svg_with_limit(&scene, Some(legacy.len() - 1))
+                .unwrap_err()
+                .to_string()
+                .contains("output")
+        );
+        let mut sink = LimitedBytes::new(Some(3));
+        std::io::Write::write_all(&mut sink, b"123").unwrap();
+        assert!(std::io::Write::write_all(&mut sink, b"4").is_err());
+        assert_eq!(sink.bytes, b"123");
+        assert!(sink.refused());
+    }
+
+    #[test]
     fn measured_output_limits_fail_before_publication() {
         let directory = tempfile::tempdir().unwrap();
         let output = directory.path().join("artifact.json");
         fs::write(&output, b"existing artifact").unwrap();
         let value = serde_json::json!({"payload": "text"});
         let bytes = serde_json::to_vec_pretty(&value).unwrap();
-        assert!(check_output_size(bytes.len(), bytes.len()).is_ok());
-        assert!(check_output_size(bytes.len() + 1, bytes.len()).is_err());
         let error = emit_json_with_limit(&value, Some(&output), Some(bytes.len() - 1)).unwrap_err();
         assert!(error.to_string().contains("VIZ-TEXT-0003"));
         assert_eq!(fs::read(&output).unwrap(), b"existing artifact");

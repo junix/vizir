@@ -111,7 +111,7 @@ its limits and the existing theme/measured-text workflow.
 
 Existing composition 0.1 continues to emit HIR 0.2.
 
-### Categorical heatmaps in VizHIR 0.4
+### Categorical heatmaps in VizHIR 0.4 and 0.5
 
 `chart.heatmap` uses string x/y categories and finite numeric color values.
 Explicit ordered category domains can reserve empty bands; missing pairs stay
@@ -119,13 +119,20 @@ empty, and present zero values keep their keyed rectangles. Quantized legends
 show numeric intervals, including exact threshold and constant-domain semantics.
 See [heatmap authoring, layout, limits, and replay](docs/heatmaps.md).
 
+- [Exact present-cell labels](examples/chart/labeled-heatmap.viz.yaml), using HIR 0.5
 - [Sparse matrix](examples/chart/sparse-heatmap.viz.yaml)
 - [Dense matrix](examples/chart/dense-heatmap.viz.yaml)
 - [Constant domain](examples/chart/constant-heatmap.viz.yaml)
 - [Mixed heatmap dashboard](examples/composition/heatmap-dashboard.compose.yaml),
   using `vizir-composition/0.3` to emit HIR 0.4
 
-Existing HIR/MIR 0.1–0.3 and composition 0.1–0.2 keep their versioned contracts.
+HIR/MIR 0.5 adds optional `value_labels: {}` for every present cell; composition
+0.4 emits that version. Numeric labels preserve typed Int64 precision, use exact
+cell-fill contrast, and fail if fixed-size text cannot fit. Missing pairs remain
+empty. The direct CLI and measured-font paths share the existing renderer.
+Hub-v1 remains 0.4-only.
+
+Existing HIR/MIR 0.1–0.4 and composition 0.1–0.3 keep their versioned contracts.
 New runtime enum variants may require updates to exhaustive Rust matches; use
 versioned root schemas for the new mark and panel variants.
 

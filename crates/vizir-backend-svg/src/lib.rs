@@ -87,6 +87,12 @@ pub fn render(scene: &Scene2D) -> VizResult<String> {
     Ok(output)
 }
 
+/// Stream ordinary SVG through the same renderer, allowing callers to bound output.
+/// This preserves the exact legacy `render` byte format.
+pub fn render_to(scene: &Scene2D, output: &mut impl Write) -> VizResult<()> {
+    render_into(scene, None, output)
+}
+
 /// Stream namespaced SVG to a caller-owned (optionally bounded) sink. This is
 /// the same primitive renderer as `render`, not a second rendering backend.
 /// A bounded runtime must preflight traversal depth before entering this API.

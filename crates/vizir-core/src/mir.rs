@@ -286,6 +286,13 @@ pub enum ChartMark {
         y: ScaleBinding,
         color: ScaleBinding,
         instances: Vec<MirHeatmapCell>,
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "crate::hir::deserialize_present"
+        )]
+        #[schemars(with = "MirHeatmapValueLabels")]
+        value_labels: Option<MirHeatmapValueLabels>,
     },
     Bar {
         id: String,
@@ -329,6 +336,36 @@ impl ChartMark {
             }
         }
     }
+}
+
+/// Plan options plus an ordered, derived cache checked against typed source values.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MirHeatmapValueLabels {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    #[schemars(with = "NumberFormat")]
+    pub number_format: Option<NumberFormat>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    #[schemars(with = "Color")]
+    pub color: Option<Color>,
+    #[schemars(length(max = 4096))]
+    pub instances: Vec<MirHeatmapValueLabel>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MirHeatmapValueLabel {
+    pub key: String,
+    #[schemars(length(max = 512))]
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -689,6 +726,106 @@ enum ChartMarkV04 {
 
 #[allow(dead_code)]
 #[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(transform = mir_v05_schema)]
+struct VizMirV05 {
+    pub version: String,
+    pub source_hir_version: String,
+    pub document_id: String,
+    pub width: f64,
+    pub height: f64,
+    pub background: Color,
+    pub spaces: BTreeMap<String, CoordinateSpace2D>,
+    pub data: BTreeMap<String, MirDataNode>,
+    pub expressions: BTreeMap<String, TypedExpression>,
+    pub views: Vec<MirViewV05>,
+    pub losses: Vec<LossRecord>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "dialect", rename_all = "kebab-case", deny_unknown_fields)]
+enum MirViewV05 {
+    Chart(Box<MirChartV05>),
+    Diagram(MirDiagram),
+    Geometry(MirGeometry),
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct MirChartV05 {
+    pub id: String,
+    pub title: Option<String>,
+    pub frame: Frame,
+    pub space: String,
+    pub source: String,
+    pub row_variable: String,
+    pub key_expression: String,
+    pub scales: Vec<MirScaleV04>,
+    pub guides: Vec<MirGuideV04>,
+    pub mark: ChartMarkV05,
+    pub provenance: Vec<String>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
+enum ChartMarkV05 {
+    Symbol {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: Option<ScaleBinding>,
+        size: f64,
+        instances: Vec<MirPointItem>,
+    },
+    Line {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: Option<ScaleBinding>,
+        group_expression: Option<String>,
+        order_expression: String,
+        line_width: f64,
+        show_points: bool,
+        series: Vec<MirSeries>,
+    },
+    Area {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: Option<ScaleBinding>,
+        group_expression: Option<String>,
+        order_expression: String,
+        baseline: f64,
+        series: Vec<MirSeries>,
+    },
+    Heatmap {
+        id: String,
+        x: ScaleBinding,
+        y: ScaleBinding,
+        color: ScaleBinding,
+        instances: Vec<MirHeatmapCell>,
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "crate::hir::deserialize_present"
+        )]
+        #[schemars(with = "MirHeatmapValueLabels")]
+        value_labels: Option<MirHeatmapValueLabels>,
+    },
+    Bar {
+        id: String,
+        category: ScaleBinding,
+        value: ScaleBinding,
+        color: Option<ScaleBinding>,
+        instances: Vec<MirBarItem>,
+    },
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
 #[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
 enum MirScaleV04 {
     Linear {
@@ -748,7 +885,8 @@ impl JsonSchema for VizMir {
         let legacy = VizMirLegacy::json_schema(generator);
         let current = generator.subschema_for::<VizMirV03>();
         let heatmap = generator.subschema_for::<VizMirV04>();
-        schemars::json_schema!({ "oneOf": [legacy, current, heatmap] })
+        let labels = generator.subschema_for::<VizMirV05>();
+        schemars::json_schema!({ "oneOf": [legacy, current, heatmap, labels] })
     }
 }
 
@@ -770,6 +908,16 @@ fn mir_v04_schema(schema: &mut schemars::Schema) {
         .expect("MIR schema properties");
     properties["version"]["const"] = "0.4".into();
     properties["source_hir_version"]["const"] = "0.4".into();
+}
+
+fn mir_v05_schema(schema: &mut schemars::Schema) {
+    let properties = schema
+        .as_object_mut()
+        .expect("MIR schema object")
+        .get_mut("properties")
+        .expect("MIR schema properties");
+    properties["version"]["const"] = "0.5".into();
+    properties["source_hir_version"]["const"] = "0.5".into();
 }
 
 fn numeric_guide_schema(schema: &mut schemars::Schema) {

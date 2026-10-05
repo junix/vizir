@@ -104,8 +104,10 @@ impl ThemedMir {
                 format!("unsupported themed MIR format {:?}", self.format),
             ));
         }
-        if !matches!(self.mir.version.as_str(), "0.1" | "0.2" | "0.3" | "0.4")
-            || self.mir.source_hir_version != self.mir.version
+        if !matches!(
+            self.mir.version.as_str(),
+            "0.1" | "0.2" | "0.3" | "0.4" | "0.5"
+        ) || self.mir.source_hir_version != self.mir.version
         {
             return Err(theme_error(
                 "0003",

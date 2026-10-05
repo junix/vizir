@@ -243,6 +243,65 @@
       ],
       "type": "object"
     },
+    "CompositionV4": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "default": "transparent",
+          "type": "string"
+        },
+        "datasets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Dataset"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/PanelLayout"
+        },
+        "panels": {
+          "items": {
+            "$ref": "#/$defs/PanelV04"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "schema": {
+          "const": "vizir-composition/0.4",
+          "type": "string"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema",
+        "id",
+        "width",
+        "height",
+        "layout",
+        "panels"
+      ],
+      "type": "object"
+    },
     "CompositionVersion": {
       "enum": [
         "vizir-composition/0.1",
@@ -641,6 +700,19 @@
           "type": "object"
         }
       ]
+    },
+    "HeatmapValueLabels": {
+      "additionalProperties": false,
+      "description": "Exact numeric labels for every present heatmap cell, starting in VizHIR 0.5.",
+      "properties": {
+        "color": {
+          "type": "string"
+        },
+        "number_format": {
+          "$ref": "#/$defs/NumberFormat"
+        }
+      },
+      "type": "object"
     },
     "NumberFormat": {
       "additionalProperties": false,
@@ -1554,6 +1626,337 @@
         }
       ]
     },
+    "PanelV04": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.scatter",
+              "type": "string"
+            },
+            "point_size": {
+              "default": 7.0,
+              "format": "double",
+              "type": "number"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.line",
+              "type": "string"
+            },
+            "line_width": {
+              "default": 2.5,
+              "format": "double",
+              "type": "number"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "show_points": {
+              "default": true,
+              "type": "boolean"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "baseline": {
+              "format": "double",
+              "type": "number"
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.area",
+              "type": "string"
+            },
+            "order": {
+              "$ref": "#/$defs/AreaOrder"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y",
+            "baseline",
+            "order"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/QuantizeColorEncoding"
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.heatmap",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value_labels": {
+              "$ref": "#/$defs/HeatmapValueLabels"
+            },
+            "x": {
+              "$ref": "#/$defs/CategoryEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/CategoryEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y",
+            "color"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.bar",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "category",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edges": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "diagram.graph",
+              "type": "string"
+            },
+            "layout": {
+              "$ref": "#/$defs/DiagramLayout",
+              "default": "layered"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "nodes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/GeometryNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "geometry.scene",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "children"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "PathCommand": {
       "oneOf": [
         {
@@ -1758,6 +2161,9 @@
     },
     {
       "$ref": "#/$defs/CompositionV3"
+    },
+    {
+      "$ref": "#/$defs/CompositionV4"
     }
   ],
   "title": "Composition"

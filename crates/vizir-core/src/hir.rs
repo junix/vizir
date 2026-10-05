@@ -376,6 +376,33 @@ pub struct HeatmapChart {
     pub x: CategoryEncoding,
     pub y: CategoryEncoding,
     pub color: QuantizeColorEncoding,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schemars(with = "HeatmapValueLabels")]
+    pub value_labels: Option<HeatmapValueLabels>,
+}
+
+/// Exact numeric labels for every present heatmap cell, starting in VizHIR 0.5.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct HeatmapValueLabels {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schemars(with = "NumberFormat")]
+    pub number_format: Option<NumberFormat>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    #[schemars(with = "Color")]
+    pub color: Option<Color>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

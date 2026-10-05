@@ -94,6 +94,8 @@ pub(crate) fn preflight_source(
     y: &CategoryEncoding,
     color: &QuantizeColorEncoding,
     total: &mut usize,
+    value_labels: Option<&crate::HeatmapValueLabels>,
+    label_total: &mut usize,
 ) -> Result<(), Diagnostic> {
     for encoding in [x, y] {
         label(encoding.label.as_deref().unwrap_or(&encoding.field))?;
@@ -117,6 +119,10 @@ pub(crate) fn preflight_source(
         return Ok(());
     };
     reserve(dataset.rows.len(), total)?;
+    if value_labels.is_some() {
+        crate::reserve_heatmap_value_labels(label_total, dataset.rows.len())
+            .map_err(|e| error(e.to_string()))?;
+    }
     if dataset.rows.is_empty() {
         return Err(error("heatmaps require nonempty data"));
     }
@@ -152,6 +158,32 @@ pub(crate) fn preflight_source(
     domain_pair(&sets[0], &sets[1])
 }
 
+fn validate_value_label_options(
+    format: Option<&crate::NumberFormat>,
+    color: Option<&crate::Color>,
+    palette: Option<&[crate::Color]>,
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(format) = format {
+        super::validate_number_format(format, &format!("{source}.number_format"), diagnostics);
+    }
+    if let Some(color) = color {
+        if crate::heatmap_opaque_rgb(color).is_none() {
+            diagnostics.push(
+                error("value_labels.color requires opaque #RRGGBB or #RRGGBBFF")
+                    .at(format!("{source}.color")),
+            );
+        }
+    } else if palette.is_some_and(|colors| {
+        colors
+            .iter()
+            .any(|color| crate::heatmap_opaque_rgb(color).is_none())
+    }) {
+        diagnostics.push(error("automatic value label contrast requires opaque cell fills; set value_labels.color to an opaque RGB color for transparent or translucent fills").at(source));
+    }
+}
+
 pub(crate) fn validate_source(
     document: &Document,
     chart: &HeatmapChart,
@@ -163,6 +195,15 @@ pub(crate) fn validate_source(
             .push(error("heatmap references an unknown dataset").at(format!("{source}.dataset")));
         return;
     };
+    if let Some(labels) = &chart.value_labels {
+        validate_value_label_options(
+            labels.number_format.as_ref(),
+            labels.color.as_ref(),
+            chart.color.palette.as_deref(),
+            &format!("{source}.value_labels"),
+            diagnostics,
+        );
+    }
     let mut pairs = BTreeSet::new();
     let mut minimum = f64::INFINITY;
     let mut maximum = f64::NEG_INFINITY;
@@ -231,6 +272,9 @@ pub(crate) fn validate_source(
 pub(crate) fn preflight_mir(mir: &VizMir) -> Result<(), Diagnostic> {
     let mut source_total = 0;
     let mut cache_total = 0;
+    let mut label_source_total = 0;
+    let mut label_cache_total = 0;
+    let mut label_bytes = 0;
     for (index, view) in mir.views.iter().enumerate() {
         let MirView::Chart(chart) = view else {
             continue;
@@ -247,7 +291,12 @@ pub(crate) fn preflight_mir(mir: &VizMir) -> Result<(), Diagnostic> {
                 );
             }
         }
-        let ChartMark::Heatmap { instances, .. } = &chart.mark else {
+        let ChartMark::Heatmap {
+            instances,
+            value_labels,
+            ..
+        } = &chart.mark
+        else {
             continue;
         };
         let rows = mir
@@ -258,6 +307,16 @@ pub(crate) fn preflight_mir(mir: &VizMir) -> Result<(), Diagnostic> {
             });
         reserve(rows, &mut source_total)?;
         reserve(instances.len(), &mut cache_total)?;
+        if let Some(labels) = value_labels {
+            crate::reserve_heatmap_value_labels(&mut label_source_total, rows)
+                .map_err(|e| error(e.to_string()))?;
+            crate::reserve_heatmap_value_labels(&mut label_cache_total, labels.instances.len())
+                .map_err(|e| error(e.to_string()))?;
+            for label in &labels.instances {
+                crate::reserve_heatmap_value_label_bytes(&mut label_bytes, &label.text)
+                    .map_err(|e| error(e.to_string()))?;
+            }
+        }
         for guide in &chart.guides {
             label(&guide.label)?;
         }
@@ -305,7 +364,14 @@ pub(crate) fn validate_chart(
     source: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let ChartMark::Heatmap { x, y, color, .. } = &chart.mark else {
+    let ChartMark::Heatmap {
+        x,
+        y,
+        color,
+        value_labels,
+        ..
+    } = &chart.mark
+    else {
         return;
     };
     // This slice emits absolute document-space rectangles. Until general
@@ -392,6 +458,19 @@ pub(crate) fn validate_chart(
         diagnostics.push(e.at(format!("{source}.scales")));
     }
     let color_scale = chart.scales.iter().find(|scale| scale.id() == color.scale);
+    if let Some(labels) = value_labels {
+        let palette = color_scale.and_then(|scale| match scale {
+            MirScale::QuantizeColor { range, .. } => Some(range.as_slice()),
+            _ => None,
+        });
+        validate_value_label_options(
+            labels.number_format.as_ref(),
+            labels.color.as_ref(),
+            palette,
+            &format!("{source}.mark.value_labels"),
+            diagnostics,
+        );
+    }
     if !matches!(color_scale, Some(MirScale::QuantizeColor { .. })) {
         diagnostics.push(
             error("heatmap color binding requires a quantize-color scale")

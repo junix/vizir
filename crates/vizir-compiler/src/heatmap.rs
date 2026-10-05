@@ -8,8 +8,15 @@ use vizir_core::{
 
 use crate::chart_layout::header_text_width;
 use crate::text::TextSession;
-use crate::tick_format::format_number;
+use crate::tick_format::format_exact_float;
 use crate::{ResolvedThemeDefaults, ThemeContext};
+
+pub(crate) fn check_mir_output(mir: &vizir_core::VizMir) -> VizResult<()> {
+    if vizir_core::has_heatmap_value_labels(mir) {
+        crate::text::check_serialized_output(mir, crate::TEXT_MAX_OUTPUT_BYTES)?;
+    }
+    Ok(())
+}
 
 pub(crate) fn error(detail: impl std::fmt::Display) -> VizError {
     VizError::Diagnostic(format!("VIZ-HEATMAP-0001: {detail}"))
@@ -200,14 +207,7 @@ impl IntervalLegend {
                 "stored quantitative thresholds differ from canonical intervals",
             ));
         }
-        let endpoint = |v: f64| {
-            let v = if v == 0. { 0. } else { v };
-            match format {
-                Some(format) => format_number(v, Some(format)),
-                None if v == 0. || (0.0001..1_000_000.).contains(&v.abs()) => v.to_string(),
-                None => format!("{v:e}"),
-            }
-        };
+        let endpoint = |v: f64| format_exact_float(v, format);
         if domain[0] == domain[1] {
             return Ok(Self {
                 labels: vec![format!("= {}", endpoint(domain[0]))],
@@ -275,6 +275,91 @@ pub(crate) fn label_bounds(
         width,
         height: size * 1.25,
     })
+}
+
+/// Black/white contrast from the exact resolved palette literal, never a host assumption.
+pub(crate) fn value_label_color(fill: &Color, explicit: Option<&Color>) -> VizResult<Color> {
+    if let Some(color) = explicit {
+        if vizir_core::heatmap_opaque_rgb(color).is_none() {
+            return Err(error(
+                "value_labels.color requires opaque #RRGGBB or #RRGGBBFF",
+            ));
+        }
+        return Ok(color.clone());
+    }
+    let rgb = vizir_core::heatmap_opaque_rgb(fill).ok_or_else(|| error(
+        "automatic value label contrast requires opaque cell fills; set value_labels.color to an opaque RGB color for transparent or translucent fills"))?;
+    let linear = |channel: u8| {
+        let c = f64::from(channel) / 255.;
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let luminance = 0.2126 * linear(rgb[0]) + 0.7152 * linear(rgb[1]) + 0.0722 * linear(rgb[2]);
+    let black = (luminance + 0.05) / 0.05;
+    let white = 1.05 / (luminance + 0.05);
+    Ok(Color::hex(if black >= white {
+        "#000000"
+    } else {
+        "#FFFFFF"
+    }))
+}
+
+/// Center full logical-plus-ink bounds at fixed size, then test the actual wire
+/// projection against this cell alone. This does not enter guide collision work.
+pub(crate) fn value_label_geometry(
+    chart: &str,
+    key: &str,
+    source: &str,
+    cell: Rect,
+    text: Option<&TextSession>,
+) -> VizResult<(Point, Rect)> {
+    const SIZE: f64 = 12.;
+    const PAD: f64 = 4.;
+    let measure = |position| {
+        label_bounds(
+            source,
+            SIZE,
+            FontWeight::Regular,
+            position,
+            TextAnchor::Middle,
+            text,
+        )
+    };
+    let metric = measure(Point::default())?;
+    let position = Point {
+        x: serialized(cell.x + cell.width / 2. - (metric.x + metric.width / 2.)),
+        y: serialized(cell.y + cell.height / 2. - (metric.y + metric.height / 2.)),
+    };
+    let bounds = measure(position)?;
+    let left = serialized(bounds.x);
+    let top = serialized(bounds.y);
+    let right = serialized(bounds.x + bounds.width);
+    let bottom = serialized(bounds.y + bounds.height);
+    if left < serialized(cell.x + PAD)
+        || top < serialized(cell.y + PAD)
+        || right > serialized(cell.x + cell.width - PAD)
+        || bottom > serialized(cell.y + cell.height - PAD)
+    {
+        return Err(error(format!(
+            "chart {chart:?}, row key {key:?}: value label {source:?} does not fit cell {} x {}; required bounds {} x {} plus 4 units padding on each side; enlarge the frame or choose a more compact number_format",
+            cell.width,
+            cell.height,
+            right - left,
+            bottom - top
+        )));
+    }
+    Ok((
+        position,
+        Rect {
+            x: left,
+            y: top,
+            width: right - left,
+            height: bottom - top,
+        },
+    ))
 }
 
 pub(crate) struct HeatmapLayout {
@@ -604,5 +689,81 @@ mod tests {
             precision: 12,
         };
         assert!(IntervalLegend::new(&scale, Some(&format)).is_err());
+    }
+}
+
+#[cfg(test)]
+mod value_label_tests {
+    use super::*;
+    #[test]
+    fn pinned_contrast_arithmetic_and_explicit_alpha_behavior() {
+        for (fill, expected) in [
+            ("#E6EEE9", "#000000"),
+            ("#B8D0C3", "#000000"),
+            ("#83AF9A", "#000000"),
+            ("#4D8C71", "#000000"),
+            ("#275F49", "#FFFFFF"),
+            ("#000000FF", "#FFFFFF"),
+            ("#FFFFFFff", "#000000"),
+        ] {
+            assert_eq!(
+                value_label_color(&Color::hex(fill), None).unwrap().0,
+                expected
+            );
+        }
+        assert!(value_label_color(&Color::transparent(), None).is_err());
+        assert_eq!(
+            value_label_color(&Color::transparent(), Some(&Color::hex("#123456")))
+                .unwrap()
+                .0,
+            "#123456"
+        );
+    }
+    #[test]
+    fn legacy_fit_checks_four_decimal_edge_and_just_outside() {
+        let metrics = label_bounds(
+            "0",
+            12.,
+            FontWeight::Regular,
+            Point::default(),
+            TextAnchor::Middle,
+            None,
+        )
+        .unwrap();
+        let width = serialized(metrics.width + 8.);
+        let height = serialized(metrics.height + 8.);
+        let cell = Rect {
+            x: 0.,
+            y: 0.,
+            width,
+            height,
+        };
+        value_label_geometry("chart", "key", "0", cell, None).unwrap();
+        assert!(
+            value_label_geometry(
+                "chart",
+                "key",
+                "0",
+                Rect {
+                    width: width - 0.0002,
+                    ..cell
+                },
+                None
+            )
+            .is_err()
+        );
+        assert!(
+            value_label_geometry(
+                "chart",
+                "key",
+                "0",
+                Rect {
+                    height: height - 0.0002,
+                    ..cell
+                },
+                None
+            )
+            .is_err()
+        );
     }
 }

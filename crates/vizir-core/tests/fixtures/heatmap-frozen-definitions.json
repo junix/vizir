@@ -1,5 +1,5 @@
 {
-  "$defs": {
+  "mir": {
     "ChartMark": {
       "oneOf": [
         {
@@ -550,256 +550,6 @@
             "type": {
               "const": "heatmap",
               "type": "string"
-            },
-            "x": {
-              "$ref": "#/$defs/ScaleBinding"
-            },
-            "y": {
-              "$ref": "#/$defs/ScaleBinding"
-            }
-          },
-          "required": [
-            "type",
-            "id",
-            "x",
-            "y",
-            "color",
-            "instances"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "category": {
-              "$ref": "#/$defs/ScaleBinding"
-            },
-            "color": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ScaleBinding"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "id": {
-              "type": "string"
-            },
-            "instances": {
-              "items": {
-                "$ref": "#/$defs/MirBarItem"
-              },
-              "type": "array"
-            },
-            "type": {
-              "const": "bar",
-              "type": "string"
-            },
-            "value": {
-              "$ref": "#/$defs/ScaleBinding"
-            }
-          },
-          "required": [
-            "type",
-            "id",
-            "category",
-            "value",
-            "instances"
-          ],
-          "type": "object"
-        }
-      ]
-    },
-    "ChartMarkV05": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ScaleBinding"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "id": {
-              "type": "string"
-            },
-            "instances": {
-              "items": {
-                "$ref": "#/$defs/MirPointItem"
-              },
-              "type": "array"
-            },
-            "size": {
-              "format": "double",
-              "type": "number"
-            },
-            "type": {
-              "const": "symbol",
-              "type": "string"
-            },
-            "x": {
-              "$ref": "#/$defs/ScaleBinding"
-            },
-            "y": {
-              "$ref": "#/$defs/ScaleBinding"
-            }
-          },
-          "required": [
-            "type",
-            "id",
-            "x",
-            "y",
-            "size",
-            "instances"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ScaleBinding"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "group_expression": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "id": {
-              "type": "string"
-            },
-            "line_width": {
-              "format": "double",
-              "type": "number"
-            },
-            "order_expression": {
-              "type": "string"
-            },
-            "series": {
-              "items": {
-                "$ref": "#/$defs/MirSeries"
-              },
-              "type": "array"
-            },
-            "show_points": {
-              "type": "boolean"
-            },
-            "type": {
-              "const": "line",
-              "type": "string"
-            },
-            "x": {
-              "$ref": "#/$defs/ScaleBinding"
-            },
-            "y": {
-              "$ref": "#/$defs/ScaleBinding"
-            }
-          },
-          "required": [
-            "type",
-            "id",
-            "x",
-            "y",
-            "order_expression",
-            "line_width",
-            "show_points",
-            "series"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "baseline": {
-              "format": "double",
-              "type": "number"
-            },
-            "color": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ScaleBinding"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "group_expression": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "id": {
-              "type": "string"
-            },
-            "order_expression": {
-              "type": "string"
-            },
-            "series": {
-              "items": {
-                "$ref": "#/$defs/MirSeries"
-              },
-              "type": "array"
-            },
-            "type": {
-              "const": "area",
-              "type": "string"
-            },
-            "x": {
-              "$ref": "#/$defs/ScaleBinding"
-            },
-            "y": {
-              "$ref": "#/$defs/ScaleBinding"
-            }
-          },
-          "required": [
-            "type",
-            "id",
-            "x",
-            "y",
-            "order_expression",
-            "baseline",
-            "series"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "color": {
-              "$ref": "#/$defs/ScaleBinding"
-            },
-            "id": {
-              "type": "string"
-            },
-            "instances": {
-              "items": {
-                "$ref": "#/$defs/MirHeatmapCell"
-              },
-              "type": "array"
-            },
-            "type": {
-              "const": "heatmap",
-              "type": "string"
-            },
-            "value_labels": {
-              "$ref": "#/$defs/MirHeatmapValueLabels"
             },
             "x": {
               "$ref": "#/$defs/ScaleBinding"
@@ -2012,46 +1762,6 @@
       ],
       "type": "object"
     },
-    "MirHeatmapValueLabel": {
-      "additionalProperties": false,
-      "properties": {
-        "key": {
-          "type": "string"
-        },
-        "text": {
-          "maxLength": 512,
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "text"
-      ],
-      "type": "object"
-    },
-    "MirHeatmapValueLabels": {
-      "additionalProperties": false,
-      "description": "Plan options plus an ordered, derived cache checked against typed source values.",
-      "properties": {
-        "color": {
-          "type": "string"
-        },
-        "instances": {
-          "items": {
-            "$ref": "#/$defs/MirHeatmapValueLabel"
-          },
-          "maxItems": 4096,
-          "type": "array"
-        },
-        "number_format": {
-          "$ref": "#/$defs/NumberFormat"
-        }
-      },
-      "required": [
-        "instances"
-      ],
-      "type": "object"
-    },
     "MirPointItem": {
       "additionalProperties": false,
       "properties": {
@@ -2941,179 +2651,6 @@
         }
       ]
     },
-    "MirViewV05": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "dialect": {
-              "const": "chart",
-              "type": "string"
-            },
-            "frame": {
-              "$ref": "#/$defs/Frame"
-            },
-            "guides": {
-              "items": {
-                "$ref": "#/$defs/MirGuideV04"
-              },
-              "type": "array"
-            },
-            "id": {
-              "type": "string"
-            },
-            "key_expression": {
-              "type": "string"
-            },
-            "mark": {
-              "$ref": "#/$defs/ChartMarkV05"
-            },
-            "provenance": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "row_variable": {
-              "type": "string"
-            },
-            "scales": {
-              "items": {
-                "$ref": "#/$defs/MirScaleV04"
-              },
-              "type": "array"
-            },
-            "source": {
-              "type": "string"
-            },
-            "space": {
-              "type": "string"
-            },
-            "title": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "dialect",
-            "id",
-            "frame",
-            "space",
-            "source",
-            "row_variable",
-            "key_expression",
-            "scales",
-            "guides",
-            "mark",
-            "provenance"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "dialect": {
-              "const": "diagram",
-              "type": "string"
-            },
-            "edges": {
-              "items": {
-                "$ref": "#/$defs/DiagramEdge"
-              },
-              "type": "array"
-            },
-            "frame": {
-              "$ref": "#/$defs/Frame"
-            },
-            "id": {
-              "type": "string"
-            },
-            "layout_request": {
-              "$ref": "#/$defs/LayoutRequest"
-            },
-            "nodes": {
-              "items": {
-                "$ref": "#/$defs/DiagramNode"
-              },
-              "type": "array"
-            },
-            "provenance": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "space": {
-              "type": "string"
-            },
-            "title": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "dialect",
-            "id",
-            "frame",
-            "space",
-            "nodes",
-            "edges",
-            "layout_request",
-            "provenance"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "children": {
-              "items": {
-                "$ref": "#/$defs/MirGeometryNode"
-              },
-              "type": "array"
-            },
-            "dialect": {
-              "const": "geometry",
-              "type": "string"
-            },
-            "frame": {
-              "$ref": "#/$defs/Frame"
-            },
-            "id": {
-              "type": "string"
-            },
-            "provenance": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "space": {
-              "type": "string"
-            },
-            "title": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "dialect",
-            "id",
-            "frame",
-            "space",
-            "children",
-            "provenance"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "NumberFormat": {
       "additionalProperties": false,
       "description": "Locale-independent numeric tick formatting; precision is decimal places.",
@@ -3677,196 +3214,1755 @@
         "losses"
       ],
       "type": "object"
-    },
-    "VizMirV05": {
-      "additionalProperties": false,
-      "properties": {
-        "background": {
-          "type": "string"
-        },
-        "data": {
-          "additionalProperties": {
-            "$ref": "#/$defs/MirDataNode"
-          },
-          "type": "object"
-        },
-        "document_id": {
-          "type": "string"
-        },
-        "expressions": {
-          "additionalProperties": {
-            "$ref": "#/$defs/TypedExpression"
-          },
-          "type": "object"
-        },
-        "height": {
-          "format": "double",
-          "type": "number"
-        },
-        "losses": {
-          "items": {
-            "$ref": "#/$defs/LossRecord"
-          },
-          "type": "array"
-        },
-        "source_hir_version": {
-          "const": "0.5",
-          "type": "string"
-        },
-        "spaces": {
-          "additionalProperties": {
-            "$ref": "#/$defs/CoordinateSpace2D"
-          },
-          "type": "object"
-        },
-        "version": {
-          "const": "0.5",
-          "type": "string"
-        },
-        "views": {
-          "items": {
-            "$ref": "#/$defs/MirViewV05"
-          },
-          "type": "array"
-        },
-        "width": {
-          "format": "double",
-          "type": "number"
-        }
-      },
-      "required": [
-        "version",
-        "source_hir_version",
-        "document_id",
-        "width",
-        "height",
-        "background",
-        "spaces",
-        "data",
-        "expressions",
-        "views",
-        "losses"
-      ],
-      "type": "object"
     }
   },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "oneOf": [
-    {
-      "additionalProperties": false,
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "version": {
-                "const": "0.1"
-              }
-            },
-            "required": [
-              "version"
-            ]
-          },
-          "then": {
-            "properties": {
-              "views": {
-                "items": {
-                  "properties": {
-                    "guides": {
-                      "items": {
-                        "not": {
-                          "required": [
-                            "number_format"
-                          ]
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+  "composition": {
+    "AreaOrder": {
+      "enum": [
+        "x-ascending"
       ],
+      "type": "string"
+    },
+    "AxisOptions": {
+      "additionalProperties": false,
+      "description": "Opt-in axis semantics, available starting with VizHIR 0.2.",
+      "properties": {
+        "number_format": {
+          "$ref": "#/$defs/NumberFormat"
+        }
+      },
+      "type": "object"
+    },
+    "CategoryEncoding": {
+      "additionalProperties": false,
+      "description": "An exact, ordered string-category encoding for heatmap axes.",
+      "properties": {
+        "domain": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "field": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
+    "ColorEncoding": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "palette": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
+    "CompositionSchema": {
+      "description": "Independent source contract; this is not a new HIR or MIR version.",
+      "enum": [
+        "vizir-composition/0.1"
+      ],
+      "type": "string"
+    },
+    "CompositionV1": {
+      "additionalProperties": false,
       "properties": {
         "background": {
+          "default": "transparent",
           "type": "string"
         },
-        "data": {
+        "datasets": {
           "additionalProperties": {
-            "$ref": "#/$defs/MirDataNode"
+            "$ref": "#/$defs/Dataset"
           },
-          "type": "object"
-        },
-        "document_id": {
-          "type": "string"
-        },
-        "expressions": {
-          "additionalProperties": {
-            "$ref": "#/$defs/TypedExpression"
-          },
+          "default": {},
           "type": "object"
         },
         "height": {
+          "exclusiveMinimum": 0,
           "format": "double",
           "type": "number"
         },
-        "losses": {
-          "items": {
-            "$ref": "#/$defs/LossRecord"
-          },
-          "type": "array"
-        },
-        "source_hir_version": {
+        "id": {
           "type": "string"
         },
-        "spaces": {
-          "additionalProperties": {
-            "$ref": "#/$defs/CoordinateSpace2D"
-          },
-          "type": "object"
+        "layout": {
+          "$ref": "#/$defs/PanelLayout"
         },
-        "version": {
-          "enum": [
-            "0.1",
-            "0.2"
-          ],
-          "type": "string"
-        },
-        "views": {
+        "panels": {
           "items": {
-            "$ref": "#/$defs/MirView"
+            "$ref": "#/$defs/Panel"
           },
+          "minItems": 1,
           "type": "array"
+        },
+        "schema": {
+          "$ref": "#/$defs/CompositionSchema"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "width": {
+          "exclusiveMinimum": 0,
           "format": "double",
           "type": "number"
         }
       },
       "required": [
-        "version",
-        "source_hir_version",
-        "document_id",
+        "schema",
+        "id",
         "width",
         "height",
-        "background",
-        "spaces",
-        "data",
-        "expressions",
-        "views",
-        "losses"
+        "layout",
+        "panels"
       ],
       "type": "object"
     },
-    {
-      "$ref": "#/$defs/VizMirV03"
+    "CompositionV2": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "default": "transparent",
+          "type": "string"
+        },
+        "datasets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Dataset"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/PanelLayout"
+        },
+        "panels": {
+          "items": {
+            "$ref": "#/$defs/PanelV02"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "schema": {
+          "const": "vizir-composition/0.2",
+          "type": "string"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema",
+        "id",
+        "width",
+        "height",
+        "layout",
+        "panels"
+      ],
+      "type": "object"
     },
-    {
-      "$ref": "#/$defs/VizMirV04"
+    "CompositionV3": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "default": "transparent",
+          "type": "string"
+        },
+        "datasets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Dataset"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/PanelLayout"
+        },
+        "panels": {
+          "items": {
+            "$ref": "#/$defs/PanelV03"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "schema": {
+          "const": "vizir-composition/0.3",
+          "type": "string"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema",
+        "id",
+        "width",
+        "height",
+        "layout",
+        "panels"
+      ],
+      "type": "object"
     },
-    {
-      "$ref": "#/$defs/VizMirV05"
+    "CompositionVersion": {
+      "enum": [
+        "vizir-composition/0.1",
+        "vizir-composition/0.2"
+      ],
+      "type": "string"
+    },
+    "Dataset": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "DiagramEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "label": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ShapeStyle",
+          "default": {
+            "fill": null,
+            "opacity": 1.0,
+            "stroke": null,
+            "stroke_width": 1.5
+          }
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "DiagramLayout": {
+      "enum": [
+        "layered",
+        "manual"
+      ],
+      "type": "string"
+    },
+    "DiagramNode": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Point"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "style": {
+          "$ref": "#/$defs/ShapeStyle",
+          "default": {
+            "fill": null,
+            "opacity": 1.0,
+            "stroke": null,
+            "stroke_width": 1.5
+          }
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "type": "object"
+    },
+    "FieldEncoding": {
+      "additionalProperties": false,
+      "properties": {
+        "axis": {
+          "$ref": "#/$defs/AxisOptions"
+        },
+        "field": {
+          "type": "string"
+        },
+        "label": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
+    "FontWeight": {
+      "enum": [
+        "regular",
+        "medium",
+        "bold"
+      ],
+      "type": "string"
+    },
+    "GeometryNode": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/GeometryNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "opacity": {
+              "default": null,
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "transform": {
+              "$ref": "#/$defs/Transform2D",
+              "default": {
+                "rotate_degrees": 0.0,
+                "scale": {
+                  "x": 1.0,
+                  "y": 1.0
+                },
+                "translate": {
+                  "x": 0.0,
+                  "y": 0.0
+                }
+              }
+            },
+            "type": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "children"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "radius": {
+              "default": 0.0,
+              "format": "double",
+              "type": "number"
+            },
+            "style": {
+              "$ref": "#/$defs/ShapeStyle",
+              "default": {
+                "fill": null,
+                "opacity": 1.0,
+                "stroke": null,
+                "stroke_width": 1.5
+              }
+            },
+            "type": {
+              "const": "rect",
+              "type": "string"
+            },
+            "width": {
+              "format": "double",
+              "type": "number"
+            },
+            "x": {
+              "format": "double",
+              "type": "number"
+            },
+            "y": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "cx": {
+              "format": "double",
+              "type": "number"
+            },
+            "cy": {
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "radius": {
+              "format": "double",
+              "type": "number"
+            },
+            "style": {
+              "$ref": "#/$defs/ShapeStyle",
+              "default": {
+                "fill": null,
+                "opacity": 1.0,
+                "stroke": null,
+                "stroke_width": 1.5
+              }
+            },
+            "type": {
+              "const": "circle",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "cx",
+            "cy",
+            "radius"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "$ref": "#/$defs/Point"
+            },
+            "id": {
+              "type": "string"
+            },
+            "style": {
+              "$ref": "#/$defs/ShapeStyle",
+              "default": {
+                "fill": null,
+                "opacity": 1.0,
+                "stroke": null,
+                "stroke_width": 1.5
+              }
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            },
+            "type": {
+              "const": "line",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "from",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "commands": {
+              "items": {
+                "$ref": "#/$defs/PathCommand"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "style": {
+              "$ref": "#/$defs/ShapeStyle",
+              "default": {
+                "fill": null,
+                "opacity": 1.0,
+                "stroke": null,
+                "stroke_width": 1.5
+              }
+            },
+            "type": {
+              "const": "path",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "commands"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "anchor": {
+              "$ref": "#/$defs/TextAnchor",
+              "default": "middle"
+            },
+            "color": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "font_size": {
+              "default": 16.0,
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "const": "text",
+              "type": "string"
+            },
+            "weight": {
+              "$ref": "#/$defs/FontWeight",
+              "default": "regular"
+            },
+            "x": {
+              "format": "double",
+              "type": "number"
+            },
+            "y": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "x",
+            "y",
+            "text"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "NumberFormat": {
+      "additionalProperties": false,
+      "description": "Locale-independent numeric tick formatting; precision is decimal places.",
+      "properties": {
+        "notation": {
+          "$ref": "#/$defs/NumberNotation"
+        },
+        "precision": {
+          "format": "uint8",
+          "maximum": 12,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "notation",
+        "precision"
+      ],
+      "type": "object"
+    },
+    "NumberNotation": {
+      "enum": [
+        "scientific",
+        "fixed"
+      ],
+      "type": "string"
+    },
+    "Panel": {
+      "description": "Panel payloads deliberately have no frame. An authored frame is an error,\nrather than an ignored value or an ambiguous override of the grid.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.scatter",
+              "type": "string"
+            },
+            "point_size": {
+              "default": 7.0,
+              "format": "double",
+              "type": "number"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.line",
+              "type": "string"
+            },
+            "line_width": {
+              "default": 2.5,
+              "format": "double",
+              "type": "number"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "show_points": {
+              "default": true,
+              "type": "boolean"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.bar",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "category",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edges": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "diagram.graph",
+              "type": "string"
+            },
+            "layout": {
+              "$ref": "#/$defs/DiagramLayout",
+              "default": "layered"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "nodes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/GeometryNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "geometry.scene",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "children"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PanelLayout": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "columns": {
+              "format": "uint32",
+              "maximum": 4294967295,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "gap": {
+              "default": 0.0,
+              "format": "double",
+              "minimum": 0,
+              "type": "number"
+            },
+            "kind": {
+              "const": "grid",
+              "type": "string"
+            },
+            "padding": {
+              "default": 0.0,
+              "format": "double",
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "columns"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PanelV02": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.scatter",
+              "type": "string"
+            },
+            "point_size": {
+              "default": 7.0,
+              "format": "double",
+              "type": "number"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.line",
+              "type": "string"
+            },
+            "line_width": {
+              "default": 2.5,
+              "format": "double",
+              "type": "number"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "show_points": {
+              "default": true,
+              "type": "boolean"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "baseline": {
+              "format": "double",
+              "type": "number"
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.area",
+              "type": "string"
+            },
+            "order": {
+              "$ref": "#/$defs/AreaOrder"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y",
+            "baseline",
+            "order"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.bar",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "category",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edges": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "diagram.graph",
+              "type": "string"
+            },
+            "layout": {
+              "$ref": "#/$defs/DiagramLayout",
+              "default": "layered"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "nodes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/GeometryNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "geometry.scene",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "children"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PanelV03": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.scatter",
+              "type": "string"
+            },
+            "point_size": {
+              "default": 7.0,
+              "format": "double",
+              "type": "number"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.line",
+              "type": "string"
+            },
+            "line_width": {
+              "default": 2.5,
+              "format": "double",
+              "type": "number"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "show_points": {
+              "default": true,
+              "type": "boolean"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "baseline": {
+              "format": "double",
+              "type": "number"
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.area",
+              "type": "string"
+            },
+            "order": {
+              "$ref": "#/$defs/AreaOrder"
+            },
+            "series": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y",
+            "baseline",
+            "order"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/QuantizeColorEncoding"
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.heatmap",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "$ref": "#/$defs/CategoryEncoding"
+            },
+            "y": {
+              "$ref": "#/$defs/CategoryEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "x",
+            "y",
+            "color"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "$ref": "#/$defs/FieldEncoding"
+            },
+            "color": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ColorEncoding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "dataset": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "chart.bar",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/FieldEncoding"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "dataset",
+            "category",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edges": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "diagram.graph",
+              "type": "string"
+            },
+            "layout": {
+              "$ref": "#/$defs/DiagramLayout",
+              "default": "layered"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "nodes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/GeometryNode"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "geometry.scene",
+              "type": "string"
+            },
+            "title": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "children"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PathCommand": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "move",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "line",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "control1": {
+              "$ref": "#/$defs/Point"
+            },
+            "control2": {
+              "$ref": "#/$defs/Point"
+            },
+            "op": {
+              "const": "cubic",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Point"
+            }
+          },
+          "required": [
+            "op",
+            "control1",
+            "control2",
+            "to"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "close",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Point": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "QuantizeColorEncoding": {
+      "additionalProperties": false,
+      "description": "A finite numeric encoding with a discrete, equally spaced color palette.",
+      "properties": {
+        "domain": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "field": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "number_format": {
+          "$ref": "#/$defs/NumberFormat"
+        },
+        "palette": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 9,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
+    "ShapeStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "fill": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "stroke": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stroke_width": {
+          "default": 1.5,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "TextAnchor": {
+      "enum": [
+        "start",
+        "middle",
+        "end"
+      ],
+      "type": "string"
+    },
+    "Transform2D": {
+      "additionalProperties": false,
+      "properties": {
+        "rotate_degrees": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/Point",
+          "default": {
+            "x": 1.0,
+            "y": 1.0
+          }
+        },
+        "translate": {
+          "$ref": "#/$defs/Point",
+          "default": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      },
+      "type": "object"
     }
-  ],
-  "title": "VizMir"
+  }
 }

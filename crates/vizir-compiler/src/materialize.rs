@@ -33,6 +33,8 @@ impl Default for MaterializationLimits {
 pub(crate) struct Budget {
     limits: MaterializationLimits,
     remaining: u64,
+    value_label_count: usize,
+    value_label_bytes: usize,
 }
 
 impl Budget {
@@ -40,6 +42,8 @@ impl Budget {
         Self {
             limits,
             remaining: limits.max_evaluation_steps,
+            value_label_count: 0,
+            value_label_bytes: 0,
         }
     }
 
@@ -121,6 +125,7 @@ pub fn rematerialize_mir_with_limits(
         views,
         losses: mir.losses.clone(),
     };
+    crate::heatmap::check_mir_output(&result)?;
     Ok(result)
 }
 
@@ -131,6 +136,7 @@ pub(crate) fn materialize_mir_marks(
 ) -> VizResult<Vec<Option<ChartMark>>> {
     let mut budget = Budget::new(limits);
     preflight_mir(mir, &mut budget)?;
+    crate::heatmap::check_mir_output(mir)?;
     // This validator clones and recursively types referenced expressions: preflight first.
     vizir_core::validate_mir(mir).map_err(|d| VizError::validation(&d))?;
     mir.views.iter().map(|view| {
@@ -274,6 +280,7 @@ fn check_heatmap_grid(x: usize, y: usize, context: &str) -> VizResult<()> {
 
 fn preflight_heatmap_document(document: &Document, budget: &mut Budget) -> VizResult<()> {
     let mut total = 0;
+    let mut labels = 0;
     // Count every chart's source, even when charts share one dataset.
     for view in &document.views {
         let View::Heatmap(chart) = view else { continue };
@@ -281,6 +288,9 @@ fn preflight_heatmap_document(document: &Document, budget: &mut Budget) -> VizRe
         if let Some(data) = document.datasets.get(&chart.dataset) {
             check_heatmap_row_count(data.rows.len(), &chart.id)?;
             add_heatmap_call_count(&mut total, data.rows.len(), &chart.id)?;
+            if chart.value_labels.is_some() {
+                vizir_core::reserve_heatmap_value_labels(&mut labels, data.rows.len())?;
+            }
         }
     }
     for view in &document.views {
@@ -371,11 +381,19 @@ fn preflight_heatmap_document(document: &Document, budget: &mut Budget) -> VizRe
 fn preflight_heatmap_mir(mir: &VizMir, budget: &mut Budget) -> VizResult<()> {
     let mut total_rows = 0;
     let mut total_caches = 0;
+    let mut label_sources = 0;
+    let mut label_caches = 0;
+    let mut label_bytes = 0;
     for view in &mir.views {
         let MirView::Chart(chart) = view else {
             continue;
         };
-        let ChartMark::Heatmap { instances, .. } = &chart.mark else {
+        let ChartMark::Heatmap {
+            instances,
+            value_labels,
+            ..
+        } = &chart.mark
+        else {
             continue;
         };
         budget.step(&chart.id)?;
@@ -387,10 +405,23 @@ fn preflight_heatmap_mir(mir: &VizMir, budget: &mut Budget) -> VizResult<()> {
             ));
         }
         add_heatmap_call_count(&mut total_caches, instances.len(), &chart.id)?;
+        if let Some(labels) = value_labels {
+            vizir_core::reserve_heatmap_value_labels(&mut label_caches, labels.instances.len())?;
+            for label in &labels.instances {
+                vizir_core::reserve_heatmap_value_label_bytes(&mut label_bytes, &label.text)?;
+                budget.charge(
+                    label.key.len() as u64 + label.text.len() as u64 + 1,
+                    &chart.id,
+                )?;
+            }
+        }
         if let Some(source) = mir.data.get(&chart.source) {
             let MirDataOperator::Inline { rows } = &source.operator;
             check_heatmap_row_count(rows.len(), &chart.id)?;
             add_heatmap_call_count(&mut total_rows, rows.len(), &chart.id)?;
+            if value_labels.is_some() {
+                vizir_core::reserve_heatmap_value_labels(&mut label_sources, rows.len())?;
+            }
         }
     }
     for view in &mir.views {
@@ -1469,6 +1500,16 @@ pub(crate) fn materialize_mark(
     if matches!(mark, ChartMark::Heatmap { .. }) {
         check_heatmap_row_count(rows.len(), chart_id)?;
     }
+    let mut cell_labels = Vec::new();
+    if matches!(
+        mark,
+        ChartMark::Heatmap {
+            value_labels: Some(_),
+            ..
+        }
+    ) {
+        vizir_core::reserve_heatmap_value_labels(&mut budget.value_label_count, rows.len())?;
+    }
     let mut cells = Vec::new();
     let mut cell_coordinates = BTreeSet::new();
     let mut keys = BTreeSet::new();
@@ -1526,10 +1567,48 @@ pub(crate) fn materialize_mark(
             )
         };
         match mark {
-            ChartMark::Heatmap { x, y, color, .. } => {
+            ChartMark::Heatmap {
+                x,
+                y,
+                color,
+                value_labels,
+                ..
+            } => {
                 let x = eval(&x.expression)?.exact_string(&context)?;
                 let y = eval(&y.expression)?.exact_string(&context)?;
-                let value = eval(&color.expression)?.number(&context)?;
+                let typed = eval(&color.expression)?;
+                // Format the authoritative typed scalar before paint loses Int64 precision.
+                if let Some(options) = value_labels {
+                    let text = match typed.value {
+                        Scalar::Int(value) => crate::tick_format::format_integer(
+                            value,
+                            options.number_format.as_ref(),
+                        ),
+                        Scalar::Float(value) if value.is_finite() => {
+                            crate::tick_format::format_exact_float(
+                                value,
+                                options.number_format.as_ref(),
+                            )
+                        }
+                        _ => {
+                            return Err(error(
+                                "VIZ-MATERIALIZE-0011",
+                                &context,
+                                "heatmap value labels require finite numeric values",
+                            ));
+                        }
+                    };
+                    vizir_core::reserve_heatmap_value_label_bytes(
+                        &mut budget.value_label_bytes,
+                        &text,
+                    )?;
+                    budget.charge(key.len() as u64 + text.len() as u64 + 1, &context)?;
+                    cell_labels.push(vizir_core::MirHeatmapValueLabel {
+                        key: key.clone(),
+                        text,
+                    });
+                }
+                let value = typed.number(&context)?;
                 budget.charge((x.len() + y.len() + key.len()) as u64 + 1, &context)?;
                 validate_heatmap_category(&x)?;
                 validate_heatmap_category(&y)?;
@@ -1632,13 +1711,25 @@ pub(crate) fn materialize_mark(
     // Clone only plan fields, never the supplied caches.
     Ok(match mark {
         ChartMark::Heatmap {
-            id, x, y, color, ..
+            id,
+            x,
+            y,
+            color,
+            value_labels,
+            ..
         } => ChartMark::Heatmap {
             id: id.clone(),
             x: x.clone(),
             y: y.clone(),
             color: color.clone(),
             instances: cells,
+            value_labels: value_labels
+                .as_ref()
+                .map(|options| vizir_core::MirHeatmapValueLabels {
+                    number_format: options.number_format,
+                    color: options.color.clone(),
+                    instances: cell_labels,
+                }),
         },
         ChartMark::Symbol {
             id,
@@ -1810,8 +1901,20 @@ fn same_points(a: &[MirPointItem], b: &[MirPointItem]) -> bool {
 
 fn same_cache(a: &ChartMark, b: &ChartMark) -> bool {
     match (a, b) {
-        (ChartMark::Heatmap { instances: a, .. }, ChartMark::Heatmap { instances: b, .. }) => {
-            a.len() == b.len()
+        (
+            ChartMark::Heatmap {
+                instances: a,
+                value_labels: al,
+                ..
+            },
+            ChartMark::Heatmap {
+                instances: b,
+                value_labels: bl,
+                ..
+            },
+        ) => {
+            al == bl
+                && a.len() == b.len()
                 && a.iter().zip(b).all(|(a, b)| {
                     a.key == b.key
                         && a.x == b.x

@@ -67,10 +67,14 @@ pub(crate) fn build_scene_with_context(
         losses: mir.losses.clone(),
     };
     vizir_core::validate_scene(&scene).map_err(|diagnostics| VizError::validation(&diagnostics))?;
-    match text {
-        Some(text) => text.outline_scene(scene),
-        None => Ok(scene),
+    let scene = match text {
+        Some(text) => text.outline_scene(scene)?,
+        None => scene,
+    };
+    if vizir_core::has_heatmap_value_labels(mir) {
+        crate::text::check_serialized_output(&scene, crate::TEXT_MAX_OUTPUT_BYTES)?;
     }
+    Ok(scene)
 }
 
 fn build_chart(
@@ -532,6 +536,7 @@ fn build_heatmap(
         y,
         color,
         instances,
+        value_labels,
     } = mark
     else {
         unreachable!()
@@ -605,7 +610,16 @@ fn build_heatmap(
         .map(|(i, v)| (v.as_str(), i))
         .collect::<BTreeMap<_, _>>();
     let mut children = Vec::new();
-    for cell in instances {
+    let mut cell_label_nodes = Vec::new();
+    if value_labels
+        .as_ref()
+        .is_some_and(|labels| labels.instances.len() != instances.len())
+    {
+        return Err(crate::heatmap::error(
+            "value label cache count differs from present cells",
+        ));
+    }
+    for (index, cell) in instances.iter().enumerate() {
         let column = *x_index
             .get(cell.x.as_str())
             .ok_or_else(|| crate::heatmap::error("cell x is outside explicit domain"))?;
@@ -620,6 +634,33 @@ fn build_heatmap(
             radius: 0.,
             style: ResolvedStyle { fill: range[bin].clone(), stroke: Color::transparent(), stroke_width: 0., opacity: 1. },
         });
+        if let Some(labels) = value_labels {
+            let label = &labels.instances[index];
+            if label.key != cell.key {
+                return Err(crate::heatmap::error(
+                    "value label cache key/order differs from present cells",
+                ));
+            }
+            let cell_bounds = Rect {
+                x: xb[column],
+                y: yb[row],
+                width: cell_extent(xb[column], xb[column + 1]),
+                height: cell_extent(yb[row], yb[row + 1]),
+            };
+            let (position, bounds) = crate::heatmap::value_label_geometry(
+                &chart.id,
+                &cell.key,
+                &label.text,
+                cell_bounds,
+                text,
+            )?;
+            cell_label_nodes.push(SceneNode::Text {
+                id: format!("{}/cell-label/{}", chart.id, cell.key), bounds, position,
+                text: label.text.clone(), font_size: 12., anchor: TextAnchor::Middle,
+                color: crate::heatmap::value_label_color(&range[bin], labels.color.as_ref())?, weight: FontWeight::Regular,
+                origin: Origin { hir_node: chart.id.clone(), mir_node: mark_id.clone(), data_key: Some(cell.key.clone()), data_lineage: vec![chart.source.clone()], generated_by: "build-heatmap-value-label".into(), explanation: format!("authoritative typed numeric value label: {}; centered full logical/ink bounds, fixed 12 Scene2D units, 4 units cell padding", label.text) },
+            });
+        }
     }
     let ink = defaults
         .map(|d| d.ink.clone())
@@ -839,6 +880,7 @@ fn build_heatmap(
     if let Some(text) = text {
         text.check_chart(&children, chart.frame, plot)?;
     }
+    children.extend(cell_label_nodes);
     Ok(SceneNode::Group {
         id: chart.id.clone(),
         bounds: frame_rect(chart.frame),

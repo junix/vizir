@@ -180,7 +180,7 @@ pub(crate) fn lower_to_mir_with_context(
         });
     }
 
-    Ok(VizMir {
+    let mir = VizMir {
         version: document.version.clone(),
         source_hir_version: document.version.clone(),
         document_id: document.id.clone(),
@@ -192,7 +192,9 @@ pub(crate) fn lower_to_mir_with_context(
         expressions,
         views,
         losses: Vec::new(),
-    })
+    };
+    crate::heatmap::check_mir_output(&mir)?;
+    Ok(mir)
 }
 
 fn lower_scatter(
@@ -964,6 +966,13 @@ fn lower_heatmap(
         y,
         color,
         instances: Vec::new(),
+        value_labels: chart.value_labels.as_ref().map(|options| {
+            vizir_core::MirHeatmapValueLabels {
+                number_format: options.number_format,
+                color: options.color.clone(),
+                instances: Vec::new(),
+            }
+        }),
     };
     let mark = materialize_mark(
         &data[&source],
