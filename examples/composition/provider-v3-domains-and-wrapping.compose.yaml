@@ -1,0 +1,130 @@
+# Illustrative V3 source: use the exact full-font profile and heatmap-x-wrapping-policy.json.
+schema: vizir-composition/0.6
+id: provider-v3-domains-and-wrapping
+width: 2160
+height: 400
+background: transparent
+layout:
+  kind: grid
+  columns: 3
+  padding: 0
+  gap: 0
+datasets:
+  both:
+    key: id
+    rows:
+    - id: a0
+      x: 0
+      y: 2
+      series: Alpha
+    - id: a1
+      x: 1
+      y: 3
+      series: Alpha
+    - id: b0
+      x: 0
+      y: 7
+      series: Beta
+    - id: b1
+      x: 1
+      y: 8
+      series: Beta
+  subset:
+    key: id
+    rows:
+    - id: b0
+      x: 0
+      y: 7
+      series: Beta
+    - id: b1
+      x: 1
+      y: 8
+      series: Beta
+  d:
+    key: id
+    rows:
+    - id: '0'
+      model: 中文语义检索模型评估结果
+      split: 测试集
+      score: 70
+    - id: '1'
+      model: 中文多轮对话模型评估结果
+      split: 测试集
+      score: 71
+    - id: '2'
+      model: 中文长文阅读模型评估结果
+      split: 测试集
+      score: 72
+    - id: '3'
+      model: 中文复杂推理模型评估结果
+      split: 测试集
+      score: 73
+    - id: '4'
+      model: 中文领域知识模型评估结果
+      split: 测试集
+      score: 74
+    - id: '5'
+      model: 中文内容生成模型评估结果
+      split: 测试集
+      score: 75
+panels:
+- kind: chart.line
+  id: all-series
+  title: All series
+  dataset: both
+  x:
+    field: x
+    label: time
+    domain:
+    - 0
+    - 1
+  y:
+    field: y
+    label: value
+    domain:
+    - 0
+    - 10
+  series:
+    field: series
+    domain:
+    - Alpha
+    - Beta
+  line_width: 4
+- kind: chart.line
+  id: beta-only
+  title: Beta subset
+  dataset: subset
+  x:
+    field: x
+    label: time
+    domain:
+    - 0
+    - 1
+  y:
+    field: y
+    label: value
+    domain:
+    - 0
+    - 10
+  series:
+    field: series
+    domain:
+    - Alpha
+    - Beta
+  line_width: 4
+- kind: chart.heatmap
+  id: scores
+  title: 中文模型评估
+  dataset: d
+  x:
+    field: model
+    label: 模型
+  y:
+    field: split
+    label: 数据集
+  color:
+    field: score
+    label: 得分
+    domain:
+    - 0
+    - 100

@@ -12,6 +12,7 @@ mod resource_io;
 const PROVIDER_ID: &str = "plot-provider-vizir";
 const PROFILE: &str = "vizir-compiled-svg/1";
 const PROFILE_V2: &str = "vizir-compiled-svg/2";
+const PROFILE_V3: &str = "vizir-compiled-svg/3";
 
 #[derive(Parser)]
 #[command(name = PROVIDER_ID, version = version(), about = "Render exact prepared VizIR bundles")]
@@ -36,6 +37,8 @@ enum Commands {
     RenderCompiledSvg(Box<provider_render::Options>),
     /// Replay compiled MIR 0.5 locally, including exact optional heatmap labels.
     RenderCompiledSvgV2(Box<provider_render::Options>),
+    /// Replay compiled MIR 0.7 with authored domains and measured heatmap wrapping.
+    RenderCompiledSvgV3(Box<provider_render::Options>),
 }
 
 fn version() -> &'static str {
@@ -59,20 +62,22 @@ fn run(cli: Cli) -> VizResult<()> {
                 serde_json::from_str(include_str!("../assets/compiled-svg-command-v1.json"))?;
             let command_v2: serde_json::Value =
                 serde_json::from_str(include_str!("../assets/compiled-svg-command-v2.json"))?;
+            let command_v3: serde_json::Value =
+                serde_json::from_str(include_str!("../assets/compiled-svg-command-v3.json"))?;
             let description = json!({
                 "schema_version":"plot-provider-vizir.describe/v1",
                 "provider":{"id":PROVIDER_ID,"version":version(),"protocol_versions":[1]},
                 "source":{"local_code_path":std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().and_then(std::path::Path::parent).expect("workspace source root")},
-                "operations":["render-compiled-svg", "render-compiled-svg-v2"],
+                "operations":["render-compiled-svg", "render-compiled-svg-v2", "render-compiled-svg-v3"],
                 "commands":[command, command_v2,
                     {"name":"describe", "description":"Describe both fixed local compiled SVG capabilities without inspecting resources."},
-                    {"name":"doctor", "description":"Check built-in local SVG readiness; validate explicit bundle resources only during rendering."}]
+                    {"name":"doctor", "description":"Check built-in local SVG readiness; validate explicit bundle resources only during rendering."}, command_v3]
             });
             if machine {
                 println!("{}", serde_json::to_string(&description)?);
             } else {
                 println!(
-                    "{PROVIDER_ID} {} ({PROFILE}, {PROFILE_V2}): render-compiled-svg, render-compiled-svg-v2",
+                    "{PROVIDER_ID} {} ({PROFILE}, {PROFILE_V2}, {PROFILE_V3}): render-compiled-svg, render-compiled-svg-v2, render-compiled-svg-v3",
                     version()
                 );
             }
@@ -98,6 +103,7 @@ fn run(cli: Cli) -> VizResult<()> {
         }
         Commands::RenderCompiledSvg(options) => provider_render::run(*options)?,
         Commands::RenderCompiledSvgV2(options) => provider_render::run_v2(*options)?,
+        Commands::RenderCompiledSvgV3(options) => provider_render::run_v3(*options)?,
     }
     Ok(())
 }

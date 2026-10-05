@@ -1,6 +1,6 @@
 # Native compiled SVG provider
 
-The second binary in `vizir-cli`, `plot-provider-vizir`, offers two disjoint local
+The second binary in `vizir-cli`, `plot-provider-vizir`, offers three disjoint local
 capabilities through the same existing compiler, SVG backend and bounded I/O:
 
 - `render-compiled-svg`: capability `visualization.vizir.render-compiled-svg-v1`,
@@ -9,10 +9,13 @@ capabilities through the same existing compiler, SVG backend and bounded I/O:
 - `render-compiled-svg-v2`: capability `visualization.vizir.render-compiled-svg-v2`,
   profile `vizir-compiled-svg/2`, matching MIR/HIR **0.5 only**, receipt
   `vizir.render-receipt/v2`
+- `render-compiled-svg-v3`: capability `visualization.vizir.render-compiled-svg-v3`,
+  profile `vizir-compiled-svg/3`, matching MIR/HIR **0.7 only**, receipt
+  `vizir.render-receipt/v3`
 
-The v1 command descriptor, input/output schemas, receipt schema, and rendering
-behavior remain unchanged. The new command explicitly adds 0.5 replay; neither
-command guesses a version or accepts future versions. The original `vizir` CLI
+The v1/v2 command descriptors, input/output schemas, receipt schemas and rendering
+behavior remain unchanged. V3 explicitly adds 0.7 replay; no command guesses a
+version or accepts future versions. Native 0.6 has no provider route. The original `vizir` CLI
 and omitted-label behavior are unchanged.
 It does not import data, discover fonts, download resources, use a browser,
 rewrite source, rematerialize stale caches, or change layout policy.
@@ -48,6 +51,8 @@ The immutable v1 command contract is
 [`compiled-svg-command-v1.json`](../crates/vizir-cli/assets/compiled-svg-command-v1.json).
 The separate 0.5 command contract is
 [`compiled-svg-command-v2.json`](../crates/vizir-cli/assets/compiled-svg-command-v2.json).
+The separate 0.7 contract is
+[`compiled-svg-command-v3.json`](../crates/vizir-cli/assets/compiled-svg-command-v3.json).
 Every actual source file is an explicit, top-level `x-acme-role: input-file`.
 The receipt output declares the fixed `x-acme-receipt-core` relation metadata.
 These fields do not imply that an arbitrary consumer already supports them.
@@ -62,13 +67,14 @@ plot-provider-vizir render-compiled-svg INPUT \
 ```
 
 - Input must be a complete `vizir-compiled-mir/1` envelope with both MIR and
-  source HIR version `0.4` for v1 or `0.5` for v2, a valid canonical theme, and exact measured text
+  source HIR version `0.4` for v1, `0.5` for v2, or `0.7` for v3, a valid canonical theme, and exact measured text
   `vizir-text-outlines/1`. HIR, bare MIR, theme-only context and null context
   placeholders are rejected
 - `text_profile` is required and its strictly parsed typed value must equal
   persisted `context.text`. An explicit `text_layout` file is required if and
   only if persisted `context.text_layout` exists, with full typed equality.
-  Native wrapping profiles `vizir-text-wrap/1` through `/4` are supported by both commands
+  Native wrapping profiles `vizir-text-wrap/1` through `/4` are supported by all three commands.
+  V3 additionally supports `/5`; v1/v2 continue to reject it
 - One to three contiguous font slots have a distinct SHA256 set exactly equal
   to the profile's face SHA256 set. A collection used for multiple faces is
   supplied once. Missing, duplicate, surplus, malformed or wrong-weight faces
@@ -113,6 +119,31 @@ the provider reads only the prepared compiled document and its declared text
 resources. Exact Int64 label digits, present zero cells, and missing category
 pairs retain the native engine's semantics. There is no CSV path discovery.
 
+## Exact 0.7 domains and heatmap wrapping
+
+Use `render-compiled-svg-v3` for an explicitly normalized native 0.7 bundle.
+Authored category domains retain stable subset colors and absent legend entries;
+authored numeric domains retain shared axes and reject out-of-domain values.
+The native compiler validates persisted caches without refresh. It never invents
+missing rows, guesses domains, or renormalizes the supplied input.
+
+V3 also admits [measured heatmap x-category wrapping](heatmap-x-wrapping.md).
+Exact fonts, original text, source keys, ordered domains, authored budgets and
+persisted ranges remain authoritative. Profiles 1–4 retain their old behavior.
+
+The illustrative [combined fixture](../examples/composition/provider-v3-domains-and-wrapping.compose.yaml)
+has stable subset colors, shared numeric domains and six long Chinese heatmap
+labels. Run `vizir compose`, then `vizir normalize --theme azure` with the exact
+`heatmap-x-full-font-profile.json` and `heatmap-x-wrapping-policy.json` resources.
+Composition 0.6 is an upstream source contract, explicitly converted to native
+0.7; V3 accepts only the complete compiled envelope. Place it, the exact profile,
+policy and full font resources together in the same explicit bundle directory.
+Full-font sources/digests are documented in the wrapping example. Small test
+subsets are not production replacements.
+
+This adds only static outlined-SVG replay, with no generic compiler, HIR,
+composition, CSV, raster, frame, browser or interaction entry point.
+
 ## Path-free receipt and publication
 
 Both SVG and receipt are mandatory. They are completely rendered, typed,
@@ -128,9 +159,11 @@ same established publication semantics as the main CLI.
 `vizir.render-receipt/v1`, closed to source 0.4. The separate
 [`render-receipt-v2.schema.json`](../schemas/render-receipt-v2.schema.json)
 describes `vizir.render-receipt/v2`, closed to source 0.5 and profile
-`vizir-compiled-svg/2`. Its native context, capability and loss payloads remain
-complete. The generic `plot.artifact-receipt-core/v1` relation is unchanged in
-both receipts. Each typed receipt includes:
+`vizir-compiled-svg/2`. The separate
+[`render-receipt-v3.schema.json`](../schemas/render-receipt-v3.schema.json) is closed
+to source 0.7 and profile `vizir-compiled-svg/3`, adding the exact native wrap/5
+context branch. Native context, capability and loss payloads remain complete.
+The generic `plot.artifact-receipt-core/v1` relation is unchanged in all receipts. Each typed receipt includes:
 
 - Exact provider ID/version and implementation profile
 - `artifact_receipt` with fixed schema `plot.artifact-receipt-core/v1`, sorted
@@ -158,9 +191,11 @@ Provider tests use explicitly illustrative source and the checked-in small,
 licensed test font subsets. They verify raw pins, typed context, direct-native
 SVG byte parity, complete context/loss/capability equality, path-free copied-only
 replay, resource/destination alias rejection, limits and preserved old outputs.
-Both profiles run the same resource, alias, limits, copied-bundle, wrapping
+All three profiles run the same resource, alias, limits, copied-bundle, wrapping
 and failure-preservation suite. The 0.5 cases additionally cover inline and
 explicit typed CSV labels, sparse zeros, Int64 extrema, contrast, and stale
 label-cache mutations. Byte-pinned tests protect the old descriptor and receipt
 schema, while cross-version and future-version cases verify disjoint admission.
+V3 additionally covers authored domains, subset color stability, Chinese wrap/5,
+copied bundles, stale text/range rejection and the separate receipt schema.
 The fixtures do not claim to be production fonts or the user's own data.

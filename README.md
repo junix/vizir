@@ -477,8 +477,11 @@ See [the mixed-role composition](examples/composition/wrapped-diagram-nodes.comp
 The optional [native compiled SVG provider](docs/plot-provider.md),
 `plot-provider-vizir`, replays a complete measured MIR 0.4 bundle via
 `render-compiled-svg`, or a MIR 0.5 bundle via the separate
-`render-compiled-svg-v2` command, with explicit
-raw resource pins and emits SVG plus a mandatory path-free native receipt.
+`render-compiled-svg-v2` command, or a MIR 0.7 bundle via
+`render-compiled-svg-v3` with authored category/numeric domains and measured
+heatmap x-category wrapping. Each command requires explicit raw resource pins
+and emits SVG plus a mandatory path-free, separately versioned native receipt.
+V1/V2 retain their original schemas and wrapping-profile boundaries.
 It reuses the existing compiler/backend; independent Hub receipt verification
 is a separate integration requirement. Build/install now includes both binaries;
 `cargo run -p vizir-cli -- ...` continues to select `vizir`.

@@ -3,8 +3,10 @@
 `vizir-text-wrap/5` adds one semantic role: `heatmap.x_category_labels`.
 It is an explicit native compiler/CLI context policy, with no new HIR or MIR
 fields or versions. Native heatmap versions 0.4–0.7 can use it. Prior wrapping
-profiles 1–4 reject the role, and both published compiled-SVG provider profiles
+profiles 1–4 reject the role, and compiled-SVG provider profiles V1/V2
 remain closed to wrapping profiles 1–4. Their descriptors and receipts are unchanged.
+The separate [provider V3](plot-provider.md) accepts wrapping profiles 1–5 with
+matching compiled MIR/HIR 0.7, exact measured fonts and a versioned V3 receipt.
 
 ```json
 {

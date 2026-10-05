@@ -91,6 +91,22 @@ pub fn verify_v2(
         ("0.5", "vizir.render-receipt/v2", "vizir-compiled-svg/2"),
     )
 }
+pub fn verify_v3(
+    receipt: &[u8],
+    resources: &BTreeMap<String, Vec<u8>>,
+    svg: &[u8],
+    native: &Value,
+    provider_version: &str,
+) -> Result<(), String> {
+    verify_contract(
+        receipt,
+        resources,
+        svg,
+        native,
+        provider_version,
+        ("0.7", "vizir.render-receipt/v3", "vizir-compiled-svg/3"),
+    )
+}
 
 fn verify_contract(
     receipt: &[u8],

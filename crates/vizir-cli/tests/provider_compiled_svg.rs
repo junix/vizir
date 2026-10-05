@@ -99,10 +99,11 @@ impl Bundle {
         receipt: &Path,
     ) -> Command {
         let mut c = provider();
-        c.arg(if self.version == "0.4" {
-            "render-compiled-svg"
-        } else {
-            "render-compiled-svg-v2"
+        c.arg(match self.version {
+            "0.4" => "render-compiled-svg",
+            "0.5" => "render-compiled-svg-v2",
+            "0.7" => "render-compiled-svg-v3",
+            _ => panic!("unsupported test profile"),
         })
         .arg(&files["input"]);
         for (role, path) in files {
@@ -148,12 +149,13 @@ impl Bundle {
 
 #[test]
 fn direct_svg_bytes_and_native_receipt_values_are_equal() {
-    for version in ["0.4", "0.5"] {
+    for version in ["0.4", "0.5", "0.7"] {
         let b = Bundle::new(version);
-        let verify_receipt = if version == "0.4" {
-            receipt_verifier::verify
-        } else {
-            receipt_verifier::verify_v2
+        let verify_receipt = match version {
+            "0.4" => receipt_verifier::verify,
+            "0.5" => receipt_verifier::verify_v2,
+            "0.7" => receipt_verifier::verify_v3,
+            _ => unreachable!(),
         };
         assert!(success(b.command().output().unwrap()).is_empty());
         let direct_svg = b.dir.path().join("direct.svg");
@@ -378,7 +380,11 @@ fn describe_is_stable_closed_and_all_parameters_have_one_cli_mapping() {
     );
     assert_eq!(
         describe["operations"],
-        json!(["render-compiled-svg", "render-compiled-svg-v2"])
+        json!([
+            "render-compiled-svg",
+            "render-compiled-svg-v2",
+            "render-compiled-svg-v3"
+        ])
     );
     let fixture_v2: Value =
         serde_json::from_str(include_str!("../assets/compiled-svg-command-v2.json")).unwrap();
@@ -386,6 +392,13 @@ fn describe_is_stable_closed_and_all_parameters_have_one_cli_mapping() {
     assert_eq!(
         fixture_v2["capability_id"],
         "visualization.vizir.render-compiled-svg-v2"
+    );
+    let fixture_v3: Value =
+        serde_json::from_str(include_str!("../assets/compiled-svg-command-v3.json")).unwrap();
+    assert_eq!(describe["commands"][4], fixture_v3);
+    assert_eq!(
+        fixture_v3["capability_id"],
+        "visualization.vizir.render-compiled-svg-v3"
     );
     assert_eq!(describe["provider"]["protocol_versions"], json!([1]));
     let mut mapped = vec!["input".to_string()];
@@ -418,7 +431,7 @@ fn describe_is_stable_closed_and_all_parameters_have_one_cli_mapping() {
 
 #[test]
 fn json_and_context_failures_preserve_both_outputs() {
-    for version in ["0.4", "0.5"] {
+    for version in ["0.4", "0.5", "0.7"] {
         let b = Bundle::new(version);
         b.old_outputs();
         let original = read(&b.files["input"]);
@@ -488,7 +501,7 @@ fn json_and_context_failures_preserve_both_outputs() {
 
 #[test]
 fn exact_raw_pins_missing_extra_duplicate_and_changed_font_fail_closed() {
-    for version in ["0.4", "0.5"] {
+    for version in ["0.4", "0.5", "0.7"] {
         let b = Bundle::new(version);
         b.old_outputs();
         let pins = b.pins();
@@ -522,7 +535,7 @@ fn exact_raw_pins_missing_extra_duplicate_and_changed_font_fail_closed() {
 
 #[test]
 fn all_inputs_and_both_outputs_reject_same_path_hardlink_and_symlink_aliases() {
-    for version in ["0.4", "0.5"] {
+    for version in ["0.4", "0.5", "0.7"] {
         let b = Bundle::new(version);
         b.old_outputs();
         for (role, path) in &b.files {
@@ -576,7 +589,7 @@ fn all_inputs_and_both_outputs_reject_same_path_hardlink_and_symlink_aliases() {
 
 #[test]
 fn explicit_relative_paths_work_and_resource_escape_is_rejected() {
-    for version in ["0.4", "0.5"] {
+    for version in ["0.4", "0.5", "0.7"] {
         let b = Bundle::new(version);
         let files = b
             .files
@@ -621,7 +634,7 @@ fn explicit_relative_paths_work_and_resource_escape_is_rejected() {
 
 #[test]
 fn budgets_nonregular_and_publication_failure_preserve_outputs() {
-    for version in ["0.4", "0.5"] {
+    for version in ["0.4", "0.5", "0.7"] {
         let b = Bundle::new(version);
         b.old_outputs();
         for (role, limit) in [
@@ -651,7 +664,7 @@ fn budgets_nonregular_and_publication_failure_preserve_outputs() {
 
 #[test]
 fn all_native_wrapping_profiles_replay_and_require_exact_layout_files() {
-    for version in ["0.4", "0.5"] {
+    for version in ["0.4", "0.5", "0.7"] {
         for (example, layout) in [
             ("wrapped-text", "wrapped-text"),
             ("wrapped-chart-titles", "chart-title"),
@@ -687,7 +700,7 @@ fn all_native_wrapping_profiles_replay_and_require_exact_layout_files() {
             );
             let mut hir = read(&source);
             hir["version"] = json!(version);
-            if version == "0.5" {
+            if version != "0.4" {
                 let heatmap = labeled_hir();
                 hir["datasets"]["values"] = heatmap["datasets"]["values"].clone();
                 let mut view = heatmap["views"][0].clone();
@@ -775,7 +788,7 @@ fn all_native_wrapping_profiles_replay_and_require_exact_layout_files() {
 
 #[test]
 fn standalone_arguments_reject_noncontiguous_fonts_duplicate_flags_and_nonobject_pins() {
-    for version in ["0.4", "0.5"] {
+    for version in ["0.4", "0.5", "0.7"] {
         let b = Bundle::new(version);
         b.old_outputs();
         let mut files = b.files.clone();
@@ -799,7 +812,7 @@ fn standalone_arguments_reject_noncontiguous_fonts_duplicate_flags_and_nonobject
 
 #[test]
 fn oversized_receipt_and_native_text_fit_fail_without_truncation_or_publication() {
-    for version in ["0.4", "0.5"] {
+    for version in ["0.4", "0.5", "0.7"] {
         let b = Bundle::new(version);
         b.old_outputs();
         let original = read(&b.files["input"]);
@@ -874,7 +887,7 @@ fn normalize_labeled(b: &Bundle, source: &Value) {
     add_fonts(&mut c, b);
     success(c.output().unwrap());
 }
-fn verify_direct_v2(b: &Bundle) -> String {
+fn verify_direct(b: &Bundle) -> String {
     success(b.command().output().unwrap());
     let svg_path = b.dir.path().join("direct.svg");
     let native_path = b.dir.path().join("direct.json");
@@ -899,7 +912,13 @@ fn verify_direct_v2(b: &Bundle) -> String {
         provider().args(["describe", "--json"]).output().unwrap(),
     ))
     .unwrap();
-    receipt_verifier::verify_v2(
+    let verify = match b.version {
+        "0.4" => receipt_verifier::verify,
+        "0.5" => receipt_verifier::verify_v2,
+        "0.7" => receipt_verifier::verify_v3,
+        _ => unreachable!(),
+    };
+    verify(
         &fs::read(b.receipt()).unwrap(),
         &resources,
         &svg,
@@ -912,146 +931,177 @@ fn verify_direct_v2(b: &Bundle) -> String {
 
 #[test]
 fn labeled_inline_and_typed_csv_preserve_sparse_zero_int64_contrast_and_full_receipt() {
-    let mut expected: Option<(Vec<u8>, Vec<u8>)> = None;
-    for csv in [false, true] {
-        let b = Bundle::new("0.5");
-        let mut hir = labeled_hir();
-        if csv {
-            let csv_path = b.dir.path().join("values.csv");
-            fs::write(&csv_path, b"id,x,y,n\nzero,A,R,0\nmin,B,R,-9223372036854775808\nmax,A,S,9223372036854775807\n").unwrap();
-            let template = b.dir.path().join("template.json");
-            hir["datasets"] = json!({});
-            write(&template, &hir);
-            let spec = b.dir.path().join("spec.json");
-            write(
-                &spec,
-                &json!({"format":"vizir-csv-import/1","key":"id","columns":[
+    for version in ["0.5", "0.7"] {
+        let mut expected: Option<(Vec<u8>, Vec<u8>)> = None;
+        for csv in [false, true] {
+            let b = Bundle::new(version);
+            let mut hir = labeled_hir();
+            hir["version"] = json!(version);
+            if csv {
+                let csv_path = b.dir.path().join("values.csv");
+                fs::write(&csv_path, b"id,x,y,n\nzero,A,R,0\nmin,B,R,-9223372036854775808\nmax,A,S,9223372036854775807\n").unwrap();
+                let template = b.dir.path().join("template.json");
+                hir["datasets"] = json!({});
+                write(&template, &hir);
+                let spec = b.dir.path().join("spec.json");
+                write(
+                    &spec,
+                    &json!({"format":"vizir-csv-import/1","key":"id","columns":[
                 {"name":"id","type":"string"},{"name":"x","type":"string"},
                 {"name":"y","type":"string"},{"name":"n","type":"int64"}]}),
-            );
-            let imported = b.dir.path().join("imported.json");
-            success(
-                Command::new(env!("CARGO_BIN_EXE_vizir"))
-                    .arg("import-csv")
-                    .arg(csv_path)
-                    .arg("--template")
-                    .arg(template)
-                    .args(["--template-kind", "hir", "--dataset", "values"])
-                    .arg("--spec")
-                    .arg(spec)
-                    .arg("--output")
-                    .arg(&imported)
-                    .arg("--provenance")
-                    .arg(b.dir.path().join("csv-provenance.json"))
-                    .output()
-                    .unwrap(),
-            );
-            hir = read(&imported);
-        }
-        normalize_labeled(&b, &hir);
-        let input = read(&b.files["input"]);
-        assert_eq!(
-            input["mir"]["views"][0]["mark"]["value_labels"]["instances"],
-            json!([
+                );
+                let imported = b.dir.path().join("imported.json");
+                success(
+                    Command::new(env!("CARGO_BIN_EXE_vizir"))
+                        .arg("import-csv")
+                        .arg(csv_path)
+                        .arg("--template")
+                        .arg(template)
+                        .args(["--template-kind", "hir", "--dataset", "values"])
+                        .arg("--spec")
+                        .arg(spec)
+                        .arg("--output")
+                        .arg(&imported)
+                        .arg("--provenance")
+                        .arg(b.dir.path().join("csv-provenance.json"))
+                        .output()
+                        .unwrap(),
+                );
+                hir = read(&imported);
+            }
+            normalize_labeled(&b, &hir);
+            let input = read(&b.files["input"]);
+            assert_eq!(
+                input["mir"]["views"][0]["mark"]["value_labels"]["instances"],
+                json!([
             {"key":"zero","text":"0"}, {"key":"min","text":"-9223372036854775808"},
             {"key":"max","text":"9223372036854775807"}])
-        );
-        let svg = verify_direct_v2(&b);
-        let parsed = roxmltree::Document::parse(&svg).unwrap();
-        let labels: Vec<_> = parsed
-            .descendants()
-            .filter(|n| {
-                n.attribute("id").is_some_and(|id| {
-                    id.strip_prefix("heatmap/cell-label/")
-                        .is_some_and(|key| !key.contains('/'))
-                })
-            })
-            .collect();
-        // Label groups are keyed; unused category pairs have no synthetic group.
-        for key in ["zero", "min", "max"] {
-            let id = format!("heatmap/cell-label/{key}");
-            let node = parsed
-                .descendants()
-                .find(|n| n.attribute("id") == Some(id.as_str()))
-                .unwrap();
-            assert_eq!(node.attribute("data-key"), Some(key));
-            assert!(
-                node.descendants().any(|n| n.attribute("fill")
-                    == Some(if key == "min" { "#FFFFFF" } else { "#000000" }))
             );
-        }
-        assert_eq!(labels.len(), 3);
-        assert_eq!(
-            parsed
+            let svg = verify_direct(&b);
+            let parsed = roxmltree::Document::parse(&svg).unwrap();
+            let labels: Vec<_> = parsed
                 .descendants()
-                .filter(|n| n
-                    .attribute("id")
-                    .is_some_and(|id| id.starts_with("heatmap/cell/")))
-                .count(),
-            3
-        );
-        let pair = (
-            fs::read(b.output()).unwrap(),
-            fs::read(b.receipt()).unwrap(),
-        );
-        if let Some(expected) = &expected {
-            assert_eq!(&pair, expected);
-        } else {
-            expected = Some(pair);
+                .filter(|n| {
+                    n.attribute("id").is_some_and(|id| {
+                        id.strip_prefix("heatmap/cell-label/")
+                            .is_some_and(|key| !key.contains('/'))
+                    })
+                })
+                .collect();
+            // Label groups are keyed; unused category pairs have no synthetic group.
+            for key in ["zero", "min", "max"] {
+                let id = format!("heatmap/cell-label/{key}");
+                let node = parsed
+                    .descendants()
+                    .find(|n| n.attribute("id") == Some(id.as_str()))
+                    .unwrap();
+                assert_eq!(node.attribute("data-key"), Some(key));
+                assert!(node.descendants().any(|n| n.attribute("fill")
+                    == Some(if key == "min" { "#FFFFFF" } else { "#000000" })));
+            }
+            assert_eq!(labels.len(), 3);
+            assert_eq!(
+                parsed
+                    .descendants()
+                    .filter(|n| n
+                        .attribute("id")
+                        .is_some_and(|id| id.starts_with("heatmap/cell/")))
+                    .count(),
+                3
+            );
+            let pair = (
+                fs::read(b.output()).unwrap(),
+                fs::read(b.receipt()).unwrap(),
+            );
+            if let Some(expected) = &expected {
+                assert_eq!(&pair, expected);
+            } else {
+                expected = Some(pair);
+            }
         }
     }
 }
 
 #[test]
 fn labeled_cache_mutations_fail_without_refresh_or_publication() {
-    let b = Bundle::new("0.5");
-    normalize_labeled(&b, &labeled_hir());
-    let original = read(&b.files["input"]);
-    b.old_outputs();
-    for mutation in [
-        "text",
-        "key",
-        "order",
-        "count",
-        "row",
-        "unknown",
-        "null",
-        "duplicate",
-    ] {
-        let mut v = original.clone();
-        let labels = &mut v["mir"]["views"][0]["mark"]["value_labels"];
-        match mutation {
-            "text" => labels["instances"][0]["text"] = json!("fabricated"),
-            "key" => labels["instances"][0]["key"] = json!("missing"),
-            "order" => labels["instances"].as_array_mut().unwrap().swap(0, 1),
-            "count" => {
-                labels["instances"].as_array_mut().unwrap().pop();
+    for version in ["0.5", "0.7"] {
+        let b = Bundle::new(version);
+        let mut hir = labeled_hir();
+        hir["version"] = json!(version);
+        normalize_labeled(&b, &hir);
+        let original = read(&b.files["input"]);
+        b.old_outputs();
+        for mutation in [
+            "text",
+            "key",
+            "order",
+            "count",
+            "row",
+            "unknown",
+            "null",
+            "duplicate",
+        ] {
+            let mut v = original.clone();
+            let labels = &mut v["mir"]["views"][0]["mark"]["value_labels"];
+            match mutation {
+                "text" => labels["instances"][0]["text"] = json!("fabricated"),
+                "key" => labels["instances"][0]["key"] = json!("missing"),
+                "order" => labels["instances"].as_array_mut().unwrap().swap(0, 1),
+                "count" => {
+                    labels["instances"].as_array_mut().unwrap().pop();
+                }
+                "row" => v["mir"]["data"]["data/values"]["operator"]["rows"][0]["n"] = json!(1),
+                "unknown" => labels["unknown"] = json!(true),
+                "null" => *labels = Value::Null,
+                "duplicate" => {}
+                _ => unreachable!(),
             }
-            "row" => v["mir"]["data"]["data/values"]["operator"]["rows"][0]["n"] = json!(1),
-            "unknown" => labels["unknown"] = json!(true),
-            "null" => *labels = Value::Null,
-            "duplicate" => {}
-            _ => unreachable!(),
+            write(&b.files["input"], &v);
+            if mutation == "duplicate" {
+                let text = fs::read_to_string(&b.files["input"]).unwrap();
+                fs::write(
+                    &b.files["input"],
+                    text.replacen(
+                        "\"value_labels\": {",
+                        "\"value_labels\": {}, \"value_labels\": {",
+                        1,
+                    ),
+                )
+                .unwrap();
+            }
+            b.reject(b.command());
         }
-        write(&b.files["input"], &v);
-        if mutation == "duplicate" {
-            let text = fs::read_to_string(&b.files["input"]).unwrap();
-            fs::write(
-                &b.files["input"],
-                text.replacen(
-                    "\"value_labels\": {",
-                    "\"value_labels\": {}, \"value_labels\": {",
-                    1,
-                ),
-            )
-            .unwrap();
-        }
-        b.reject(b.command());
     }
 }
 
 #[test]
 fn profiles_are_disjoint_and_old_descriptor_and_receipt_schema_are_frozen() {
+    assert_eq!(
+        hash(include_bytes!("../assets/compiled-svg-command-v2.json")),
+        "96a462e9bf1b53940c7c21f60561f8e1aca7928dc9cf7b7a47c97484fe568acf"
+    );
+    assert_eq!(
+        hash(include_bytes!(
+            "../../../schemas/render-receipt-v2.schema.json"
+        )),
+        "6ada9f459c745d3aeb4087407a6140ea19f158f329c72a5d41b1374b30a6015d"
+    );
+    let mut v3 = Bundle::new("0.7");
+    v3.old_outputs();
+    let original = read(&v3.files["input"]);
+    for rejected in ["0.4", "0.5", "0.6", "0.8", "1.0"] {
+        let mut input = original.clone();
+        input["mir"]["version"] = json!(rejected);
+        input["mir"]["source_hir_version"] = json!(rejected);
+        write(&v3.files["input"], &input);
+        v3.reject(v3.command());
+    }
+    write(&v3.files["input"], &original);
+    for old in ["0.4", "0.5"] {
+        v3.version = old;
+        v3.reject(v3.command());
+    }
+
     assert_eq!(
         hash(include_bytes!("../assets/compiled-svg-command-v1.json")),
         "6ff9df004ae7f27c147fe00e2f2431db3c3189aba959da8de166f089d9f4e638"
@@ -1080,7 +1130,7 @@ fn profiles_are_disjoint_and_old_descriptor_and_receipt_schema_are_frozen() {
 }
 
 #[test]
-fn native_heatmap_wrap_five_stays_outside_published_provider_profiles() {
+fn native_heatmap_wrap_five_stays_outside_legacy_provider_profiles() {
     use vizir_compiler::{SemanticTextLayoutTarget, TextLayoutContext};
     for version in ["0.4", "0.5"] {
         let mut b = Bundle::new(version);
@@ -1114,5 +1164,210 @@ fn native_heatmap_wrap_five_stays_outside_published_provider_profiles() {
                 .contains("only text-wrap/1 through text-wrap/4")
         );
         b.reject(b.command());
+    }
+}
+
+#[test]
+fn v3_replays_authored_domains_stable_subset_colors_and_receipt() {
+    let b = Bundle::new("0.7");
+    let source = success(
+        Command::new(env!("CARGO_BIN_EXE_vizir"))
+            .arg("compose")
+            .arg(root().join("examples/composition/shared-numeric-domains.compose.yaml"))
+            .output()
+            .unwrap(),
+    );
+    let hir: Value = serde_json::from_slice(&source).unwrap();
+    assert_eq!(hir["version"], "0.7");
+    normalize_labeled(&b, &hir);
+    let original = read(&b.files["input"]);
+    for panel in original["mir"]["views"].as_array().unwrap() {
+        for (i, domain) in [json!([0., 1.]), json!([0., 10.])].into_iter().enumerate() {
+            assert_eq!(panel["scales"][i]["domain"], domain);
+            assert_eq!(panel["scales"][i]["out_of_domain"], "reject");
+        }
+        let colors = panel["scales"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["type"] == "ordinal-color")
+            .unwrap();
+        assert_eq!(colors["domain"], json!(["Alpha", "Beta"]));
+        assert_eq!(colors["range"], json!(["#2563eb", "#138b90"]));
+    }
+    let svg = verify_direct(&b);
+    let document = roxmltree::Document::parse(&svg).unwrap();
+    for id in ["all-series/series/Beta", "beta-only/series/Beta"] {
+        let n = document
+            .descendants()
+            .find(|n| n.attribute("id") == Some(id))
+            .unwrap();
+        assert!(
+            n.descendants()
+                .any(|n| n.attribute("stroke") == Some("#138b90"))
+        );
+    }
+    assert!(
+        !document
+            .descendants()
+            .any(|n| n.attribute("id") == Some("beta-only/series/Alpha"))
+    );
+    let receipt = read(&b.receipt());
+    assert_eq!(receipt["schema_version"], "vizir.render-receipt/v3");
+    assert_eq!(receipt["profile"], "vizir-compiled-svg/3");
+    assert_eq!(receipt["source_ir_version"], "0.7");
+    b.old_outputs();
+    for mutation in ["out_of_domain", "category", "stale", "null", "unknown"] {
+        let mut changed = original.clone();
+        match mutation {
+            "out_of_domain" => {
+                changed["mir"]["data"]["data/both"]["operator"]["rows"][0]["y"] = json!(11)
+            }
+            "category" => {
+                changed["mir"]["data"]["data/both"]["operator"]["rows"][0]["series"] =
+                    json!("Gamma")
+            }
+            "stale" => changed["mir"]["data"]["data/both"]["operator"]["rows"][0]["y"] = json!(4),
+            "null" => changed["mir"]["views"][0]["scales"][0]["domain"] = Value::Null,
+            "unknown" => changed["mir"]["views"][0]["scales"][0]["hidden"] = json!(true),
+            _ => unreachable!(),
+        }
+        write(&b.files["input"], &changed);
+        b.reject(b.command());
+    }
+}
+
+#[test]
+fn v3_heatmap_wrap_five_is_exact_persisted_and_closed() {
+    use vizir_compiler::{SemanticTextLayoutTarget, TextLayoutContext};
+    let mut b = Bundle::new("0.7");
+    let mut fonts = FontResources::new();
+    for role in ["font_1", "font_2", "font_3"] {
+        let bytes = fs::read(&b.files[role]).unwrap();
+        fonts.insert(&hash(&bytes), bytes).unwrap();
+    }
+    let layout = TextLayoutContext::new(vec![]).with_heatmap_x_labels(vec![
+        SemanticTextLayoutTarget::heatmap_x_category_labels("h", 40., 4, 16.),
+    ]);
+    let document: Document = serde_json::from_value(
+        json!({"version":"0.7","id":"h-wrap-v3","width":720,"height":400,
+        "datasets":{"d":{"key":"id","rows":[{"id":"a","x":"中文测试中文测试","y":"测试","v":1}]}},
+        "views":[{"kind":"chart.heatmap","id":"h","frame":{"x":0,"y":0,"width":720,"height":400},
+        "dataset":"d","x":{"field":"x"},"y":{"field":"y"},"color":{"field":"v","domain":[0,10]}}]}),
+    )
+    .unwrap();
+    let ctx = CompilationContext::new()
+        .with_theme(ThemeContext::resolve("azure").unwrap())
+        .with_text(parse_text_context_json(&fs::read(&b.files["text_profile"]).unwrap()).unwrap())
+        .with_text_layout(layout.clone());
+    let compiled = compile_with_context(&document, &ctx, &fonts).unwrap();
+    let original = serde_json::to_value(compiled.mir).unwrap();
+    write(&b.files["input"], &original);
+    let policy_path = b.dir.path().join("layout.json");
+    let policy = serde_json::to_value(layout).unwrap();
+    write(&policy_path, &policy);
+    b.files.insert("text_layout".into(), policy_path.clone());
+    let svg = verify_direct(&b);
+    assert!(svg.contains("<path"));
+    assert_eq!(
+        read(&b.receipt())["compilation_context"]["text_layout"],
+        policy
+    );
+    let copy = tempfile::tempdir().unwrap();
+    let mut copied = BTreeMap::new();
+    for (role, path) in &b.files {
+        let to = copy.path().join(path.file_name().unwrap());
+        fs::copy(path, &to).unwrap();
+        copied.insert(role.clone(), to);
+    }
+    let mut replay = b.command_with(
+        &copied,
+        &b.pins(),
+        &copy.path().join("figure.svg"),
+        &copy.path().join("receipt.json"),
+    );
+    success(replay.current_dir("/").output().unwrap());
+    assert_eq!(
+        fs::read(copy.path().join("figure.svg")).unwrap(),
+        svg.as_bytes()
+    );
+    assert_eq!(
+        fs::read(copy.path().join("receipt.json")).unwrap(),
+        fs::read(b.receipt()).unwrap()
+    );
+    b.old_outputs();
+    for mutation in [
+        "missing",
+        "unknown",
+        "null",
+        "mismatch",
+        "stale_range",
+        "stale_text",
+    ] {
+        let mut changed = original.clone();
+        let mut policy_changed = policy.clone();
+        match mutation {
+            "missing" => {
+                changed["context"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("text_layout");
+            }
+            "unknown" => policy_changed["profile"] = json!("vizir-text-wrap/6"),
+            "null" => changed["context"]["text_layout"] = Value::Null,
+            "mismatch" => policy_changed["semantic_targets"][0]["max_width"] = json!(39),
+            "stale_range" => {
+                changed["context"]["text_layout"]["semantic_targets"][0]["line_height"] = json!(40);
+                policy_changed = changed["context"]["text_layout"].clone();
+            }
+            "stale_text" => {
+                changed["mir"]["data"]["data/d"]["operator"]["rows"][0]["x"] = json!("中文")
+            }
+            _ => unreachable!(),
+        }
+        write(&b.files["input"], &changed);
+        write(&policy_path, &policy_changed);
+        b.reject(b.command());
+    }
+    write(&b.files["input"], &original);
+    write(&policy_path, &policy);
+    let mut missing = b.files.clone();
+    missing.remove("text_layout");
+    let mut pins = b.pins();
+    pins.as_object_mut().unwrap().remove("text_layout");
+    b.reject(b.command_with(&missing, &pins, &b.output(), &b.receipt()));
+}
+
+#[test]
+fn v3_receipt_schema_has_exact_native_wrap_five_branch_without_widening_legacy() {
+    let v3: Value = serde_json::from_str(include_str!(
+        "../../../schemas/render-receipt-v3.schema.json"
+    ))
+    .unwrap();
+    let native: Value =
+        serde_json::from_str(include_str!("../../../schemas/compiled-mir.schema.json")).unwrap();
+    for name in [
+        "TextLayoutContext",
+        "HeatmapTextLayoutContext",
+        "HeatmapTextLayoutRole",
+        "HeatmapSemanticTextLayoutTarget",
+    ] {
+        assert_eq!(v3["$defs"][name], native["$defs"][name]);
+    }
+    assert_eq!(v3["properties"]["source_ir_version"]["const"], "0.7");
+    assert_eq!(v3["additionalProperties"], false);
+    for old in [
+        include_str!("../../../schemas/render-receipt.schema.json"),
+        include_str!("../../../schemas/render-receipt-v2.schema.json"),
+    ] {
+        let legacy: Value = serde_json::from_str(old).unwrap();
+        assert_eq!(
+            legacy["$defs"]["TextLayoutContext"]["oneOf"]
+                .as_array()
+                .unwrap()
+                .len(),
+            4
+        );
+        assert!(legacy["$defs"].get("HeatmapTextLayoutContext").is_none());
     }
 }

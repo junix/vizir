@@ -1,0 +1,1468 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "vizir.render-receipt/v3"
+    },
+    "profile": {
+      "const": "vizir-compiled-svg/3"
+    },
+    "provider": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "const": "plot-provider-vizir"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "document_id": {
+      "type": "string"
+    },
+    "source_ir_version": {
+      "const": "0.7"
+    },
+    "source_context_format": {
+      "const": "vizir-compiled-mir/1"
+    },
+    "compilation_context": {
+      "type": "object",
+      "properties": {
+        "theme": {
+          "$ref": "#/$defs/ThemeContext"
+        },
+        "text": {
+          "$ref": "#/$defs/TextContext"
+        },
+        "text_layout": {
+          "$ref": "#/$defs/TextLayoutContext"
+        }
+      },
+      "required": [
+        "theme",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "background": {
+      "type": "string"
+    },
+    "capability_report": {
+      "type": "object",
+      "properties": {
+        "backend": {
+          "type": "string"
+        },
+        "backend_version": {
+          "type": "string"
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "accepted_ir": {
+          "type": "string"
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "feature": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "exact",
+                  "equivalent",
+                  "approximate",
+                  "rasterized",
+                  "dropped",
+                  "error"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "feature",
+              "status",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "backend",
+        "backend_version",
+        "document_id",
+        "accepted_ir",
+        "decisions"
+      ],
+      "additionalProperties": false
+    },
+    "losses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/LossRecord"
+      }
+    },
+    "artifact_receipt": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "plot.artifact-receipt-core/v1"
+        },
+        "inputs": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "enum": [
+                  "input",
+                  "text_profile",
+                  "text_layout",
+                  "font_1",
+                  "font_2",
+                  "font_3"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 33554432
+              }
+            },
+            "required": [
+              "role",
+              "sha256",
+              "bytes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "primary": {
+          "type": "object",
+          "properties": {
+            "artifact_id": {
+              "const": "figure"
+            },
+            "role": {
+              "const": "primary"
+            },
+            "argument": {
+              "const": "output"
+            },
+            "kind": {
+              "const": "svg"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 33554432
+            }
+          },
+          "required": [
+            "artifact_id",
+            "role",
+            "argument",
+            "kind",
+            "sha256",
+            "bytes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "inputs",
+        "primary"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "profile",
+    "provider",
+    "document_id",
+    "source_ir_version",
+    "source_context_format",
+    "compilation_context",
+    "background",
+    "capability_report",
+    "losses",
+    "artifact_receipt"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "LossRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "fidelity": {
+          "$ref": "#/$defs/LoweringFidelity"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "fidelity",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "LoweringFidelity": {
+      "enum": [
+        "lossless",
+        "semantically-equivalent",
+        "visually-approximate",
+        "rasterized",
+        "dropped"
+      ],
+      "type": "string"
+    },
+    "TextLayoutContext": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GeometryTextLayoutContext"
+        },
+        {
+          "$ref": "#/$defs/SemanticTextLayoutContext"
+        },
+        {
+          "$ref": "#/$defs/CategoryTextLayoutContext"
+        },
+        {
+          "$ref": "#/$defs/DiagramTextLayoutContext"
+        },
+        {
+          "$ref": "#/$defs/HeatmapTextLayoutContext"
+        }
+      ]
+    },
+    "DiagramTextLayoutContext": {
+      "additionalProperties": false,
+      "properties": {
+        "diagram_targets": {
+          "items": {
+            "$ref": "#/$defs/DiagramTextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "engine": {
+          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+          "type": "string"
+        },
+        "profile": {
+          "const": "vizir-text-wrap/4",
+          "type": "string"
+        },
+        "semantic_targets": {
+          "items": {
+            "$ref": "#/$defs/CategorySemanticTextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "targets",
+        "diagram_targets"
+      ],
+      "type": "object"
+    },
+    "TextLayoutTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "line_height": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "max_lines": {
+          "format": "uint32",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_width": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "node_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "view_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_id",
+        "node_id",
+        "max_width",
+        "max_lines",
+        "line_height"
+      ],
+      "type": "object"
+    },
+    "CategorySemanticTextLayoutTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "line_height": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "max_lines": {
+          "format": "uint32",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_width": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "role": {
+          "$ref": "#/$defs/CategoryTextLayoutRole"
+        },
+        "view_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_id",
+        "role",
+        "max_width",
+        "max_lines",
+        "line_height"
+      ],
+      "type": "object"
+    },
+    "CategoryTextLayoutRole": {
+      "description": "A supported semantic text slot, resolved against original source fields.",
+      "enum": [
+        "chart.title",
+        "bar.category_labels"
+      ],
+      "type": "string"
+    },
+    "DiagramTextLayoutTarget": {
+      "additionalProperties": false,
+      "description": "A diagram node label, selected by exact source view and node identities.",
+      "properties": {
+        "line_height": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "max_lines": {
+          "format": "uint32",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_width": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "node_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "view_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_id",
+        "node_id",
+        "max_width",
+        "max_lines",
+        "line_height"
+      ],
+      "type": "object"
+    },
+    "CategoryTextLayoutContext": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+          "type": "string"
+        },
+        "profile": {
+          "const": "vizir-text-wrap/3",
+          "type": "string"
+        },
+        "semantic_targets": {
+          "contains": {
+            "additionalProperties": true,
+            "properties": {
+              "role": {
+                "const": "bar.category_labels"
+              }
+            },
+            "required": [
+              "role"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "$ref": "#/$defs/CategorySemanticTextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "targets",
+        "semantic_targets"
+      ],
+      "type": "object"
+    },
+    "SemanticTextLayoutContext": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+          "type": "string"
+        },
+        "profile": {
+          "const": "vizir-text-wrap/2",
+          "type": "string"
+        },
+        "semantic_targets": {
+          "items": {
+            "$ref": "#/$defs/SemanticTextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "targets",
+        "semantic_targets"
+      ],
+      "type": "object"
+    },
+    "SemanticTextLayoutTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "line_height": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "max_lines": {
+          "format": "uint32",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_width": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "role": {
+          "$ref": "#/$defs/TextLayoutRole"
+        },
+        "view_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_id",
+        "role",
+        "max_width",
+        "max_lines",
+        "line_height"
+      ],
+      "type": "object"
+    },
+    "TextLayoutRole": {
+      "description": "A supported semantic text slot, resolved against original source fields.",
+      "enum": [
+        "chart.title"
+      ],
+      "type": "string"
+    },
+    "GeometryTextLayoutContext": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+          "type": "string"
+        },
+        "profile": {
+          "const": "vizir-text-wrap/1",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "targets"
+      ],
+      "type": "object"
+    },
+    "TextContext": {
+      "additionalProperties": false,
+      "properties": {
+        "declared_locale": {
+          "maxLength": 32,
+          "minLength": 2,
+          "pattern": "^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$",
+          "type": "string"
+        },
+        "engine": {
+          "const": "cosmic-text/0.19.0;harfrust/0.5.2;skrifa/0.40.0",
+          "type": "string"
+        },
+        "faces": {
+          "$ref": "#/$defs/TextFaces"
+        },
+        "profile": {
+          "const": "vizir-text-outlines/1",
+          "type": "string"
+        },
+        "shaping_language": {
+          "const": "default",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "declared_locale",
+        "shaping_language",
+        "faces"
+      ],
+      "type": "object"
+    },
+    "TextFaces": {
+      "additionalProperties": false,
+      "properties": {
+        "bold": {
+          "$ref": "#/$defs/FontFace",
+          "properties": {
+            "weight": {
+              "const": 700
+            }
+          }
+        },
+        "medium": {
+          "$ref": "#/$defs/FontFace",
+          "properties": {
+            "weight": {
+              "const": 500
+            }
+          }
+        },
+        "regular": {
+          "$ref": "#/$defs/FontFace",
+          "properties": {
+            "weight": {
+              "const": 400
+            }
+          }
+        }
+      },
+      "required": [
+        "regular",
+        "medium",
+        "bold"
+      ],
+      "type": "object"
+    },
+    "FontFace": {
+      "additionalProperties": false,
+      "properties": {
+        "face_index": {
+          "format": "uint32",
+          "maximum": 31,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "weight": {
+          "enum": [
+            400,
+            500,
+            700
+          ],
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sha256",
+        "face_index",
+        "weight"
+      ],
+      "type": "object"
+    },
+    "ThemeContext": {
+      "additionalProperties": false,
+      "description": "Identity and exact resolved defaults are checked together before execution.",
+      "oneOf": [
+        {
+          "const": {
+            "defaults": {
+              "edge": "#657383",
+              "grid": "#dbe0e6",
+              "group_fills": [
+                "#e4ecfd",
+                "#e2f0f3",
+                "#e6e9f0",
+                "#ebf5f7",
+                "#f4eee8",
+                "#f2e9eb",
+                "#e7efec",
+                "#f0f2f4"
+              ],
+              "ink": "#192028",
+              "mark": "#2563eb",
+              "muted": "#495460",
+              "node_fill": "#fcfdff",
+              "node_stroke": "#bbc3cd",
+              "point_interior": "#f2f5f8",
+              "series": [
+                "#2563eb",
+                "#138b90",
+                "#304673",
+                "#62b4b8",
+                "#b3782e",
+                "#a34946",
+                "#3c7b50",
+                "#90969d"
+              ]
+            },
+            "name": "azure",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#7f8e9e",
+              "grid": "#2c3136",
+              "group_fills": [
+                "#2e3849",
+                "#2f3c43",
+                "#373e49",
+                "#2b383e",
+                "#3c3b3a",
+                "#3c373d",
+                "#323e3e",
+                "#31363d"
+              ],
+              "ink": "#e5eaf0",
+              "mark": "#5b8def",
+              "muted": "#aeb7c1",
+              "node_fill": "#282d34",
+              "node_stroke": "#404750",
+              "point_interior": "#14191e",
+              "series": [
+                "#5b8def",
+                "#6bb6ba",
+                "#b0c8f4",
+                "#428e92",
+                "#e1ac69",
+                "#db8684",
+                "#82c393",
+                "#7b8187"
+              ]
+            },
+            "name": "azure-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#647480",
+              "grid": "#dae1e5",
+              "group_fills": [
+                "#e6eef2",
+                "#e8f2f0",
+                "#e4eaee",
+                "#edf6f4",
+                "#f4efe7",
+                "#f2eaea",
+                "#e7f0eb",
+                "#f0f3f3"
+              ],
+              "ink": "#182026",
+              "mark": "#336890",
+              "muted": "#48545d",
+              "node_fill": "#fcfefe",
+              "node_stroke": "#bbc4cb",
+              "point_interior": "#f1f5f8",
+              "series": [
+                "#336890",
+                "#48907b",
+                "#234c69",
+                "#78b3a0",
+                "#b3782e",
+                "#a34946",
+                "#3c7b50",
+                "#90969b"
+              ]
+            },
+            "name": "mist-blue",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#7e8f9b",
+              "grid": "#2c3135",
+              "group_fills": [
+                "#313c44",
+                "#2f3c3d",
+                "#353f47",
+                "#2b393a",
+                "#3b3c38",
+                "#3b383b",
+                "#313e3d",
+                "#30373b"
+              ],
+              "ink": "#e4eaef",
+              "mark": "#81b1d7",
+              "muted": "#adb7bf",
+              "node_fill": "#272e32",
+              "node_stroke": "#3f484e",
+              "point_interior": "#14191d",
+              "series": [
+                "#81b1d7",
+                "#6cae99",
+                "#a2cdf0",
+                "#4d8f7b",
+                "#e1ac69",
+                "#db8684",
+                "#82c393",
+                "#7b8186"
+              ]
+            },
+            "name": "mist-blue-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#6a7568",
+              "grid": "#dde1dc",
+              "group_fills": [
+                "#e9eee9",
+                "#eaf0f4",
+                "#e6ebe7",
+                "#f0f5f8",
+                "#f5efe6",
+                "#f3eae9",
+                "#e6f0eb",
+                "#f1f3f1"
+              ],
+              "ink": "#1c211b",
+              "mark": "#446f4b",
+              "muted": "#4d554b",
+              "node_fill": "#fdfefd",
+              "node_stroke": "#bec5bd",
+              "point_interior": "#f3f5f2",
+              "series": [
+                "#446f4b",
+                "#537ea8",
+                "#2c5232",
+                "#83a9ce",
+                "#b3782e",
+                "#a34946",
+                "#307c58",
+                "#929791"
+              ]
+            },
+            "name": "sage",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#859082",
+              "grid": "#2e322d",
+              "group_fills": [
+                "#353e35",
+                "#343c3c",
+                "#384038",
+                "#2f3737",
+                "#3e3c30",
+                "#3d3833",
+                "#333f36",
+                "#333732"
+              ],
+              "ink": "#e7ebe6",
+              "mark": "#90bb95",
+              "muted": "#b1b8b0",
+              "node_fill": "#2a2e29",
+              "node_stroke": "#424841",
+              "point_interior": "#161915",
+              "series": [
+                "#90bb95",
+                "#82acd5",
+                "#aad4af",
+                "#5b84ab",
+                "#e1ac69",
+                "#db8684",
+                "#79c49c",
+                "#7d827c"
+              ]
+            },
+            "name": "sage-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#627675",
+              "grid": "#dae1e1",
+              "group_fills": [
+                "#e4eeee",
+                "#eeeff4",
+                "#e3ebeb",
+                "#f2f3f8",
+                "#f4efe7",
+                "#f2eaea",
+                "#e7f0eb",
+                "#f0f3f3"
+              ],
+              "ink": "#172221",
+              "mark": "#22716b",
+              "muted": "#475655",
+              "node_fill": "#fcfefe",
+              "node_stroke": "#bac5c4",
+              "point_interior": "#f1f5f5",
+              "series": [
+                "#22716b",
+                "#7b73a1",
+                "#17524e",
+                "#a59ec7",
+                "#b3782e",
+                "#a34946",
+                "#3c7b50",
+                "#8f9796"
+              ]
+            },
+            "name": "stone-teal",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#7c918f",
+              "grid": "#2b3231",
+              "group_fills": [
+                "#2f3e3d",
+                "#343b40",
+                "#324040",
+                "#30363c",
+                "#3b3c34",
+                "#3a3837",
+                "#303e39",
+                "#2f3737"
+              ],
+              "ink": "#e4ebeb",
+              "mark": "#78bdb6",
+              "muted": "#acb9b8",
+              "node_fill": "#262e2e",
+              "node_stroke": "#3e4948",
+              "point_interior": "#131a19",
+              "series": [
+                "#78bdb6",
+                "#a8a0d4",
+                "#94d6cf",
+                "#8178aa",
+                "#e1ac69",
+                "#db8684",
+                "#82c393",
+                "#7a8281"
+              ]
+            },
+            "name": "stone-teal-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#756e7d",
+              "grid": "#e1dee4",
+              "group_fills": [
+                "#eeebf1",
+                "#e8f0f1",
+                "#ebe8ed",
+                "#eef5f6",
+                "#f6eee7",
+                "#f4e9ea",
+                "#e9efeb",
+                "#f3f1f3"
+              ],
+              "ink": "#211e25",
+              "mark": "#6a588a",
+              "muted": "#55505b",
+              "node_fill": "#fefdfe",
+              "node_stroke": "#c4c1c9",
+              "point_interior": "#f5f4f7",
+              "series": [
+                "#6a588a",
+                "#358989",
+                "#4d3f67",
+                "#70b2b2",
+                "#b3782e",
+                "#a34946",
+                "#3c7b50",
+                "#96949a"
+              ]
+            },
+            "name": "dusty-violet",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#8f8998",
+              "grid": "#312f34",
+              "group_fills": [
+                "#3d3843",
+                "#353a40",
+                "#403b46",
+                "#30363b",
+                "#423937",
+                "#41353a",
+                "#373c3c",
+                "#37343a"
+              ],
+              "ink": "#ebe8ee",
+              "mark": "#b4a4d4",
+              "muted": "#b8b4bd",
+              "node_fill": "#2e2b31",
+              "node_stroke": "#48444d",
+              "point_interior": "#19171c",
+              "series": [
+                "#b4a4d4",
+                "#6cb7b6",
+                "#cebeed",
+                "#428e8e",
+                "#e1ac69",
+                "#db8684",
+                "#82c393",
+                "#817f85"
+              ]
+            },
+            "name": "dusty-violet-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#7c6f5e",
+              "grid": "#e4dfd8",
+              "group_fills": [
+                "#efebe6",
+                "#eceff2",
+                "#ece9e4",
+                "#f1f4f6",
+                "#f7ede8",
+                "#f3e7e7",
+                "#e9efe9",
+                "#f3f1f0"
+              ],
+              "ink": "#241e16",
+              "mark": "#7a5d38",
+              "muted": "#5b5144",
+              "node_fill": "#fefdfc",
+              "node_stroke": "#c9c1b7",
+              "point_interior": "#f7f4f0",
+              "series": [
+                "#7a5d38",
+                "#597f9f",
+                "#5a4325",
+                "#88a9c5",
+                "#bd7042",
+                "#96353e",
+                "#3c7b50",
+                "#9a948d"
+              ]
+            },
+            "name": "warm-sand",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#978a78",
+              "grid": "#34302a",
+              "group_fills": [
+                "#423a30",
+                "#3a3a38",
+                "#3c3429",
+                "#353634",
+                "#46392e",
+                "#443530",
+                "#3a3d31",
+                "#3a352e"
+              ],
+              "ink": "#ede9e2",
+              "mark": "#cdaf8a",
+              "muted": "#bdb4a9",
+              "node_fill": "#312c25",
+              "node_stroke": "#4c453c",
+              "point_interior": "#1c1812",
+              "series": [
+                "#cdaf8a",
+                "#80add4",
+                "#967347",
+                "#5985aa",
+                "#eea37a",
+                "#da8188",
+                "#82c393",
+                "#847f78"
+              ]
+            },
+            "name": "warm-sand-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#75725e",
+              "grid": "#e1e0d8",
+              "group_fills": [
+                "#edece6",
+                "#eaeff2",
+                "#eae9e3",
+                "#f0f4f7",
+                "#f6eee5",
+                "#f4e9e8",
+                "#e9efe9",
+                "#f3f2f0"
+              ],
+              "ink": "#212016",
+              "mark": "#616434",
+              "muted": "#555344",
+              "node_fill": "#fefdfc",
+              "node_stroke": "#c5c3b7",
+              "point_interior": "#f5f5f0",
+              "series": [
+                "#616434",
+                "#4b81a5",
+                "#494b1c",
+                "#7dabcb",
+                "#b3782e",
+                "#a34946",
+                "#3c7b50",
+                "#97958d"
+              ]
+            },
+            "name": "olive-paper",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        },
+        {
+          "const": {
+            "defaults": {
+              "edge": "#908d78",
+              "grid": "#32312a",
+              "group_fills": [
+                "#3d3c30",
+                "#373b38",
+                "#363629",
+                "#323734",
+                "#423b2c",
+                "#41372f",
+                "#373e31",
+                "#37362e"
+              ],
+              "ink": "#ebeae2",
+              "mark": "#b2b686",
+              "muted": "#b8b6a9",
+              "node_fill": "#2e2d25",
+              "node_stroke": "#48473c",
+              "point_interior": "#191812",
+              "series": [
+                "#b2b686",
+                "#7caed2",
+                "#7b7f49",
+                "#5586a9",
+                "#e1ac69",
+                "#db8684",
+                "#82c393",
+                "#828078"
+              ]
+            },
+            "name": "olive-paper-dark",
+            "registry_revision": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+            "registry_spec": "diagram-theme/v1",
+            "registry_version": "1.0.0"
+          }
+        }
+      ],
+      "properties": {
+        "defaults": {
+          "$ref": "#/$defs/ResolvedThemeDefaults"
+        },
+        "name": {
+          "enum": [
+            "azure",
+            "azure-dark",
+            "mist-blue",
+            "mist-blue-dark",
+            "sage",
+            "sage-dark",
+            "stone-teal",
+            "stone-teal-dark",
+            "dusty-violet",
+            "dusty-violet-dark",
+            "warm-sand",
+            "warm-sand-dark",
+            "olive-paper",
+            "olive-paper-dark"
+          ],
+          "type": "string"
+        },
+        "registry_revision": {
+          "const": "1cc4e6667aa86444a7e9055549aa85cac293dc07",
+          "type": "string"
+        },
+        "registry_spec": {
+          "const": "diagram-theme/v1",
+          "type": "string"
+        },
+        "registry_version": {
+          "const": "1.0.0",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "registry_spec",
+        "registry_version",
+        "registry_revision",
+        "defaults"
+      ],
+      "type": "object"
+    },
+    "ResolvedThemeDefaults": {
+      "additionalProperties": false,
+      "description": "Resolved compiler defaults, not a canvas paint instruction or authored styles.",
+      "properties": {
+        "edge": {
+          "type": "string"
+        },
+        "grid": {
+          "type": "string"
+        },
+        "group_fills": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 8,
+          "type": "array"
+        },
+        "ink": {
+          "type": "string"
+        },
+        "mark": {
+          "type": "string"
+        },
+        "muted": {
+          "type": "string"
+        },
+        "node_fill": {
+          "type": "string"
+        },
+        "node_stroke": {
+          "type": "string"
+        },
+        "point_interior": {
+          "type": "string"
+        },
+        "series": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 8,
+          "type": "array"
+        }
+      },
+      "required": [
+        "ink",
+        "muted",
+        "grid",
+        "mark",
+        "series",
+        "point_interior",
+        "node_fill",
+        "node_stroke",
+        "group_fills",
+        "edge"
+      ],
+      "type": "object"
+    },
+    "HeatmapTextLayoutContext": {
+      "additionalProperties": false,
+      "properties": {
+        "diagram_targets": {
+          "items": {
+            "$ref": "#/$defs/DiagramTextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "engine": {
+          "const": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+          "type": "string"
+        },
+        "profile": {
+          "const": "vizir-text-wrap/5",
+          "type": "string"
+        },
+        "semantic_targets": {
+          "contains": {
+            "additionalProperties": true,
+            "properties": {
+              "role": {
+                "const": "heatmap.x_category_labels"
+              }
+            },
+            "required": [
+              "role"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "$ref": "#/$defs/HeatmapSemanticTextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/TextLayoutTarget"
+          },
+          "maxItems": 256,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "profile",
+        "engine",
+        "targets",
+        "semantic_targets"
+      ],
+      "type": "object"
+    },
+    "HeatmapTextLayoutRole": {
+      "description": "A supported semantic text slot, resolved against original source fields.",
+      "enum": [
+        "chart.title",
+        "bar.category_labels",
+        "heatmap.x_category_labels"
+      ],
+      "type": "string"
+    },
+    "HeatmapSemanticTextLayoutTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "line_height": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "max_lines": {
+          "format": "uint32",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_width": {
+          "format": "double",
+          "maximum": 1000000,
+          "minimum": 0.25,
+          "type": "number"
+        },
+        "role": {
+          "$ref": "#/$defs/HeatmapTextLayoutRole"
+        },
+        "view_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_id",
+        "role",
+        "max_width",
+        "max_lines",
+        "line_height"
+      ],
+      "type": "object"
+    }
+  },
+  "$comment": "Native provider receipt contract. Schema validation alone does not verify exact input roles, raw hash/byte relations, or native context/loss equality. Hub receipt-core verification is a separate integration gate."
+}

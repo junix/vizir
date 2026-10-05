@@ -24,24 +24,28 @@ const MAX_FONT_TOTAL_BYTES: usize = 96 * 1024 * 1024;
 pub(crate) enum Profile {
     V1,
     V2,
+    V3,
 }
 impl Profile {
     pub(crate) fn ir_version(self) -> &'static str {
         match self {
             Self::V1 => "0.4",
             Self::V2 => "0.5",
+            Self::V3 => "0.7",
         }
     }
     pub(crate) fn implementation(self) -> &'static str {
         match self {
             Self::V1 => super::PROFILE,
             Self::V2 => super::PROFILE_V2,
+            Self::V3 => super::PROFILE_V3,
         }
     }
     pub(crate) fn receipt_schema(self) -> &'static str {
         match self {
             Self::V1 => "vizir.render-receipt/v1",
             Self::V2 => "vizir.render-receipt/v2",
+            Self::V3 => "vizir.render-receipt/v3",
         }
     }
 }
@@ -257,6 +261,10 @@ pub(crate) fn run_v2(options: Options) -> VizResult<()> {
     run_with_profile(options, Profile::V2)
 }
 
+pub(crate) fn run_v3(options: Options) -> VizResult<()> {
+    run_with_profile(options, Profile::V3)
+}
+
 fn run_with_profile(options: Options, profile: Profile) -> VizResult<()> {
     if options.font_3.is_some() && options.font_2.is_none() {
         return Err(error("font slots must be contiguous from font_1"));
@@ -337,16 +345,19 @@ fn run_with_profile(options: Options, profile: Profile) -> VizResult<()> {
             profile.ir_version()
         )));
     }
-    // Published provider profiles stay closed when native wrapping gains roles.
+    // V1/V2 stay closed; only the explicit V3 contract admits heatmap wrapping.
     if mir.context.text_layout.as_ref().is_some_and(|layout| {
         !matches!(
             layout.profile.as_str(),
             "vizir-text-wrap/1" | "vizir-text-wrap/2" | "vizir-text-wrap/3" | "vizir-text-wrap/4"
-        )
+        ) && !(matches!(profile, Profile::V3) && layout.profile == "vizir-text-wrap/5")
     }) {
-        return Err(error(
-            "published provider profiles support only text-wrap/1 through text-wrap/4",
-        ));
+        return Err(error(match profile {
+            Profile::V1 | Profile::V2 => {
+                "published provider profiles support only text-wrap/1 through text-wrap/4"
+            }
+            Profile::V3 => "provider V3 supports only text-wrap/1 through text-wrap/5",
+        }));
     }
     let text = parse_text_context_json(&resource("text_profile").bytes)?;
     if mir.context.text.as_ref() != Some(&text) {
