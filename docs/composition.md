@@ -260,3 +260,14 @@ heatmaps. The V1 adapters remain unchanged. Use `Composition`,
 `parse_versioned_composition`, and `compose_versioned` for 0.3. New `Panel` enum
 variants can affect exhaustive Rust matches. The standalone legacy `Panel`
 schema is unchanged; use the versioned composition root schema for heatmaps.
+
+## Stable categorical colors (composition 0.5)
+
+Use `schema: vizir-composition/0.5` to emit VizHIR/MIR 0.6 and author ordered
+`domain` arrays on scatter/bar `color` or line/area `series`. Put the same domain
+and palette in related panels, even where some categories have no data. Each
+panel then retains the same category-to-color map and full legend, with no
+invented marks. Existing 0.1–0.4 composition branches reject this new field.
+
+See [the exact domain contract](categorical-domains.md) and
+[the executable subset-panel example](../examples/composition/stable-panel-colors.compose.yaml).

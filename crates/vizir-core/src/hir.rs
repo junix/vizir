@@ -123,6 +123,19 @@ impl View {
         }
     }
 
+    pub(crate) fn categorical_color(&self) -> Option<(&str, &str, &ColorEncoding)> {
+        let (dataset, field, encoding) = match self {
+            Self::Scatter(chart) => (&chart.dataset, "color", &chart.color),
+            Self::Line(chart) => (&chart.dataset, "series", &chart.series),
+            Self::Area(chart) => (&chart.dataset, "series", &chart.series),
+            Self::Bar(chart) => (&chart.dataset, "color", &chart.color),
+            _ => return None,
+        };
+        encoding
+            .as_ref()
+            .map(|encoding| (dataset.as_str(), field, encoding))
+    }
+
     pub fn frame(&self) -> &Frame {
         match self {
             Self::Scatter(view) => &view.frame,
@@ -248,6 +261,79 @@ pub struct ColorEncoding {
     pub field: String,
     #[serde(default)]
     pub palette: Vec<Color>,
+    /// Ordered categorical keys, available starting with VizHIR 0.6.
+    /// Omission retains the legacy sorted observed-domain behavior.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_color_domain"
+    )]
+    #[schemars(skip)]
+    pub domain: Option<Vec<String>>,
+}
+
+// Keep the published ColorEncoding schema closed. Only the new composition
+// branch references this schema-only type; there is no alternate runtime IR.
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ColorEncodingV06 {
+    pub field: String,
+    #[serde(default)]
+    pub palette: Vec<Color>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Vec<String>", length(min = 1, max = 256), extend("uniqueItems" = true))]
+    pub domain: Option<Vec<String>>,
+}
+
+fn deserialize_color_domain<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    // Going through Value rejects YAML's implicit number/bool-to-String
+    // coercion, keeping the same strict string-key contract as JSON.
+    let values = Vec::<Value>::deserialize(deserializer)?;
+    let domain = values
+        .into_iter()
+        .map(|value| match value {
+            Value::String(key) => Ok(key),
+            _ => Err(serde::de::Error::custom(
+                "categorical domain entries must be strings",
+            )),
+        })
+        .collect::<Result<Vec<_>, D::Error>>()?;
+    validate_color_domain(&domain).map_err(serde::de::Error::custom)?;
+    Ok(Some(domain))
+}
+
+pub(crate) fn validate_color_domain(domain: &[String]) -> Result<(), &'static str> {
+    if domain.is_empty() || domain.len() > 256 {
+        return Err("categorical domain must contain 1..=256 keys");
+    }
+    let mut keys = std::collections::BTreeSet::new();
+    let mut bytes = 0usize;
+    for key in domain {
+        if key.is_empty()
+            || key.len() > 16_384
+            || key
+                .chars()
+                .any(|ch| ch.is_control() || matches!(ch, '\u{2028}' | '\u{2029}'))
+        {
+            return Err(
+                "categorical domain keys must contain 1..=16384 UTF-8 bytes without control characters or line separators",
+            );
+        }
+        bytes = bytes
+            .checked_add(key.len())
+            .ok_or("categorical domain byte count overflow")?;
+        if bytes > 1_048_576 {
+            return Err("categorical domain exceeds 1048576 UTF-8 bytes");
+        }
+        if !keys.insert(key) {
+            return Err("categorical domain keys must be unique");
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

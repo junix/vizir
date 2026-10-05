@@ -4834,6 +4834,9 @@
         },
         {
           "$ref": "#/$defs/VizMirV05"
+        },
+        {
+          "$ref": "#/$defs/VizMirV06"
         }
       ]
     },
@@ -5022,6 +5025,77 @@
         },
         "version": {
           "const": "0.5",
+          "type": "string"
+        },
+        "views": {
+          "items": {
+            "$ref": "#/$defs/MirViewV05"
+          },
+          "type": "array"
+        },
+        "width": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "version",
+        "source_hir_version",
+        "document_id",
+        "width",
+        "height",
+        "background",
+        "spaces",
+        "data",
+        "expressions",
+        "views",
+        "losses"
+      ],
+      "type": "object"
+    },
+    "VizMirV06": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MirDataNode"
+          },
+          "type": "object"
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "expressions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TypedExpression"
+          },
+          "type": "object"
+        },
+        "height": {
+          "format": "double",
+          "type": "number"
+        },
+        "losses": {
+          "items": {
+            "$ref": "#/$defs/LossRecord"
+          },
+          "type": "array"
+        },
+        "source_hir_version": {
+          "const": "0.6",
+          "type": "string"
+        },
+        "spaces": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CoordinateSpace2D"
+          },
+          "type": "object"
+        },
+        "version": {
+          "const": "0.6",
           "type": "string"
         },
         "views": {

@@ -1069,7 +1069,7 @@ fn profiles_are_disjoint_and_old_descriptor_and_receipt_schema_are_frozen() {
         b.reject(b.command());
         b.version = version;
         let original = read(&b.files["input"]);
-        for future in ["0.6", "1.0"] {
+        for future in ["0.6", "0.7", "1.0"] {
             let mut input = original.clone();
             input["mir"]["version"] = json!(future);
             input["mir"]["source_hir_version"] = json!(future);

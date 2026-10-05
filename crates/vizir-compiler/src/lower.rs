@@ -1123,11 +1123,13 @@ fn materialized_color_scale<'a>(
     defaults: Option<&ResolvedThemeDefaults>,
 ) -> Option<MirScale> {
     encoding.map(|encoding| {
-        let domain = categories
-            .cloned()
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
+        let domain = encoding.domain.clone().unwrap_or_else(|| {
+            categories
+                .cloned()
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>()
+        });
         let palette = if encoding.palette.is_empty() {
             defaults.map(|d| d.series.to_vec()).unwrap_or_else(|| {
                 DEFAULT_PALETTE

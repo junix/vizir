@@ -1,4 +1,4 @@
-//! Versioned frame-free panel composition, resolved to ordinary VizHIR 0.2 through 0.5.
+//! Versioned frame-free panel composition, resolved to ordinary VizHIR 0.2 through 0.6.
 //!
 //! A grid allocates equal cells in panel order. It does not scale or clip panel
 //! contents, introduce scene groups, or change existing HIR/MIR/Scene contracts.
@@ -116,6 +116,9 @@ pub enum CompositionVersion {
     #[serde(rename = "vizir-composition/0.4")]
     #[schemars(skip)]
     V4,
+    #[serde(rename = "vizir-composition/0.5")]
+    #[schemars(skip)]
+    V5,
 }
 
 #[derive(Deserialize)]
@@ -157,6 +160,7 @@ impl TryFrom<CompositionWire> for Composition {
                 CompositionVersion::V2 => "0.3",
                 CompositionVersion::V3 => "0.4",
                 CompositionVersion::V4 => "0.5",
+                CompositionVersion::V5 => "0.6",
             },
         )?;
         Ok(composition)
@@ -182,15 +186,29 @@ fn check_panel_capabilities(panels: &[Panel], hir_version: &str) -> VizResult<()
         .iter()
         .enumerate()
         .filter_map(|(index, panel)| {
+            let encoding = match panel {
+                Panel::Scatter(chart) => chart.color.as_ref(),
+                Panel::Line(chart) => chart.series.as_ref(),
+                Panel::Area(chart) => chart.series.as_ref(),
+                Panel::Bar(chart) => chart.color.as_ref(),
+                _ => None,
+            };
             let message = match panel {
-                Panel::Area(_) if !matches!(hir_version, "0.3" | "0.4" | "0.5") => {
-                    "chart.area requires composition schema vizir-composition/0.2, /0.3, or /0.4"
+                _ if hir_version != "0.6"
+                    && encoding.is_some_and(|encoding| encoding.domain.is_some()) =>
+                {
+                    "categorical color domain requires composition schema vizir-composition/0.5"
                 }
-                Panel::Heatmap(_) if !matches!(hir_version, "0.4" | "0.5") => {
-                    "chart.heatmap requires composition schema vizir-composition/0.3 or /0.4"
+                Panel::Area(_) if !matches!(hir_version, "0.3" | "0.4" | "0.5" | "0.6") => {
+                    "chart.area requires composition schema vizir-composition/0.2, /0.3, /0.4, or /0.5"
                 }
-                Panel::Heatmap(chart) if chart.value_labels.is_some() && hir_version != "0.5" => {
-                    "heatmap value_labels requires composition schema vizir-composition/0.4"
+                Panel::Heatmap(_) if !matches!(hir_version, "0.4" | "0.5" | "0.6") => {
+                    "chart.heatmap requires composition schema vizir-composition/0.3, /0.4, or /0.5"
+                }
+                Panel::Heatmap(chart)
+                    if chart.value_labels.is_some() && !matches!(hir_version, "0.5" | "0.6") =>
+                {
+                    "heatmap value_labels requires composition schema vizir-composition/0.4 or /0.5"
                 }
                 _ => return None,
             };
@@ -464,7 +482,7 @@ pub fn compose(composition: &CompositionV1) -> VizResult<Document> {
     })
 }
 
-/// Resolve composition 0.1/0.2/0.3/0.4 to HIR 0.2/0.3/0.4/0.5 using the same grid.
+/// Resolve composition 0.1/0.2/0.3/0.4/0.5 to HIR 0.2/0.3/0.4/0.5/0.6 using the same grid.
 pub fn compose_versioned(composition: &Composition) -> VizResult<Document> {
     compose_grid(CompositionInput {
         hir_version: match composition.schema {
@@ -472,6 +490,7 @@ pub fn compose_versioned(composition: &Composition) -> VizResult<Document> {
             CompositionVersion::V2 => "0.3",
             CompositionVersion::V3 => "0.4",
             CompositionVersion::V4 => "0.5",
+            CompositionVersion::V5 => "0.6",
         },
         id: &composition.id,
         width: composition.width,
@@ -817,6 +836,121 @@ struct CompositionV4Schema {
     pub panels: Vec<PanelV04>,
 }
 
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ScatterPanelV05 {
+    pub id: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    pub dataset: String,
+    pub x: FieldEncoding,
+    pub y: FieldEncoding,
+    #[serde(default)]
+    pub color: Option<crate::hir::ColorEncodingV06>,
+    #[serde(default = "default_point_size")]
+    pub point_size: f64,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct LinePanelV05 {
+    pub id: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    pub dataset: String,
+    pub x: FieldEncoding,
+    pub y: FieldEncoding,
+    #[serde(default)]
+    pub series: Option<crate::hir::ColorEncodingV06>,
+    #[serde(default = "default_line_width")]
+    pub line_width: f64,
+    #[serde(default = "default_true")]
+    pub show_points: bool,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct AreaPanelV05 {
+    pub id: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    pub dataset: String,
+    pub x: FieldEncoding,
+    pub y: FieldEncoding,
+    #[serde(default)]
+    pub series: Option<crate::hir::ColorEncodingV06>,
+    pub baseline: f64,
+    pub order: AreaOrder,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct BarPanelV05 {
+    pub id: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    pub dataset: String,
+    pub category: FieldEncoding,
+    pub value: FieldEncoding,
+    #[serde(default)]
+    pub color: Option<crate::hir::ColorEncodingV06>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "kind", deny_unknown_fields)]
+enum PanelV05 {
+    #[serde(rename = "chart.scatter")]
+    Scatter(ScatterPanelV05),
+    #[serde(rename = "chart.line")]
+    Line(LinePanelV05),
+    #[serde(rename = "chart.area")]
+    Area(AreaPanelV05),
+    #[serde(rename = "chart.heatmap")]
+    Heatmap(HeatmapPanel),
+    #[serde(rename = "chart.bar")]
+    Bar(BarPanelV05),
+    #[serde(rename = "diagram.graph")]
+    Diagram(DiagramPanel),
+    #[serde(rename = "geometry.scene")]
+    Geometry(GeometryPanel),
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(rename = "CompositionV5", transform = composition_v5_schema)]
+struct CompositionV5Schema {
+    pub schema: CompositionVersion,
+    pub id: String,
+    #[schemars(extend("exclusiveMinimum" = 0))]
+    pub width: f64,
+    #[schemars(extend("exclusiveMinimum" = 0))]
+    pub height: f64,
+    #[serde(default = "default_background")]
+    pub background: Color,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub datasets: BTreeMap<String, Dataset>,
+    pub layout: PanelLayout,
+    #[schemars(length(min = 1))]
+    pub panels: Vec<PanelV05>,
+}
+
+fn composition_v5_schema(schema: &mut schemars::Schema) {
+    schema
+        .as_object_mut()
+        .expect("composition schema object")
+        .get_mut("properties")
+        .expect("composition properties")["schema"] =
+        serde_json::json!({"type":"string", "const":"vizir-composition/0.5"});
+}
+
 fn composition_v2_schema(schema: &mut schemars::Schema) {
     schema
         .as_object_mut()
@@ -854,7 +988,8 @@ impl JsonSchema for Composition {
         let current = generator.subschema_for::<CompositionV2Schema>();
         let heatmap = generator.subschema_for::<CompositionV3Schema>();
         let labels = generator.subschema_for::<CompositionV4Schema>();
-        schemars::json_schema!({"oneOf": [legacy, current, heatmap, labels]})
+        let categorical = generator.subschema_for::<CompositionV5Schema>();
+        schemars::json_schema!({"oneOf": [legacy, current, heatmap, labels, categorical]})
     }
 }
 

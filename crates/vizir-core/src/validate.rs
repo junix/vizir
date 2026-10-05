@@ -42,16 +42,26 @@ pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Dia
         .enumerate()
         .filter_map(|(index, view)| {
             let message = match view {
-                View::Area(_) if !matches!(document.version.as_str(), "0.3" | "0.4" | "0.5") => {
-                    "chart.area requires VizHIR version \"0.3\", \"0.4\", or \"0.5\""
+                _ if document.version != "0.6"
+                    && view
+                        .categorical_color()
+                        .is_some_and(|(_, _, encoding)| encoding.domain.is_some()) =>
+                {
+                    "categorical color domain requires VizHIR version \"0.6\""
                 }
-                View::Heatmap(_) if !matches!(document.version.as_str(), "0.4" | "0.5") => {
-                    "chart.heatmap requires VizHIR version \"0.4\" or \"0.5\""
+                View::Area(_)
+                    if !matches!(document.version.as_str(), "0.3" | "0.4" | "0.5" | "0.6") =>
+                {
+                    "chart.area requires VizHIR version \"0.3\", \"0.4\", \"0.5\", or \"0.6\""
+                }
+                View::Heatmap(_) if !matches!(document.version.as_str(), "0.4" | "0.5" | "0.6") => {
+                    "chart.heatmap requires VizHIR version \"0.4\", \"0.5\", or \"0.6\""
                 }
                 View::Heatmap(chart)
-                    if chart.value_labels.is_some() && document.version != "0.5" =>
+                    if chart.value_labels.is_some()
+                        && !matches!(document.version.as_str(), "0.5" | "0.6") =>
                 {
-                    "heatmap value_labels requires VizHIR version \"0.5\""
+                    "heatmap value_labels requires VizHIR version \"0.5\" or \"0.6\""
                 }
                 _ => return None,
             };
@@ -69,13 +79,13 @@ pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Dia
 /// unrestricted here for backward-compatible generic deserialization.
 pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    if matches!(mir.version.as_str(), "0.3" | "0.4" | "0.5")
+    if matches!(mir.version.as_str(), "0.3" | "0.4" | "0.5" | "0.6")
         && mir.source_hir_version != mir.version
     {
         diagnostics.push(
             Diagnostic::new(
                 "VIZ-MIR-0008",
-                "VizMIR 0.3/0.4/0.5 requires a matching source_hir_version",
+                "VizMIR 0.3/0.4/0.5/0.6 requires a matching source_hir_version",
             )
             .at("source_hir_version"),
         );
@@ -85,13 +95,13 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
             continue;
         };
         if matches!(chart.mark, ChartMark::Area { .. })
-            && !(matches!(mir.version.as_str(), "0.3" | "0.4" | "0.5")
+            && !(matches!(mir.version.as_str(), "0.3" | "0.4" | "0.5" | "0.6")
                 && mir.source_hir_version == mir.version)
         {
             diagnostics.push(
                 Diagnostic::new(
                     "VIZ-MIR-0008",
-                    "area marks require matching VizMIR and source HIR version 0.3, 0.4, or 0.5",
+                    "area marks require matching VizMIR and source HIR version 0.3, 0.4, 0.5, or 0.6",
                 )
                 .at(format!("views[{index}].mark")),
             );
@@ -102,22 +112,25 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
                 value_labels: Some(_),
                 ..
             }
-        ) && (mir.version != "0.5" || mir.source_hir_version != "0.5")
+        ) && (!matches!(mir.version.as_str(), "0.5" | "0.6")
+            || mir.source_hir_version != mir.version)
         {
             diagnostics.push(
                 Diagnostic::new(
                     "VIZ-MIR-0008",
-                    "heatmap value_labels requires matching VizMIR and source HIR version 0.5",
+                    "heatmap value_labels requires matching VizMIR and source HIR version 0.5 or 0.6",
                 )
                 .at(format!("views[{index}].mark.value_labels")),
             );
         }
-        if !matches!(mir.version.as_str(), "0.4" | "0.5") || mir.source_hir_version != mir.version {
+        if !matches!(mir.version.as_str(), "0.4" | "0.5" | "0.6")
+            || mir.source_hir_version != mir.version
+        {
             if matches!(chart.mark, ChartMark::Heatmap { .. }) {
                 diagnostics.push(
                     Diagnostic::new(
                         "VIZ-MIR-0008",
-                        "heatmap marks require VizMIR and source HIR version 0.4 or 0.5",
+                        "heatmap marks require VizMIR and source HIR version 0.4, 0.5, or 0.6",
                     )
                     .at(format!("views[{index}].mark")),
                 );
@@ -127,7 +140,7 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
                     diagnostics.push(
                         Diagnostic::new(
                             "VIZ-MIR-0008",
-                            "quantize-color scales require VizMIR and source HIR version 0.4 or 0.5",
+                            "quantize-color scales require VizMIR and source HIR version 0.4, 0.5, or 0.6",
                         )
                         .at(format!("views[{index}].scales[{scale_index}]")),
                     );
@@ -149,7 +162,7 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
 
     if !matches!(
         document.version.as_str(),
-        "0.1" | "0.2" | "0.3" | "0.4" | "0.5"
+        "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6"
     ) {
         diagnostics.push(
             Diagnostic::new(
@@ -157,7 +170,7 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
                 format!("unsupported VizHIR version {:?}", document.version),
             )
             .at("version")
-            .with_help("use version \"0.1\", \"0.2\", \"0.3\", \"0.4\", or \"0.5\""),
+            .with_help("use version \"0.1\", \"0.2\", \"0.3\", \"0.4\", \"0.5\", or \"0.6\""),
         );
     }
 
@@ -230,6 +243,23 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
             );
         }
         validate_frame(view.frame(), &format!("{source}.frame"), &mut diagnostics);
+        if let Some((dataset, field, encoding)) = view.categorical_color()
+            && let Some(domain) = &encoding.domain
+        {
+            let domain_source = format!("{source}.{field}.domain");
+            if let Err(message) = crate::hir::validate_color_domain(domain) {
+                diagnostics.push(Diagnostic::new("VIZ-COLOR-0001", message).at(&domain_source));
+            } else if let Some(dataset) = document.datasets.get(dataset) {
+                let keys: BTreeSet<_> = domain.iter().map(String::as_str).collect();
+                for (row_index, row) in dataset.rows.iter().enumerate() {
+                    if let Some(key) = row.get(&encoding.field).and_then(value_as_key)
+                        && !keys.contains(key.as_str())
+                    {
+                        diagnostics.push(Diagnostic::new("VIZ-COLOR-0002", format!("observed category {key:?} at row {row_index} is outside the declared domain")).at(&domain_source));
+                    }
+                }
+            }
+        }
         match view {
             View::Scatter(chart) => {
                 validate_axis_options(
@@ -498,7 +528,10 @@ fn validate_axis_options(
     let Some(axis) = &encoding.axis else {
         return;
     };
-    if !matches!(document.version.as_str(), "0.2" | "0.3" | "0.4" | "0.5") {
+    if !matches!(
+        document.version.as_str(),
+        "0.2" | "0.3" | "0.4" | "0.5" | "0.6"
+    ) {
         diagnostics.push(
             Diagnostic::new(
                 "VIZ-SCHEMA-0002",
@@ -541,7 +574,10 @@ fn validate_number_format(
 
 pub fn validate_mir(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = validate_mir_capabilities(mir).err().unwrap_or_default();
-    if !matches!(mir.version.as_str(), "0.1" | "0.2" | "0.3" | "0.4" | "0.5") {
+    if !matches!(
+        mir.version.as_str(),
+        "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6"
+    ) {
         diagnostics.push(
             Diagnostic::new(
                 "VIZ-MIR-0001",
@@ -716,7 +752,7 @@ fn validate_mir_chart(
     for (index, guide) in chart.guides.iter().enumerate() {
         if let Some(format) = &guide.number_format {
             let format_source = format!("{source}.guides[{index}].number_format");
-            if !matches!(mir.version.as_str(), "0.2" | "0.3" | "0.4" | "0.5") {
+            if !matches!(mir.version.as_str(), "0.2" | "0.3" | "0.4" | "0.5" | "0.6") {
                 diagnostics.push(
                     Diagnostic::new(
                         "VIZ-MIR-0007",
@@ -730,7 +766,7 @@ fn validate_mir_chart(
                 && chart.scales.iter().any(
                     |scale| matches!(scale, MirScale::Linear { id, .. } if id == &guide.scale),
                 );
-            let heatmap_legend = matches!(mir.version.as_str(), "0.4" | "0.5") && mir.source_hir_version == mir.version
+            let heatmap_legend = matches!(mir.version.as_str(), "0.4" | "0.5" | "0.6") && mir.source_hir_version == mir.version
                 && matches!(chart.mark, ChartMark::Heatmap { .. }) && guide.kind == GuideKind::Legend
                 && chart.scales.iter().any(|scale| matches!(scale, MirScale::QuantizeColor { id, .. } if id == &guide.scale));
             if !numeric_axis && !heatmap_legend {

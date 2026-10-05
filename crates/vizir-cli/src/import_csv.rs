@@ -182,6 +182,7 @@ fn run_inner(options: Options) -> VizResult<()> {
                 CompositionVersion::V2 => "vizir-composition/0.2",
                 CompositionVersion::V3 => "vizir-composition/0.3",
                 CompositionVersion::V4 => "vizir-composition/0.4",
+                CompositionVersion::V5 => "vizir-composition/0.5",
             };
             (
                 serialize_limited(&composition, MAX_OUTPUT_BYTES, "imported composition")?,

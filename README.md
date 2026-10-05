@@ -111,6 +111,27 @@ its limits and the existing theme/measured-text workflow.
 
 Existing composition 0.1 continues to emit HIR 0.2.
 
+### Stable category colors across panels in VizHIR 0.6
+
+Set an ordered `domain` on scatter/bar `color` or line/area `series` to keep
+category-to-palette assignment stable when panels observe different subsets:
+
+```yaml
+version: "0.6"
+# ... ordinary document, datasets, and chart fields ...
+series: {field: service, domain: [Alpha, Beta]}
+```
+
+The domain order controls palette slots and the full legend. An absent category
+reserves its color and legend entry without creating rows, points, bars, lines,
+or areas. Omit `domain` to retain the exact existing sorted-observed behavior.
+[Domain contract and limits](docs/categorical-domains.md) ·
+[Executable two-panel example](examples/composition/stable-panel-colors.compose.yaml)
+
+Composition `vizir-composition/0.5` emits HIR/MIR 0.6. Existing source and schema
+branches stay closed. This is a native CLI/compiler feature; the published
+provider v1 (0.4) and v2 (0.5) profiles remain unchanged and reject 0.6.
+
 ### Categorical heatmaps in VizHIR 0.4 and 0.5
 
 `chart.heatmap` uses string x/y categories and finite numeric color values.

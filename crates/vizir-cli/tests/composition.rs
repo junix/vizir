@@ -215,7 +215,7 @@ fn successful_compose_replaces_existing_output_and_cleans_staging() {
 fn malformed_and_semantically_invalid_sources_never_publish_output() {
     let base = minimal_source();
     let mutations = [
-        ("/schema", json!("vizir-composition/0.5")),
+        ("/schema", json!("vizir-composition/0.6")),
         ("/width", json!("wide")),
         ("/height", Value::Null),
         ("/layout", Value::Null),

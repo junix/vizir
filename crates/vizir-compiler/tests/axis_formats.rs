@@ -261,7 +261,7 @@ fn typed_hir_format_options_lower_losslessly_to_mir_02_guides() {
 
 #[test]
 fn unsupported_versions_are_rejected_at_public_entry_points() {
-    for version in ["0.0", "0.6", "1.0", "latest"] {
+    for version in ["0.0", "0.7", "1.0", "latest"] {
         let source = document(fixture(version));
         assert!(
             compile(&source)

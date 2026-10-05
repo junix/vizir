@@ -744,6 +744,24 @@ struct VizMirV05 {
 
 #[allow(dead_code)]
 #[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(transform = mir_v06_schema)]
+struct VizMirV06 {
+    pub version: String,
+    pub source_hir_version: String,
+    pub document_id: String,
+    pub width: f64,
+    pub height: f64,
+    pub background: Color,
+    pub spaces: BTreeMap<String, CoordinateSpace2D>,
+    pub data: BTreeMap<String, MirDataNode>,
+    pub expressions: BTreeMap<String, TypedExpression>,
+    pub views: Vec<MirViewV05>,
+    pub losses: Vec<LossRecord>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
 #[serde(tag = "dialect", rename_all = "kebab-case", deny_unknown_fields)]
 enum MirViewV05 {
     Chart(Box<MirChartV05>),
@@ -886,7 +904,8 @@ impl JsonSchema for VizMir {
         let current = generator.subschema_for::<VizMirV03>();
         let heatmap = generator.subschema_for::<VizMirV04>();
         let labels = generator.subschema_for::<VizMirV05>();
-        schemars::json_schema!({ "oneOf": [legacy, current, heatmap, labels] })
+        let categorical = generator.subschema_for::<VizMirV06>();
+        schemars::json_schema!({ "oneOf": [legacy, current, heatmap, labels, categorical] })
     }
 }
 
@@ -918,6 +937,16 @@ fn mir_v05_schema(schema: &mut schemars::Schema) {
         .expect("MIR schema properties");
     properties["version"]["const"] = "0.5".into();
     properties["source_hir_version"]["const"] = "0.5".into();
+}
+
+fn mir_v06_schema(schema: &mut schemars::Schema) {
+    let properties = schema
+        .as_object_mut()
+        .expect("MIR schema object")
+        .get_mut("properties")
+        .expect("MIR schema properties");
+    properties["version"]["const"] = "0.6".into();
+    properties["source_hir_version"]["const"] = "0.6".into();
 }
 
 fn numeric_guide_schema(schema: &mut schemars::Schema) {
