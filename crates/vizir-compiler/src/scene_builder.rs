@@ -98,6 +98,17 @@ fn build_chart(
             _ => None,
         }),
         text.is_some(),
+        [guides.bottom, guides.left].map(|guide| {
+            guide.is_some_and(|(_, scale)| {
+                matches!(
+                    scale,
+                    MirScale::Linear {
+                        out_of_domain: Some(_),
+                        ..
+                    }
+                )
+            })
+        }),
     )
     .map_err(VizError::Diagnostic)?;
     // Static 0.1 line/bar MIR may omit a legend guide. Preserve that legacy

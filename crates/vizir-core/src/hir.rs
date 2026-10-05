@@ -136,6 +136,16 @@ impl View {
             .map(|encoding| (dataset.as_str(), field, encoding))
     }
 
+    pub(crate) fn numeric_encodings(&self) -> Option<(&str, Vec<(&str, &FieldEncoding)>)> {
+        match self {
+            Self::Scatter(c) => Some((&c.dataset, vec![("x", &c.x), ("y", &c.y)])),
+            Self::Line(c) => Some((&c.dataset, vec![("x", &c.x), ("y", &c.y)])),
+            Self::Area(c) => Some((&c.dataset, vec![("x", &c.x), ("y", &c.y)])),
+            Self::Bar(c) => Some((&c.dataset, vec![("value", &c.value)])),
+            _ => None,
+        }
+    }
+
     pub fn frame(&self) -> &Frame {
         match self {
             Self::Scatter(view) => &view.frame,
@@ -171,6 +181,61 @@ pub struct FieldEncoding {
     )]
     #[schemars(with = "AxisOptions")]
     pub axis: Option<AxisOptions>,
+    /// Exact ascending numeric bounds in VizHIR 0.7; outliers are rejected.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_numeric_domain"
+    )]
+    #[schemars(skip)]
+    pub domain: Option<[f64; 2]>,
+}
+
+/// New schema-only dependency; the published FieldEncoding closure stays frozen.
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct FieldEncodingV07 {
+    pub field: String,
+    #[serde(default)]
+    pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "AxisOptions")]
+    pub axis: Option<AxisOptions>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "[f64; 2]")]
+    pub domain: Option<[f64; 2]>,
+}
+
+fn deserialize_numeric_domain<'de, D>(deserializer: D) -> Result<Option<[f64; 2]>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let values = Vec::<Value>::deserialize(deserializer)?;
+    let domain = match values.as_slice() {
+        [lo, hi] => [lo.as_f64(), hi.as_f64()],
+        _ => {
+            return Err(serde::de::Error::custom(
+                "numeric domain must contain exactly two numbers",
+            ));
+        }
+    };
+    let [Some(lo), Some(hi)] = domain else {
+        return Err(serde::de::Error::custom(
+            "numeric domain endpoints must be numbers",
+        ));
+    };
+    validate_numeric_domain([lo, hi]).map_err(serde::de::Error::custom)?;
+    Ok(Some([lo, hi]))
+}
+
+pub(crate) fn validate_numeric_domain([lo, hi]: [f64; 2]) -> Result<(), &'static str> {
+    if !lo.is_finite() || !hi.is_finite() || lo >= hi || !(hi - lo).is_finite() {
+        return Err(
+            "numeric domain requires finite strictly ascending endpoints and a finite nonzero span",
+        );
+    }
+    Ok(())
 }
 
 /// Opt-in axis semantics, available starting with VizHIR 0.2.

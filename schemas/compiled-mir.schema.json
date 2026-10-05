@@ -2678,6 +2678,177 @@
         }
       ]
     },
+    "MirScaleV07": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "out_of_domain": {
+              "$ref": "#/$defs/NumericOutOfDomain"
+            },
+            "range": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "range_space": {
+              "type": "string"
+            },
+            "type": {
+              "const": "linear",
+              "type": "string"
+            },
+            "zero": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "range",
+            "range_space",
+            "zero"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "padding": {
+              "format": "double",
+              "type": "number"
+            },
+            "range": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "range_space": {
+              "type": "string"
+            },
+            "type": {
+              "const": "band",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "range",
+            "range_space",
+            "padding"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "range": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "ordinal-color",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "range"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "domain": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "range": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 9,
+              "minItems": 2,
+              "type": "array"
+            },
+            "thresholds": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 8,
+              "type": "array"
+            },
+            "type": {
+              "const": "quantize-color",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "domain",
+            "thresholds",
+            "range"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "MirSeries": {
       "additionalProperties": false,
       "properties": {
@@ -3421,6 +3592,179 @@
         }
       ]
     },
+    "MirViewV07": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dialect": {
+              "const": "chart",
+              "type": "string"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "guides": {
+              "items": {
+                "$ref": "#/$defs/MirGuideV04"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "key_expression": {
+              "type": "string"
+            },
+            "mark": {
+              "$ref": "#/$defs/ChartMarkV05"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "row_variable": {
+              "type": "string"
+            },
+            "scales": {
+              "items": {
+                "$ref": "#/$defs/MirScaleV07"
+              },
+              "type": "array"
+            },
+            "source": {
+              "type": "string"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "source",
+            "row_variable",
+            "key_expression",
+            "scales",
+            "guides",
+            "mark",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dialect": {
+              "const": "diagram",
+              "type": "string"
+            },
+            "edges": {
+              "items": {
+                "$ref": "#/$defs/DiagramEdge"
+              },
+              "type": "array"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "id": {
+              "type": "string"
+            },
+            "layout_request": {
+              "$ref": "#/$defs/LayoutRequest"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/DiagramNode"
+              },
+              "type": "array"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "nodes",
+            "edges",
+            "layout_request",
+            "provenance"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/MirGeometryNode"
+              },
+              "type": "array"
+            },
+            "dialect": {
+              "const": "geometry",
+              "type": "string"
+            },
+            "frame": {
+              "$ref": "#/$defs/Frame"
+            },
+            "id": {
+              "type": "string"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "space": {
+              "type": "string"
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dialect",
+            "id",
+            "frame",
+            "space",
+            "children",
+            "provenance"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "NumberFormat": {
       "additionalProperties": false,
       "description": "Locale-independent numeric tick formatting; precision is decimal places.",
@@ -3445,6 +3789,13 @@
       "enum": [
         "scientific",
         "fixed"
+      ],
+      "type": "string"
+    },
+    "NumericOutOfDomain": {
+      "description": "Authored numeric domains reject outliers; clipping/extrapolation is not selectable.",
+      "enum": [
+        "reject"
       ],
       "type": "string"
     },
@@ -4837,6 +5188,9 @@
         },
         {
           "$ref": "#/$defs/VizMirV06"
+        },
+        {
+          "$ref": "#/$defs/VizMirV07"
         }
       ]
     },
@@ -5101,6 +5455,77 @@
         "views": {
           "items": {
             "$ref": "#/$defs/MirViewV05"
+          },
+          "type": "array"
+        },
+        "width": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "version",
+        "source_hir_version",
+        "document_id",
+        "width",
+        "height",
+        "background",
+        "spaces",
+        "data",
+        "expressions",
+        "views",
+        "losses"
+      ],
+      "type": "object"
+    },
+    "VizMirV07": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MirDataNode"
+          },
+          "type": "object"
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "expressions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TypedExpression"
+          },
+          "type": "object"
+        },
+        "height": {
+          "format": "double",
+          "type": "number"
+        },
+        "losses": {
+          "items": {
+            "$ref": "#/$defs/LossRecord"
+          },
+          "type": "array"
+        },
+        "source_hir_version": {
+          "const": "0.7",
+          "type": "string"
+        },
+        "spaces": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CoordinateSpace2D"
+          },
+          "type": "object"
+        },
+        "version": {
+          "const": "0.7",
+          "type": "string"
+        },
+        "views": {
+          "items": {
+            "$ref": "#/$defs/MirViewV07"
           },
           "type": "array"
         },

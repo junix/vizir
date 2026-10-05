@@ -1,0 +1,79 @@
+# Shared authored domains keep Beta at the same vertical positions and colors in both panels.
+schema: vizir-composition/0.6
+id: shared-numeric-domains
+width: 1120
+height: 480
+background: transparent
+layout:
+  kind: grid
+  columns: 2
+  padding: 24
+  gap: 24
+datasets:
+  both:
+    key: id
+    rows:
+    - id: a0
+      x: 0
+      y: 2
+      series: Alpha
+    - id: a1
+      x: 1
+      y: 3
+      series: Alpha
+    - id: b0
+      x: 0
+      y: 7
+      series: Beta
+    - id: b1
+      x: 1
+      y: 8
+      series: Beta
+  subset:
+    key: id
+    rows:
+    - id: b0
+      x: 0
+      y: 7
+      series: Beta
+    - id: b1
+      x: 1
+      y: 8
+      series: Beta
+panels:
+- kind: chart.line
+  id: all-series
+  title: All series
+  dataset: both
+  x:
+    field: x
+    label: time
+    domain: [0, 1]
+  y:
+    field: y
+    label: value
+    domain: [0, 10]
+  series:
+    field: series
+    domain:
+    - Alpha
+    - Beta
+  line_width: 4
+- kind: chart.line
+  id: beta-only
+  title: Beta subset
+  dataset: subset
+  x:
+    field: x
+    label: time
+    domain: [0, 1]
+  y:
+    field: y
+    label: value
+    domain: [0, 10]
+  series:
+    field: series
+    domain:
+    - Alpha
+    - Beta
+  line_width: 4

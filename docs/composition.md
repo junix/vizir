@@ -271,3 +271,12 @@ invented marks. Existing 0.1–0.4 composition branches reject this new field.
 
 See [the exact domain contract](categorical-domains.md) and
 [the executable subset-panel example](../examples/composition/stable-panel-colors.compose.yaml).
+
+## Shared numeric bounds (composition 0.6)
+
+Use `schema: vizir-composition/0.6` to emit HIR/MIR 0.7 and author exact
+ascending numeric `domain` pairs on scatter/line/area x/y or bar value. The
+bounds are independent per encoding; repeat the same bounds across comparable
+panels. Outliers and excluded baselines fail before output. See
+[the numeric domain contract](numeric-domains.md) and the executable
+[shared-scale example](../examples/composition/shared-numeric-domains.compose.yaml).

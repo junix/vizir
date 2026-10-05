@@ -1215,6 +1215,7 @@ pub(crate) fn check_scale_membership(
     mark: &ChartMark,
     budget: &mut Budget,
 ) -> VizResult<()> {
+    check_numeric_membership(chart, mark, budget)?;
     if matches!(mark, ChartMark::Heatmap { .. }) {
         return check_heatmap_membership(chart, mark, budget);
     }
@@ -1332,6 +1333,81 @@ pub(crate) fn check_scale_membership(
         ChartMark::Heatmap { .. } => unreachable!("heatmap handled above"),
     }
     check_area_projection(chart, mark, budget)
+}
+
+/// Check fresh materialized coordinates before replay or transactional refresh.
+fn check_numeric_membership(
+    chart: &MirChart,
+    mark: &ChartMark,
+    budget: &mut Budget,
+) -> VizResult<()> {
+    let domains: BTreeMap<_, _> = chart
+        .scales
+        .iter()
+        .filter_map(|scale| {
+            if let MirScale::Linear {
+                id,
+                domain,
+                out_of_domain: Some(_),
+                ..
+            } = scale
+            {
+                Some((id.as_str(), *domain))
+            } else {
+                None
+            }
+        })
+        .collect();
+    if domains.is_empty() {
+        return Ok(());
+    }
+    let mut check = |binding: &vizir_core::ScaleBinding, value: f64| -> VizResult<()> {
+        if let Some(domain) = domains.get(binding.scale.as_str()) {
+            budget.step(&chart.id)?;
+            if !value.is_finite() || !(domain[0]..=domain[1]).contains(&value) {
+                return Err(error(
+                    "VIZ-DOMAIN-0002",
+                    &chart.id,
+                    format!(
+                        "numeric value {value} is outside explicit scale {:?}; outliers are rejected",
+                        binding.scale
+                    ),
+                ));
+            }
+        }
+        Ok(())
+    };
+    match mark {
+        ChartMark::Symbol {
+            x, y, instances, ..
+        } => {
+            for point in instances {
+                check(x, point.x)?;
+                check(y, point.y)?;
+            }
+        }
+        ChartMark::Line { x, y, series, .. } | ChartMark::Area { x, y, series, .. } => {
+            if let ChartMark::Area { baseline, .. } = mark {
+                check(y, *baseline)?;
+            }
+            for series in series {
+                for point in &series.points {
+                    check(x, point.x)?;
+                    check(y, point.y)?;
+                }
+            }
+        }
+        ChartMark::Bar {
+            value, instances, ..
+        } => {
+            check(value, 0.0)?;
+            for item in instances {
+                check(value, item.value)?;
+            }
+        }
+        ChartMark::Heatmap { .. } => {}
+    }
+    Ok(())
 }
 
 /// Area's strict-x contract also applies after the explicit scale projection.

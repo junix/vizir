@@ -162,3 +162,14 @@ branches extend the existing themed/compiled envelope names without a new
 context format. Runtime enum additions may break exhaustive Rust matches.
 Standalone `ChartMark` and `Panel` schemas intentionally remain legacy; use
 versioned MIR and composition root schemas for heatmaps.
+
+## Authored numeric position domains (HIR/MIR 0.7)
+
+Numeric `FieldEncoding.domain` is an optional, non-null two-number interval
+under HIR 0.7. The compiler stores exact endpoints and
+`out_of_domain: "reject"` on the resulting linear scale. Only scatter, line,
+and unstacked-area x/y and bar value accept the feature; observations and
+applicable baselines must be within the closed interval. Omitted fields
+preserve old serialized bytes and inference/extrapolation behavior.
+MIR 0.7 requires matching `source_hir_version: "0.7"`; older source, MIR and
+composition branches remain closed. See [numeric domains](numeric-domains.md).

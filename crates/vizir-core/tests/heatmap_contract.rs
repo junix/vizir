@@ -182,7 +182,7 @@ fn new_options_omit_cleanly_and_reject_explicit_null_and_unknown_fields() {
 fn hir_json_yaml_typed_capabilities_require_04_without_legacy_tightening() {
     let current: Document = serde_json::from_value(hir()).unwrap();
     validate_document(&current).unwrap();
-    for version in ["0.1", "0.2", "0.3", "0.7", "future"] {
+    for version in ["0.1", "0.2", "0.3", "0.8", "future"] {
         let mut source = hir();
         source["version"] = version.into();
         assert!(serde_json::from_value::<Document>(source.clone()).is_err());
@@ -476,7 +476,7 @@ fn composition_v3_is_frame_free_and_maps_to_hir04() {
     for version in [
         "vizir-composition/0.1",
         "vizir-composition/0.2",
-        "vizir-composition/0.6",
+        "vizir-composition/0.7",
     ] {
         let mut source = composition();
         source["schema"] = version.into();
@@ -493,7 +493,7 @@ fn composition_v3_is_frame_free_and_maps_to_hir04() {
 #[test]
 fn versioned_schema_paths_keep_old_marks_scales_and_axis_only_formats_exact() {
     let schema = mir_schema();
-    assert_eq!(schema["oneOf"].as_array().unwrap().len(), 5);
+    assert_eq!(schema["oneOf"].as_array().unwrap().len(), 6);
     for name in [
         "ChartMark",
         "ChartMarkV03",

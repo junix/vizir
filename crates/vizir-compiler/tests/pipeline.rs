@@ -273,11 +273,13 @@ fn compile_rejects_documents_with_unknown_datasets() {
             },
             dataset: "missing".to_owned(),
             x: FieldEncoding {
+                domain: None,
                 axis: None,
                 field: "x".to_owned(),
                 label: None,
             },
             y: FieldEncoding {
+                domain: None,
                 axis: None,
                 field: "y".to_owned(),
                 label: None,

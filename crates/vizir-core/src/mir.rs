@@ -164,6 +164,13 @@ pub enum MirScale {
         range: [f64; 2],
         range_space: String,
         zero: bool,
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "crate::hir::deserialize_present"
+        )]
+        #[schemars(skip)]
+        out_of_domain: Option<NumericOutOfDomain>,
     },
     Band {
         id: String,
@@ -185,6 +192,13 @@ pub enum MirScale {
         thresholds: Vec<f64>,
         range: Vec<Color>,
     },
+}
+
+/// Authored numeric domains reject outliers; clipping/extrapolation is not selectable.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum NumericOutOfDomain {
+    Reject,
 }
 
 impl MirScale {
@@ -745,6 +759,87 @@ struct VizMirV05 {
 #[allow(dead_code)]
 #[derive(JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = mir_v07_schema)]
+struct VizMirV07 {
+    pub version: String,
+    pub source_hir_version: String,
+    pub document_id: String,
+    pub width: f64,
+    pub height: f64,
+    pub background: Color,
+    pub spaces: BTreeMap<String, CoordinateSpace2D>,
+    pub data: BTreeMap<String, MirDataNode>,
+    pub expressions: BTreeMap<String, TypedExpression>,
+    pub views: Vec<MirViewV07>,
+    pub losses: Vec<LossRecord>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "dialect", rename_all = "kebab-case", deny_unknown_fields)]
+enum MirViewV07 {
+    Chart(Box<MirChartV07>),
+    Diagram(MirDiagram),
+    Geometry(MirGeometry),
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct MirChartV07 {
+    pub id: String,
+    pub title: Option<String>,
+    pub frame: Frame,
+    pub space: String,
+    pub source: String,
+    pub row_variable: String,
+    pub key_expression: String,
+    pub scales: Vec<MirScaleV07>,
+    pub guides: Vec<MirGuideV04>,
+    pub mark: ChartMarkV05,
+    pub provenance: Vec<String>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
+enum MirScaleV07 {
+    Linear {
+        id: String,
+        domain: [f64; 2],
+        range: [f64; 2],
+        range_space: String,
+        zero: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[schemars(with = "NumericOutOfDomain")]
+        out_of_domain: Option<NumericOutOfDomain>,
+    },
+    Band {
+        id: String,
+        domain: Vec<String>,
+        range: [f64; 2],
+        range_space: String,
+        padding: f64,
+    },
+    OrdinalColor {
+        id: String,
+        domain: Vec<String>,
+        range: Vec<Color>,
+    },
+    // Preserve the exact pre-0.4 schema dependency closure.
+    QuantizeColor {
+        id: String,
+        domain: [f64; 2],
+        #[schemars(length(max = 8))]
+        thresholds: Vec<f64>,
+        #[schemars(length(min = 2, max = 9))]
+        range: Vec<Color>,
+    },
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
 #[schemars(transform = mir_v06_schema)]
 struct VizMirV06 {
     pub version: String,
@@ -905,7 +1000,8 @@ impl JsonSchema for VizMir {
         let heatmap = generator.subschema_for::<VizMirV04>();
         let labels = generator.subschema_for::<VizMirV05>();
         let categorical = generator.subschema_for::<VizMirV06>();
-        schemars::json_schema!({ "oneOf": [legacy, current, heatmap, labels, categorical] })
+        let numeric = generator.subschema_for::<VizMirV07>();
+        schemars::json_schema!({ "oneOf": [legacy, current, heatmap, labels, categorical, numeric] })
     }
 }
 
@@ -947,6 +1043,16 @@ fn mir_v06_schema(schema: &mut schemars::Schema) {
         .expect("MIR schema properties");
     properties["version"]["const"] = "0.6".into();
     properties["source_hir_version"]["const"] = "0.6".into();
+}
+
+fn mir_v07_schema(schema: &mut schemars::Schema) {
+    let properties = schema
+        .as_object_mut()
+        .expect("MIR schema object")
+        .get_mut("properties")
+        .expect("MIR schema properties");
+    properties["version"]["const"] = "0.7".into();
+    properties["source_hir_version"]["const"] = "0.7".into();
 }
 
 fn numeric_guide_schema(schema: &mut schemars::Schema) {

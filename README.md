@@ -132,6 +132,21 @@ Composition `vizir-composition/0.5` emits HIR/MIR 0.6. Existing source and schem
 branches stay closed. This is a native CLI/compiler feature; the published
 provider v1 (0.4) and v2 (0.5) profiles remain unchanged and reject 0.6.
 
+### Shared numeric domains in VizHIR 0.7
+
+Set exact numeric bounds on scatter/line/area `x`/`y` or bar `value` to make
+cross-panel comparisons meaningful. Bounds must be finite and strictly
+ascending. Every observation and the applicable area/bar baseline must fit;
+outliers are rejected rather than clipped. Omission preserves old inference.
+
+```yaml
+y: {field: value, domain: [0, 10]}
+```
+
+Use HIR/MIR 0.7 or composition `vizir-composition/0.6`. Published provider
+profiles remain unchanged. [Numeric domain contract](docs/numeric-domains.md) ·
+[Aligned two-panel example](examples/composition/shared-numeric-domains.compose.yaml)
+
 ### Categorical heatmaps in VizHIR 0.4 and 0.5
 
 `chart.heatmap` uses string x/y categories and finite numeric color values.

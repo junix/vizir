@@ -14,15 +14,17 @@ impl NumericTickLabels {
         x: Option<([f64; 2], Option<&NumberFormat>)>,
         y: Option<([f64; 2], Option<&NumberFormat>)>,
     ) -> Result<Option<Self>, String> {
-        Self::new_with_measurement(x, y, false)
+        Self::new_with_measurement(x, y, false, [false, false])
     }
 
     pub fn new_with_measurement(
         x: Option<([f64; 2], Option<&NumberFormat>)>,
         y: Option<([f64; 2], Option<&NumberFormat>)>,
         measured: bool,
+        authored: [bool; 2],
     ) -> Result<Option<Self>, String> {
         if !measured
+            && !authored.into_iter().any(|value| value)
             && !x.is_some_and(|(_, format)| format.is_some())
             && !y.is_some_and(|(_, format)| format.is_some())
         {
@@ -41,9 +43,9 @@ impl NumericTickLabels {
             }
         }
         let labels = Self {
-            x: x.map(|(domain, format)| tick_labels(domain, false, format))
+            x: x.map(|(domain, format)| tick_labels(domain, false, format, authored[0]))
                 .unwrap_or_default(),
-            y: y.map(|(domain, format)| tick_labels(domain, true, format))
+            y: y.map(|(domain, format)| tick_labels(domain, true, format, authored[1]))
                 .unwrap_or_default(),
         };
         for (axis, explicit, ticks) in [
@@ -69,14 +71,67 @@ impl NumericTickLabels {
     }
 }
 
-fn tick_labels(domain: [f64; 2], reverse: bool, format: Option<&NumberFormat>) -> Vec<String> {
+fn tick_labels(
+    domain: [f64; 2],
+    reverse: bool,
+    format: Option<&NumberFormat>,
+    authored: bool,
+) -> Vec<String> {
     let [start, end] = if reverse {
         [domain[1], domain[0]]
     } else {
         domain
     };
-    (0..=5)
-        .map(|index| format_number(start + (end - start) * (index as f64 / 5.0), format))
+    let values: Vec<_> = (0..=5)
+        .map(|index| {
+            // Explicit endpoint ticks retain the authored f64 exactly.
+            if authored && index == 0 {
+                start
+            } else if authored && index == 5 {
+                end
+            } else {
+                start + (end - start) * (index as f64 / 5.0)
+            }
+        })
+        .collect();
+    if authored && format.is_none() {
+        // Hide floating-point interpolation residues without collapsing distinct
+        // neighboring values. Only interior labels are rounded; bounds stay exact.
+        for precision in 5..=16 {
+            let labels: Vec<_> = values
+                .iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    let rounded = if index == 0 || index == 5 || *value == start || *value == end {
+                        *value
+                    } else {
+                        format!("{value:.precision$e}")
+                            .parse::<f64>()
+                            .ok()
+                            .filter(|rounded| {
+                                rounded.is_finite()
+                                    && domain[0] <= *rounded
+                                    && *rounded <= domain[1]
+                            })
+                            .unwrap_or(*value)
+                    };
+                    format_exact_float(rounded, None)
+                })
+                .collect();
+            if precision == 16
+                || values
+                    .windows(2)
+                    .zip(labels.windows(2))
+                    .all(|(values, labels)| values[0] == values[1] || labels[0] != labels[1])
+            {
+                return labels;
+            }
+        }
+        unreachable!()
+    }
+    values
+        .into_iter()
+        .map(|value| format_number(value, format))
         .collect()
 }
 
@@ -328,5 +383,34 @@ mod value_label_tests {
             ),
             "0.00"
         );
+    }
+}
+
+#[cfg(test)]
+mod authored_domain_tests {
+    use super::*;
+    #[test]
+    fn adjacent_endpoint_ticks_keep_identical_values_identically_labeled() {
+        for domain in [
+            [1.0, f64::from_bits(1.0f64.to_bits() + 1)],
+            [f64::from_bits(f64::MAX.to_bits() - 1), f64::MAX],
+            [0.0, f64::from_bits(1)],
+        ] {
+            for reverse in [false, true] {
+                let labels = tick_labels(domain, reverse, None, true);
+                let start = if reverse { domain[1] } else { domain[0] };
+                let end = if reverse { domain[0] } else { domain[1] };
+                for (index, label) in labels.iter().enumerate() {
+                    let value = if index == 0 {
+                        start
+                    } else if index == 5 {
+                        end
+                    } else {
+                        start + (end - start) * (index as f64 / 5.0)
+                    };
+                    assert_eq!(*label, format_exact_float(value, None));
+                }
+            }
+        }
     }
 }

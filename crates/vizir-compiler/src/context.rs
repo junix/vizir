@@ -101,7 +101,7 @@ impl CompiledMir {
         }
         if !matches!(
             self.mir.version.as_str(),
-            "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6"
+            "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7"
         ) || self.mir.source_hir_version != self.mir.version
         {
             return Err(context_error(

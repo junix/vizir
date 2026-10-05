@@ -276,8 +276,14 @@ fn lower_scatter(
     };
     let x_values = instances.iter().map(|p| p.x).collect::<Vec<_>>();
     let y_values = instances.iter().map(|p| p.y).collect::<Vec<_>>();
-    let x_domain = nice_domain(extent(&x_values), false);
-    let y_domain = nice_domain(extent(&y_values), false);
+    let x_domain = chart
+        .x
+        .domain
+        .unwrap_or_else(|| nice_domain(extent(&x_values), false));
+    let y_domain = chart
+        .y
+        .domain
+        .unwrap_or_else(|| nice_domain(extent(&y_values), false));
     let color_scale = materialized_color_scale(
         &chart.id,
         chart.color.as_ref(),
@@ -288,6 +294,7 @@ fn lower_scatter(
         Some((x_domain, chart.x.number_format())),
         Some((y_domain, chart.y.number_format())),
         text.is_some(),
+        [chart.x.domain.is_some(), chart.y.domain.is_some()],
     )?;
     let plot = ChartLayout::new_with_text(
         &chart.id,
@@ -310,6 +317,10 @@ fn lower_scatter(
         MirScale::Linear {
             id: format!("{}/x", chart.id),
             domain: x_domain,
+            out_of_domain: chart
+                .x
+                .domain
+                .map(|_| vizir_core::NumericOutOfDomain::Reject),
             range: [plot[0], plot[2]],
             range_space: DOCUMENT_SPACE.to_owned(),
             zero: false,
@@ -317,6 +328,10 @@ fn lower_scatter(
         MirScale::Linear {
             id: format!("{}/y", chart.id),
             domain: y_domain,
+            out_of_domain: chart
+                .y
+                .domain
+                .map(|_| vizir_core::NumericOutOfDomain::Reject),
             range: [plot[3], plot[1]],
             range_space: DOCUMENT_SPACE.to_owned(),
             zero: false,
@@ -338,9 +353,22 @@ fn lower_scatter(
         guides: chart_guides(chart, chart.color.as_ref()),
         mark,
         provenance: vec![
-            format!("x domain inferred from {} finite values", x_values.len()),
-            format!("y domain inferred from {} finite values", y_values.len()),
-            "linear domains expanded with deterministic nice-domain policy".to_owned(),
+            if chart.x.domain.is_some() {
+                "x domain authored exactly; outliers rejected".into()
+            } else {
+                format!("x domain inferred from {} finite values", x_values.len())
+            },
+            if chart.y.domain.is_some() {
+                "y domain authored exactly; outliers rejected".into()
+            } else {
+                format!("y domain inferred from {} finite values", y_values.len())
+            },
+            if chart.x.domain.is_some() || chart.y.domain.is_some() {
+                "authored numeric bounds retained; only omitted domains use deterministic inference"
+                    .into()
+            } else {
+                "linear domains expanded with deterministic nice-domain policy".to_owned()
+            },
             "axes made explicit during chart dialect lowering".to_owned(),
         ],
     })
@@ -435,8 +463,14 @@ fn lower_line(
         .iter()
         .flat_map(|s| s.points.iter().map(|p| p.y))
         .collect::<Vec<_>>();
-    let x_domain = nice_domain(extent(&x_values), false);
-    let y_domain = nice_domain(extent(&y_values), false);
+    let x_domain = chart
+        .x
+        .domain
+        .unwrap_or_else(|| nice_domain(extent(&x_values), false));
+    let y_domain = chart
+        .y
+        .domain
+        .unwrap_or_else(|| nice_domain(extent(&y_values), false));
     let color_scale = materialized_color_scale(
         &chart.id,
         chart.series.as_ref(),
@@ -447,6 +481,7 @@ fn lower_line(
         Some((x_domain, chart.x.number_format())),
         Some((y_domain, chart.y.number_format())),
         text.is_some(),
+        [chart.x.domain.is_some(), chart.y.domain.is_some()],
     )?;
     let plot = ChartLayout::new_with_text(
         &chart.id,
@@ -469,6 +504,10 @@ fn lower_line(
         MirScale::Linear {
             id: format!("{}/x", chart.id),
             domain: x_domain,
+            out_of_domain: chart
+                .x
+                .domain
+                .map(|_| vizir_core::NumericOutOfDomain::Reject),
             range: [plot[0], plot[2]],
             range_space: DOCUMENT_SPACE.to_owned(),
             zero: false,
@@ -476,6 +515,10 @@ fn lower_line(
         MirScale::Linear {
             id: format!("{}/y", chart.id),
             domain: y_domain,
+            out_of_domain: chart
+                .y
+                .domain
+                .map(|_| vizir_core::NumericOutOfDomain::Reject),
             range: [plot[3], plot[1]],
             range_space: DOCUMENT_SPACE.to_owned(),
             zero: false,
@@ -523,7 +566,11 @@ fn lower_line(
         mark,
         provenance: vec![
             "rows grouped by stable series value and sorted by x encoding".to_owned(),
-            "linear scale domains inferred and expanded deterministically".to_owned(),
+            if chart.x.domain.is_some() || chart.y.domain.is_some() {
+                "authored numeric bounds retained exactly; outliers rejected; omitted domains inferred".into()
+            } else {
+                "linear scale domains inferred and expanded deterministically".to_owned()
+            },
             "line topology remains in MIR; coordinates are unresolved".to_owned(),
         ],
     })
@@ -617,12 +664,17 @@ fn lower_area(
         .iter()
         .flat_map(|s| s.points.iter().map(|p| p.y))
         .collect::<Vec<_>>();
-    let x_domain = nice_domain(extent(&x_values), false);
+    let x_domain = chart
+        .x
+        .domain
+        .unwrap_or_else(|| nice_domain(extent(&x_values), false));
     let raw_y = extent(&y_values);
-    let y_domain = nice_domain(
-        [raw_y[0].min(chart.baseline), raw_y[1].max(chart.baseline)],
-        false,
-    );
+    let y_domain = chart.y.domain.unwrap_or_else(|| {
+        nice_domain(
+            [raw_y[0].min(chart.baseline), raw_y[1].max(chart.baseline)],
+            false,
+        )
+    });
     let color_scale = materialized_color_scale(
         &chart.id,
         chart.series.as_ref(),
@@ -633,6 +685,7 @@ fn lower_area(
         Some((x_domain, chart.x.number_format())),
         Some((y_domain, chart.y.number_format())),
         text.is_some(),
+        [chart.x.domain.is_some(), chart.y.domain.is_some()],
     )?;
     let plot = ChartLayout::new_with_text(
         &chart.id,
@@ -655,6 +708,10 @@ fn lower_area(
         MirScale::Linear {
             id: format!("{}/x", chart.id),
             domain: x_domain,
+            out_of_domain: chart
+                .x
+                .domain
+                .map(|_| vizir_core::NumericOutOfDomain::Reject),
             range: [plot[0], plot[2]],
             range_space: DOCUMENT_SPACE.to_owned(),
             zero: false,
@@ -662,6 +719,10 @@ fn lower_area(
         MirScale::Linear {
             id: format!("{}/y", chart.id),
             domain: y_domain,
+            out_of_domain: chart
+                .y
+                .domain
+                .map(|_| vizir_core::NumericOutOfDomain::Reject),
             range: [plot[3], plot[1]],
             range_space: DOCUMENT_SPACE.to_owned(),
             zero: false,
@@ -720,7 +781,7 @@ fn lower_area(
         mark,
         provenance: vec![
             "source rows and stable keys retained; area groups painted in sorted series-key order".to_owned(),
-            "linear x domain inferred; y domain includes the explicit baseline and all observed values".to_owned(),
+            if chart.x.domain.is_some() || chart.y.domain.is_some() { "authored numeric bounds retained exactly; observations and baseline must be contained; omitted domains inferred".into() } else { "linear x domain inferred; y domain includes the explicit baseline and all observed values".to_owned() },
             "unstacked linear areas require at least two strictly increasing representable x values per series".to_owned(),
         ],
     };
@@ -808,11 +869,15 @@ fn lower_bar(
     let values = instances.iter().map(|p| p.value).collect::<Vec<_>>();
     let categories: Vec<String> = instances.iter().map(|p| p.category.clone()).collect();
     let raw = extent(&values);
-    let domain = nice_domain([raw[0].min(0.0), raw[1].max(0.0)], true);
+    let domain = chart
+        .value
+        .domain
+        .unwrap_or_else(|| nice_domain([raw[0].min(0.0), raw[1].max(0.0)], true));
     let ticks = NumericTickLabels::new_with_measurement(
         None,
         Some((domain, chart.value.number_format())),
         text.is_some(),
+        [false, chart.value.domain.is_some()],
     )?;
     let color_scale = materialized_color_scale(
         &chart.id,
@@ -875,6 +940,10 @@ fn lower_bar(
         MirScale::Linear {
             id: format!("{}/value", chart.id),
             domain,
+            out_of_domain: chart
+                .value
+                .domain
+                .map(|_| vizir_core::NumericOutOfDomain::Reject),
             range: [plot[3], plot[1]],
             range_space: DOCUMENT_SPACE.to_owned(),
             zero: true,
@@ -922,7 +991,11 @@ fn lower_bar(
         mark,
         provenance: vec![
             "one bar generated per unique category".to_owned(),
-            "quantitative domain includes zero to preserve bar-chart truth".to_owned(),
+            if chart.value.domain.is_some() {
+                "authored value domain retained exactly and includes zero; outliers rejected".into()
+            } else {
+                "quantitative domain includes zero to preserve bar-chart truth".to_owned()
+            },
             "band placement remains unresolved until Scene2D construction".to_owned(),
         ],
     })
@@ -1054,8 +1127,10 @@ fn lower_heatmap(
         id: chart.id.clone(), title: chart.title.clone(), frame: chart.frame,
         space: DOCUMENT_SPACE.to_owned(), source, row_variable, key_expression,
         scales: vec![
-            MirScale::Band { id: format!("{}/x", chart.id), domain: x_domain, range: [plot[0],plot[2]], range_space: DOCUMENT_SPACE.to_owned(), padding: 0. },
-            MirScale::Band { id: format!("{}/y", chart.id), domain: y_domain, range: [plot[1],plot[3]], range_space: DOCUMENT_SPACE.to_owned(), padding: 0. },
+            MirScale::Band { id: format!("{}/x", chart.id), domain: x_domain,
+            range: [plot[0],plot[2]], range_space: DOCUMENT_SPACE.to_owned(), padding: 0. },
+            MirScale::Band { id: format!("{}/y", chart.id), domain: y_domain,
+            range: [plot[1],plot[3]], range_space: DOCUMENT_SPACE.to_owned(), padding: 0. },
             color_scale,
         ],
         guides: vec![
