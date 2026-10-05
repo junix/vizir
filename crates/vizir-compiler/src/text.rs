@@ -337,6 +337,7 @@ struct TitlePlan {
 }
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CategoryPlanKey {
+    role: TextLayoutRole,
     view: String,
     sources: Vec<String>,
     axis_title: String,
@@ -354,6 +355,7 @@ struct CategoryBlock {
     losses: Vec<LossRecord>,
 }
 struct CategoryPlan {
+    role: TextLayoutRole,
     blocks: Vec<CategoryBlock>,
     plot_bottom: f64,
 }
@@ -378,6 +380,20 @@ struct DiagramPlan {
     interior: Rect,
     losses: Vec<LossRecord>,
 }
+/// The serialized advance endpoints lie on the 1e-4 integer grid. Subtract
+/// integers before scaling so a translated exact 60-unit span stays exactly 60.
+/// Analytic cubic ink extrema are NOT rounded: retain every real overhang.
+/// This mode is selected only by the new heatmap semantic role.
+fn serialized_advance_envelope_width(left: f64, right: f64, ink: Option<Rect>) -> f64 {
+    let width =
+        ((right * 10_000.).round() as i64 - (left * 10_000.).round() as i64) as f64 / 10_000.;
+    if let Some(ink) = ink {
+        width + (left - ink.x).max(0.) + (ink.x + ink.width - right).max(0.)
+    } else {
+        width
+    }
+}
+
 struct State {
     system: FontSystem,
     selected: BTreeMap<u16, (fontdb::ID, String, u16)>,
@@ -436,8 +452,16 @@ impl TextSession {
                         TextLayoutRole::ChartTitle => {
                             title_targets.insert(t.view_id.clone(), t.clone());
                         }
-                        TextLayoutRole::BarCategoryLabels => {
-                            category_targets.insert(t.view_id.clone(), t.clone());
+                        TextLayoutRole::BarCategoryLabels
+                        | TextLayoutRole::HeatmapXCategoryLabels => {
+                            if category_targets
+                                .insert(t.view_id.clone(), t.clone())
+                                .is_some()
+                            {
+                                return Err(text_layout::error(
+                                    "one view cannot target both bar and heatmap categories",
+                                ));
+                            }
                         }
                     }
                 }
@@ -657,9 +681,25 @@ impl TextSession {
                     strings.add(c.x.label.as_deref().unwrap_or(&c.x.field))?;
                     strings.add(c.y.label.as_deref().unwrap_or(&c.y.field))?;
                     strings.add(c.color.label.as_deref().unwrap_or(&c.color.field))?;
-                    for encoding in [&c.x, &c.y] {
+                    let category_target = self.category_targets.get(&c.id);
+                    if let Some(target) = category_target
+                        && (target.role != TextLayoutRole::HeatmapXCategoryLabels
+                            || !found_categories.insert(c.id.clone()))
+                    {
+                        return Err(text_layout::error(
+                            "heatmap x category target must resolve to one heatmap source view",
+                        ));
+                    }
+                    for (index, encoding) in [&c.x, &c.y].into_iter().enumerate() {
+                        let lines = if index == 0 {
+                            category_target.map(|t| t.max_lines)
+                        } else {
+                            None
+                        };
                         if let Some(domain) = &encoding.domain {
-                            strings.add_all(domain.iter().map(String::as_str))?;
+                            for value in domain {
+                                strings.add_scoped(value, lines)?;
+                            }
                         } else if let Some(data) = document.datasets.get(&c.dataset) {
                             let mut seen = BTreeSet::new();
                             for row in &data.rows {
@@ -667,7 +707,7 @@ impl TextSession {
                                     row.get(&encoding.field)
                                     && seen.insert(value.as_str())
                                 {
-                                    strings.add(value)?;
+                                    strings.add_scoped(value, lines)?;
                                 }
                             }
                         }
@@ -683,7 +723,9 @@ impl TextSession {
                     strings.add(c.category.label.as_deref().unwrap_or(&c.category.field))?;
                     strings.add(c.value.label.as_deref().unwrap_or(&c.value.field))?;
                     let category_target = self.category_targets.get(&c.id);
-                    if category_target.is_some() && !found_categories.insert(c.id.clone()) {
+                    if category_target.is_some_and(|t| t.role != TextLayoutRole::BarCategoryLabels)
+                        || (category_target.is_some() && !found_categories.insert(c.id.clone()))
+                    {
                         return Err(text_layout::error(
                             "ambiguous bar.category_labels source view",
                         ));
@@ -974,6 +1016,7 @@ impl TextSession {
             &mut Vec::new(),
             Some([interior.x, interior.x + interior.width]),
             Some(&mut raw),
+            false,
         )?;
         let (ascent, descent) = self.face_metrics[&500];
         let mut top = f64::INFINITY;
@@ -1005,6 +1048,7 @@ impl TextSession {
             13.,
             FontWeight::Medium,
             "diagram",
+            false,
         )?;
         contain_exact(block.logical, interior, node)?;
         let retained = block
@@ -1097,10 +1141,11 @@ impl TextSession {
         self.category_targets.contains_key(view)
     }
     fn check_category_targets(&self, found: &BTreeSet<String>) -> VizResult<()> {
-        for view in self.category_targets.keys() {
+        for (view, target) in &self.category_targets {
             if !found.contains(view) {
                 return Err(text_layout::error(format!(
-                    "bar.category_labels target {view:?} must resolve to one bar source view"
+                    "{} target {view:?} must resolve to one matching source view",
+                    target.role.name()
                 )));
             }
         }
@@ -1113,10 +1158,18 @@ impl TextSession {
         if !self.has_category_layout(&chart.id) {
             return Ok(None);
         }
-        let vizir_core::ChartMark::Bar { category, .. } = &chart.mark else {
-            return Err(text_layout::error(
-                "bar.category_labels requires a bar mark",
-            ));
+        let target = &self.category_targets[&chart.id];
+        let category = match (&chart.mark, target.role) {
+            (vizir_core::ChartMark::Bar { category, .. }, TextLayoutRole::BarCategoryLabels) => {
+                category
+            }
+            (vizir_core::ChartMark::Heatmap { x, .. }, TextLayoutRole::HeatmapXCategoryLabels) => x,
+            _ => {
+                return Err(text_layout::error(format!(
+                    "{} requires its matching chart mark",
+                    target.role.name()
+                )));
+            }
         };
         let bottom: Vec<_> = chart
             .guides
@@ -1127,17 +1180,17 @@ impl TextSession {
             .collect();
         if bottom.len() != 1 || bottom[0].scale != category.scale {
             return Err(text_layout::error(
-                "bar.category_labels requires the unique bottom Axis to reference the bar category binding",
+                "category wrapping requires the unique bottom Axis to reference the category binding",
             ));
         }
         let scale = chart
             .scales
             .iter()
             .find(|s| s.id() == category.scale)
-            .ok_or_else(|| text_layout::error("bar category scale is missing"))?;
+            .ok_or_else(|| text_layout::error("category scale is missing"))?;
         if !matches!(scale, vizir_core::MirScale::Band {domain,..} if !domain.is_empty()) {
             return Err(text_layout::error(
-                "bar.category_labels requires a nonempty actual Band domain",
+                "category wrapping requires a nonempty actual Band domain",
             ));
         }
         Ok(Some(scale))
@@ -1164,7 +1217,7 @@ impl TextSession {
         };
         if labels.is_empty() {
             return Err(text_layout::error(
-                "bar.category_labels requires a nonempty actual Band domain",
+                "category wrapping requires a nonempty actual Band domain",
             ));
         }
         if labels.len() > self.limits.max_layout_lines || labels.len() > self.limits.max_labels {
@@ -1201,6 +1254,7 @@ impl TextSession {
                 })?;
         }
         let key = CategoryPlanKey {
+            role: target.role,
             view: view.into(),
             sources: labels.to_vec(),
             axis_title: axis_title.into(),
@@ -1239,9 +1293,10 @@ impl TextSession {
                 "category bands must leave a positive interior after two 4px side gaps",
             ));
         }
+        let role = target.role;
         let target = TextLayoutTarget::new(
             view,
-            "bar.category_labels",
+            role.name(),
             target.max_width,
             target.max_lines,
             target.line_height,
@@ -1249,15 +1304,29 @@ impl TextSession {
         let (ascent, descent) = self.face_metrics[&400];
         let ascent = ascent * 10.;
         let descent = descent * 10.;
+        let heatmap_bands = if role == TextLayoutRole::HeatmapXCategoryLabels {
+            Some(crate::heatmap::band_boundaries(
+                [plot[0], plot[2]],
+                labels.len(),
+            )?)
+        } else {
+            None
+        };
         let mut raw_blocks = Vec::with_capacity(labels.len());
         let mut minimum = f64::INFINITY;
         let mut maximum = f64::NEG_INFINITY;
         for (i, source) in labels.iter().enumerate() {
-            let x = plot[0] + step * (i as f64 + 0.5);
-            let cell = [
-                svg_number(plot[0] + step * i as f64),
-                svg_number(plot[0] + step * (i + 1) as f64),
-            ];
+            let (x, cell) = if let Some(bands) = &heatmap_bands {
+                ((bands[i] + bands[i + 1]) / 2., [bands[i], bands[i + 1]])
+            } else {
+                (
+                    plot[0] + step * (i as f64 + 0.5),
+                    [
+                        svg_number(plot[0] + step * i as f64),
+                        svg_number(plot[0] + step * (i + 1) as f64),
+                    ],
+                )
+            };
             let mut raw = Vec::new();
             let mut ignored_losses = Vec::new();
             // Width selection uses the final x anchor; raw runs retain y geometry
@@ -1273,6 +1342,7 @@ impl TextSession {
                 &mut ignored_losses,
                 Some([cell[0] + 4., cell[1] - 4.]),
                 Some(&mut raw),
+                role == TextLayoutRole::HeatmapXCategoryLabels,
             )?;
             for line in &raw {
                 let mut top = line.offset - ascent;
@@ -1320,6 +1390,7 @@ impl TextSession {
                 cell,
                 target.max_width,
                 view,
+                role == TextLayoutRole::HeatmapXCategoryLabels,
             )?;
             if outline.logical.y < svg_number(bottom) + 8.
                 || outline.logical.y + outline.logical.height > axis.y - 8.
@@ -1380,6 +1451,7 @@ impl TextSession {
                 )
             })?;
         let plan = Arc::new(CategoryPlan {
+            role,
             blocks,
             plot_bottom: bottom,
         });
@@ -1398,6 +1470,7 @@ impl TextSession {
         cell: [f64; 2],
         max_width: f64,
         view: &str,
+        exact_advance_grid: bool,
     ) -> VizResult<(WrappedOutline, Vec<LossRecord>)> {
         self.project_centered_lines(
             lines,
@@ -1409,6 +1482,7 @@ impl TextSession {
             10.,
             FontWeight::Regular,
             "category",
+            exact_advance_grid,
         )
     }
     #[allow(clippy::too_many_arguments)]
@@ -1423,6 +1497,7 @@ impl TextSession {
         size: f64,
         weight: FontWeight,
         role: &str,
+        exact_advance_grid: bool,
     ) -> VizResult<(WrappedOutline, Vec<LossRecord>)> {
         let (ascent, descent) = self.face_metrics[&crate::text::weight(weight)];
         let ascent = ascent * size;
@@ -1461,7 +1536,16 @@ impl TextSession {
                 top = top.min(ink.y);
                 bottom = bottom.max(ink.y + ink.height);
             }
-            if right - left > max_width || left < horizontal[0] || right > horizontal[1] {
+            let width = if exact_advance_grid {
+                serialized_advance_envelope_width(
+                    svg_number(origin),
+                    svg_number(origin + line.run.advance),
+                    (!path.is_empty()).then_some(ink),
+                )
+            } else {
+                right - left
+            };
+            if width > max_width || left < horizontal[0] || right > horizontal[1] {
                 return Err(text_layout::error(format!(
                     "serialized {role} advance/ink exceeds explicit width or its available interior"
                 )));
@@ -1534,6 +1618,15 @@ impl TextSession {
             },
             losses,
         ))
+    }
+    pub(crate) fn category_bounds(&self, view: &str, index: usize) -> VizResult<Rect> {
+        self.state
+            .borrow()
+            .category_views
+            .get(view)
+            .and_then(|p| p.blocks.get(index))
+            .map(|b| b.outline.logical)
+            .ok_or_else(|| text_layout::error("missing measured category bounds"))
     }
     pub(crate) fn category_position(&self, view: &str, index: usize) -> VizResult<Option<Point>> {
         if !self.has_category_layout(view) {
@@ -1814,6 +1907,7 @@ impl TextSession {
             &mut losses,
             None,
             None,
+            false,
         )?;
         contain(
             block.logical,
@@ -2249,6 +2343,7 @@ impl TextSession {
         losses: &mut Vec<LossRecord>,
         cell: Option<[f64; 2]>,
         mut raw_lines: Option<&mut Vec<RawWrappedLine>>,
+        exact_advance_grid: bool,
     ) -> VizResult<WrappedOutline> {
         let paragraphs = text_layout::paragraphs(source)?;
         if paragraphs.len() > target.max_lines as usize {
@@ -2330,7 +2425,16 @@ impl TextSession {
                         right = right.max(bounds.x + bounds.width);
                     }
                     // Bounds include actual cubic extrema of serialized coordinates.
-                    if right - left > target.max_width
+                    let width = if exact_advance_grid {
+                        serialized_advance_envelope_width(
+                            svg_number(origin),
+                            svg_number(origin + run.advance),
+                            (!commands.is_empty()).then_some(bounds),
+                        )
+                    } else {
+                        right - left
+                    };
+                    if width > target.max_width
                         || cell.is_some_and(|cell| left < cell[0] || right > cell[1])
                     {
                         // Explicit first-overflow greedy policy, not an assumption
@@ -2637,8 +2741,10 @@ impl TextSession {
                 block.outline.commands.clone(),
                 block.outline.bounds,
                 format!(
-                    "exact-face bounded bar.category_labels wrapping {}; domain index {index}; source byte coverage [{}]; original text: {text}",
-                    self.layout_profile, block.outline.details
+                    "exact-face bounded {} wrapping {}; domain index {index}; source byte coverage [{}]; original text: {text}",
+                    plan.role.name(),
+                    self.layout_profile,
+                    block.outline.details
                 ),
             )
         } else if let Some((owner, plan)) = self.registered_title(id) {
@@ -2684,6 +2790,7 @@ impl TextSession {
                 contour_losses,
                 None,
                 None,
+                false,
             )?;
             self.emit_glyphs(wrapped.glyphs)?;
             let logical = parent.bounds(wrapped.logical)?;
@@ -3472,6 +3579,39 @@ fn dimensional_contours_grid(commands: &[PathCommand]) -> usize {
 mod precision_tests {
     use super::*;
     #[test]
+    fn heatmap_exact_grid_width_keeps_unrounded_ink_overhangs() {
+        for left in [-900_000.123_4, -0.1234, 0.1234, 83.8833, 900_000.123_4] {
+            let right = svg_number(left + 60.);
+            assert_eq!(serialized_advance_envelope_width(left, right, None), 60.);
+            assert_eq!(
+                serialized_advance_envelope_width(
+                    left,
+                    right,
+                    Some(Rect {
+                        x: left + 1.,
+                        y: 0.,
+                        width: 58.,
+                        height: 10.,
+                    })
+                ),
+                60.
+            );
+            assert!(
+                serialized_advance_envelope_width(
+                    left,
+                    right,
+                    Some(Rect {
+                        x: left - 0.0000001,
+                        y: 0.,
+                        width: 60.0000002,
+                        height: 10.,
+                    })
+                ) > 60.
+            );
+        }
+    }
+
+    #[test]
     fn cubic_extrema_and_tiny_contour_loss_are_detected() {
         let c = vec![
             PathCommand::Move {
@@ -3598,6 +3738,13 @@ mod precision_tests {
     }
     #[test]
     fn category_plan_reuse_is_bounded_and_emission_is_deferred() {
+        category_cache(false);
+    }
+    #[test]
+    fn heatmap_category_plan_reuse_is_bounded_and_emission_is_deferred() {
+        category_cache(true);
+    }
+    fn category_cache(heatmap: bool) {
         let context: TextContext = serde_json::from_str(include_str!(
             "../../../examples/text/wrapping-font-profile.json"
         ))
@@ -3626,9 +3773,15 @@ mod precision_tests {
         ] {
             resources.insert(&face.sha256, bytes.to_vec()).unwrap();
         }
-        let layout = TextLayoutContext::new(vec![]).with_category_labels(vec![
-            SemanticTextLayoutTarget::bar_category_labels("c", 100., 4, 16.),
-        ]);
+        let layout = if heatmap {
+            TextLayoutContext::new(vec![]).with_heatmap_x_labels(vec![
+                SemanticTextLayoutTarget::heatmap_x_category_labels("c", 100., 4, 16.),
+            ])
+        } else {
+            TextLayoutContext::new(vec![]).with_category_labels(vec![
+                SemanticTextLayoutTarget::bar_category_labels("c", 100., 4, 16.),
+            ])
+        };
         let mut limits = TextLimits::new();
         limits.max_wrap_candidates = 2;
         limits.max_layout_lines = 2;

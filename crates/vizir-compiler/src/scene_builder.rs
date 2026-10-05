@@ -775,18 +775,41 @@ fn build_heatmap(
             &chart.id,
             "tick centered in categorical x band",
         ));
-        children.push(heatmap_text_node(
-            format!("{}/axis/x/category/{i}", chart.id),
-            layout.x_labels[i],
-            label.clone(),
-            10.,
-            TextAnchor::Middle,
-            muted.clone(),
-            FontWeight::Regular,
-            chart,
-            x_guide,
-            text,
-        )?);
+        if let Some(text) = text
+            && text.has_category_layout(&chart.id)
+        {
+            let mut node = text_node(
+                format!("{}/axis/x/category/{i}", chart.id),
+                layout.x_labels[i],
+                label.clone(),
+                10.,
+                TextAnchor::Middle,
+                muted.clone(),
+                FontWeight::Regular,
+                &chart.id,
+                "resolved categorical/quantitative heatmap guide label",
+            );
+            if let SceneNode::Text { bounds, origin, .. } = &mut node {
+                *bounds = text.category_bounds(&chart.id, i)?;
+                origin.mir_node = x_guide.id.clone();
+                origin.data_lineage = vec![chart.source.clone()];
+            }
+            text.register_category_node(&chart.id, i, &node)?;
+            children.push(node);
+        } else {
+            children.push(heatmap_text_node(
+                format!("{}/axis/x/category/{i}", chart.id),
+                layout.x_labels[i],
+                label.clone(),
+                10.,
+                TextAnchor::Middle,
+                muted.clone(),
+                FontWeight::Regular,
+                chart,
+                x_guide,
+                text,
+            )?);
+        }
     }
     for (i, label) in y_domain.iter().enumerate() {
         let center = (yb[i] + yb[i + 1]) / 2.;

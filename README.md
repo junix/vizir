@@ -147,6 +147,15 @@ Use HIR/MIR 0.7 or composition `vizir-composition/0.6`. Published provider
 profiles remain unchanged. [Numeric domain contract](docs/numeric-domains.md) ·
 [Aligned two-panel example](examples/composition/shared-numeric-domains.compose.yaml)
 
+### Measured heatmap x-category wrapping
+
+Opt into `vizir-text-wrap/5` and the explicit `heatmap.x_category_labels` role
+to wrap long Chinese or spaced Latin categories at fixed 10px. Exact font metrics
+reserve space below the cells before MIR ranges are resolved. Width, line count,
+and line height are authored; overfull or unbreakable labels fail without shrinking.
+[Contract and runnable example](docs/heatmap-x-wrapping.md). Published provider
+profiles remain unchanged and accept wrapping profiles 1–4 only.
+
 ### Categorical heatmaps in VizHIR 0.4 and 0.5
 
 `chart.heatmap` uses string x/y categories and finite numeric color values.

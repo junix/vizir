@@ -410,10 +410,14 @@ impl HeatmapLayout {
         let metric = |label: &str, size, weight, anchor| {
             label_bounds(label, size, weight, Point { x: 0., y: 0. }, anchor, text)
         };
-        let xs = x
-            .iter()
-            .map(|s| metric(s, 10., FontWeight::Regular, TextAnchor::Middle))
-            .collect::<VizResult<Vec<_>>>()?;
+        let wrapped_x = text.is_some_and(|t| t.has_category_layout(id));
+        let xs = if wrapped_x {
+            vec![Rect::default(); x.len()]
+        } else {
+            x.iter()
+                .map(|s| metric(s, 10., FontWeight::Regular, TextAnchor::Middle))
+                .collect::<VizResult<Vec<_>>>()?
+        };
         let ys = y
             .iter()
             .map(|s| metric(s, 10., FontWeight::Regular, TextAnchor::End))
@@ -458,7 +462,15 @@ impl HeatmapLayout {
         let left = frame.x + 64_f64.max(y_width + 26.);
         let right = frame.x + frame.width - 16. - legend_width - 20.;
         let top = (header_bottom + yt.height.max(lt.height) + 12.).max(frame.y + 50.);
-        let bottom = frame.y + frame.height - 12. - xt.height - 10. - x_height - 8.;
+        let mut bottom = frame.y + frame.height - 12. - xt.height - 10. - x_height - 8.;
+        if let Some(text) = text
+            && wrapped_x
+        {
+            bottom = text
+                .category_allocation(id, frame, [left, top, right, bottom], x, x_title)?
+                .ok_or_else(|| error("missing heatmap x-category plan"))?
+                .plot_bottom;
+        }
         let plot = [left, top, right, bottom];
         if right - left < 64.
             || bottom - top < 64.
@@ -473,6 +485,17 @@ impl HeatmapLayout {
         let mut x_labels = Vec::new();
         let mut y_labels = Vec::new();
         for (i, b) in xs.iter().enumerate() {
+            if let Some(text) = text
+                && wrapped_x
+            {
+                let position = text
+                    .category_position(id, i)?
+                    .ok_or_else(|| error("missing heatmap x-category position"))?;
+                let actual = text.category_bounds(id, i)?;
+                checks.push(actual);
+                x_labels.push(position);
+                continue;
+            }
             let position = Point {
                 x: (xb[i] + xb[i + 1]) / 2.,
                 y: bottom + 8. - b.y,
@@ -516,7 +539,11 @@ impl HeatmapLayout {
         }
         let x_title_point = Point {
             x: (left + right) / 2.,
-            y: bottom + 8. + x_height + 10. - xt.y,
+            y: if wrapped_x {
+                frame.y + frame.height - 16.
+            } else {
+                bottom + 8. + x_height + 10. - xt.y
+            },
         };
         let y_title_point = Point {
             x: frame.x + 16.,

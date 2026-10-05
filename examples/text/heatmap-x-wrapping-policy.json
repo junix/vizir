@@ -1,0 +1,14 @@
+{
+  "profile": "vizir-text-wrap/5",
+  "engine": "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)",
+  "targets": [],
+  "semantic_targets": [
+    {
+      "view_id": "scores",
+      "role": "heatmap.x_category_labels",
+      "max_width": 60,
+      "max_lines": 2,
+      "line_height": 16
+    }
+  ]
+}

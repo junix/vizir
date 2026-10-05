@@ -405,18 +405,29 @@ pub fn compiled_mir_schema() -> serde_json::Value {
         .as_array_mut()
         .expect("required array")
         .push("diagram_targets".into());
+    let mut heatmap_layout = category_layout.clone();
+    heatmap_layout["properties"]["profile"]["const"] =
+        crate::text_layout::TEXT_LAYOUT_HEATMAP_PROFILE.into();
+    heatmap_layout["properties"]["semantic_targets"]["items"]["$ref"] =
+        "#/$defs/HeatmapSemanticTextLayoutTarget".into();
+    heatmap_layout["properties"]["semantic_targets"]["contains"]["properties"]["role"]["const"] =
+        "heatmap.x_category_labels".into();
+    heatmap_layout["properties"]["diagram_targets"] =
+        diagram_layout["properties"]["diagram_targets"].clone();
     // The combined array length, source identity duplicates and UTF-8 byte ID
     // limits are executable checks; the schema bounds each array independently.
     schema["$defs"]["TextLayoutContext"] = serde_json::json!({"oneOf": [
         {"$ref": "#/$defs/GeometryTextLayoutContext"},
         {"$ref": "#/$defs/SemanticTextLayoutContext"},
         {"$ref": "#/$defs/CategoryTextLayoutContext"},
-        {"$ref": "#/$defs/DiagramTextLayoutContext"}
+        {"$ref": "#/$defs/DiagramTextLayoutContext"},
+        {"$ref": "#/$defs/HeatmapTextLayoutContext"}
     ]});
     schema["$defs"]["GeometryTextLayoutContext"] = geometry_layout;
     schema["$defs"]["SemanticTextLayoutContext"] = semantic_layout;
     schema["$defs"]["CategoryTextLayoutContext"] = category_layout;
     schema["$defs"]["DiagramTextLayoutContext"] = diagram_layout;
+    schema["$defs"]["HeatmapTextLayoutContext"] = heatmap_layout;
     for (definition, ids) in [
         ("TextLayoutTarget", &["view_id", "node_id"][..]),
         ("SemanticTextLayoutTarget", &["view_id"][..]),
@@ -437,10 +448,16 @@ pub fn compiled_mir_schema() -> serde_json::Value {
     }
     // Preserve the published v2 target and role definitions exactly. Widening
     // their shared role reference would silently admit v3 targets to v2.
+    schema["$defs"]["HeatmapTextLayoutRole"] = schema["$defs"]["TextLayoutRole"].clone();
     schema["$defs"]["CategoryTextLayoutRole"] = schema["$defs"]["TextLayoutRole"].clone();
+    schema["$defs"]["CategoryTextLayoutRole"]["enum"] =
+        serde_json::json!(["chart.title", "bar.category_labels"]);
     schema["$defs"]["TextLayoutRole"]["enum"] = serde_json::json!(["chart.title"]);
     let mut category_target = schema["$defs"]["SemanticTextLayoutTarget"].clone();
     category_target["properties"]["role"]["$ref"] = "#/$defs/CategoryTextLayoutRole".into();
+    let mut heatmap_target = category_target.clone();
+    heatmap_target["properties"]["role"]["$ref"] = "#/$defs/HeatmapTextLayoutRole".into();
+    schema["$defs"]["HeatmapSemanticTextLayoutTarget"] = heatmap_target;
     schema["$defs"]["CategorySemanticTextLayoutTarget"] = category_target;
     // Null is an accepted spelling of absence. A present non-null layout policy
     // requires the measured-text identity rather than just a nullable text key.

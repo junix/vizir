@@ -337,6 +337,17 @@ fn run_with_profile(options: Options, profile: Profile) -> VizResult<()> {
             profile.ir_version()
         )));
     }
+    // Published provider profiles stay closed when native wrapping gains roles.
+    if mir.context.text_layout.as_ref().is_some_and(|layout| {
+        !matches!(
+            layout.profile.as_str(),
+            "vizir-text-wrap/1" | "vizir-text-wrap/2" | "vizir-text-wrap/3" | "vizir-text-wrap/4"
+        )
+    }) {
+        return Err(error(
+            "published provider profiles support only text-wrap/1 through text-wrap/4",
+        ));
+    }
     let text = parse_text_context_json(&resource("text_profile").bytes)?;
     if mir.context.text.as_ref() != Some(&text) {
         return Err(error("text_profile differs from persisted context.text"));

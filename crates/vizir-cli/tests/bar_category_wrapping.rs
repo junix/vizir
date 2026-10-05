@@ -409,7 +409,7 @@ fn schema_preserves_published_branches_and_adds_one_closed_v3_branch() {
             .as_array()
             .unwrap()
             .len(),
-        4
+        5
     );
     assert!(serde_json::to_vec(&schema).unwrap().len() < 100_000);
 }

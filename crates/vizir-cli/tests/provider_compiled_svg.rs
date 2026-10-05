@@ -747,7 +747,7 @@ fn all_native_wrapping_profiles_replay_and_require_exact_layout_files() {
             pins.as_object_mut().unwrap().remove("text_layout");
             b.reject(b.command_with(&omitted, &pins, &b.output(), &b.receipt()));
             let mut unknown = read(&layout_path);
-            unknown["profile"] = json!("vizir-text-wrap/5");
+            unknown["profile"] = json!("vizir-text-wrap/6");
             write(&layout_path, &unknown);
             b.reject(b.command());
             fs::write(&layout_path, &original_layout).unwrap();
@@ -1076,5 +1076,43 @@ fn profiles_are_disjoint_and_old_descriptor_and_receipt_schema_are_frozen() {
             write(&b.files["input"], &input);
             b.reject(b.command());
         }
+    }
+}
+
+#[test]
+fn native_heatmap_wrap_five_stays_outside_published_provider_profiles() {
+    use vizir_compiler::{SemanticTextLayoutTarget, TextLayoutContext};
+    for version in ["0.4", "0.5"] {
+        let mut b = Bundle::new(version);
+        let mut fonts = FontResources::new();
+        for role in ["font_1", "font_2", "font_3"] {
+            let bytes = fs::read(&b.files[role]).unwrap();
+            fonts.insert(&hash(&bytes), bytes).unwrap();
+        }
+        let layout = TextLayoutContext::new(vec![]).with_heatmap_x_labels(vec![
+            SemanticTextLayoutTarget::heatmap_x_category_labels("h", 40., 4, 16.),
+        ]);
+        let document:Document=serde_json::from_value(json!({"version":version,"id":"h-wrap","width":720,"height":400,"datasets":{"d":{"key":"id","rows":[{"id":"a","x":"中文测试中文测试","y":"测试","v":1}]}},"views":[{"kind":"chart.heatmap","id":"h","frame":{"x":0,"y":0,"width":720,"height":400},"dataset":"d","x":{"field":"x"},"y":{"field":"y"},"color":{"field":"v"}}]})).unwrap();
+        let ctx = CompilationContext::new()
+            .with_theme(ThemeContext::resolve("azure").unwrap())
+            .with_text(
+                parse_text_context_json(&fs::read(&b.files["text_profile"]).unwrap()).unwrap(),
+            )
+            .with_text_layout(layout.clone());
+        let compiled = compile_with_context(&document, &ctx, &fonts).unwrap();
+        write(
+            &b.files["input"],
+            &serde_json::to_value(compiled.mir).unwrap(),
+        );
+        let p = b.dir.path().join("layout.json");
+        write(&p, &serde_json::to_value(layout).unwrap());
+        b.files.insert("text_layout".into(), p);
+        b.old_outputs();
+        let result = b.command().output().unwrap();
+        assert!(
+            String::from_utf8_lossy(&result.stderr)
+                .contains("only text-wrap/1 through text-wrap/4")
+        );
+        b.reject(b.command());
     }
 }

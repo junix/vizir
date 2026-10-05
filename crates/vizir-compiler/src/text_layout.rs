@@ -9,6 +9,7 @@ pub const TEXT_LAYOUT_PROFILE: &str = "vizir-text-wrap/1";
 pub const TEXT_LAYOUT_SEMANTIC_PROFILE: &str = "vizir-text-wrap/2";
 pub const TEXT_LAYOUT_CATEGORY_PROFILE: &str = "vizir-text-wrap/3";
 pub const TEXT_LAYOUT_DIAGRAM_PROFILE: &str = "vizir-text-wrap/4";
+pub const TEXT_LAYOUT_HEATMAP_PROFILE: &str = "vizir-text-wrap/5";
 pub const TEXT_LAYOUT_ENGINE: &str =
     "unicode-linebreak/0.1.5(unicode15.0.0);unicode-segmentation/1.13.3(unicode17.0.0)";
 pub(crate) const MAX_LINES: usize = 256;
@@ -87,6 +88,17 @@ pub enum TextLayoutRole {
     ChartTitle,
     #[serde(rename = "bar.category_labels")]
     BarCategoryLabels,
+    #[serde(rename = "heatmap.x_category_labels")]
+    HeatmapXCategoryLabels,
+}
+impl TextLayoutRole {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::ChartTitle => "chart.title",
+            Self::BarCategoryLabels => "bar.category_labels",
+            Self::HeatmapXCategoryLabels => "heatmap.x_category_labels",
+        }
+    }
 }
 
 #[non_exhaustive]
@@ -110,6 +122,21 @@ impl SemanticTextLayoutTarget {
         Self {
             view_id: view_id.into(),
             role: TextLayoutRole::ChartTitle,
+            max_width,
+            max_lines,
+            line_height,
+        }
+    }
+
+    pub fn heatmap_x_category_labels(
+        view_id: impl Into<String>,
+        max_width: f64,
+        max_lines: u32,
+        line_height: f64,
+    ) -> Self {
+        Self {
+            view_id: view_id.into(),
+            role: TextLayoutRole::HeatmapXCategoryLabels,
             max_width,
             max_lines,
             line_height,
@@ -221,6 +248,13 @@ impl TextLayoutContext {
         self
     }
 
+    /// Opt into v5 explicitly. At least one heatmap x-category target is required.
+    pub fn with_heatmap_x_labels(mut self, targets: Vec<SemanticTextLayoutTarget>) -> Self {
+        self.profile = TEXT_LAYOUT_HEATMAP_PROFILE.into();
+        self.semantic_targets = Some(targets);
+        self
+    }
+
     pub fn validate(&self) -> VizResult<()> {
         if !matches!(
             self.profile.as_str(),
@@ -228,6 +262,7 @@ impl TextLayoutContext {
                 | TEXT_LAYOUT_SEMANTIC_PROFILE
                 | TEXT_LAYOUT_CATEGORY_PROFILE
                 | TEXT_LAYOUT_DIAGRAM_PROFILE
+                | TEXT_LAYOUT_HEATMAP_PROFILE
         ) || self.engine != TEXT_LAYOUT_ENGINE
         {
             return Err(error(
@@ -275,6 +310,26 @@ impl TextLayoutContext {
     }
 
     fn validate_profile_shape(&self) -> VizResult<()> {
+        let has_heatmap = self.semantic_targets.as_ref().is_some_and(|targets| {
+            targets
+                .iter()
+                .any(|t| t.role == TextLayoutRole::HeatmapXCategoryLabels)
+        });
+        if self.profile != TEXT_LAYOUT_HEATMAP_PROFILE && has_heatmap {
+            return Err(error(
+                "heatmap.x_category_labels requires vizir-text-wrap/5",
+            ));
+        }
+        if self.profile == TEXT_LAYOUT_HEATMAP_PROFILE && !has_heatmap {
+            return Err(error(
+                "vizir-text-wrap/5 requires a heatmap.x_category_labels target",
+            ));
+        }
+        if self.profile == TEXT_LAYOUT_HEATMAP_PROFILE
+            && self.diagram_targets.as_ref().is_some_and(Vec::is_empty)
+        {
+            return Err(error("present diagram_targets must be nonempty"));
+        }
         if matches!(
             self.profile.as_str(),
             TEXT_LAYOUT_PROFILE | TEXT_LAYOUT_SEMANTIC_PROFILE | TEXT_LAYOUT_CATEGORY_PROFILE

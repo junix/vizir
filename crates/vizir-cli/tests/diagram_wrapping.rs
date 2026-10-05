@@ -447,7 +447,7 @@ fn schema_preserves_the_complete_prior_definition_closures_and_adds_a_closed_v4_
             .as_array()
             .unwrap()
             .len(),
-        4
+        5
     );
     assert!(serde_json::to_vec(&schema).unwrap().len() < 100_000);
 }
