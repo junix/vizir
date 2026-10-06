@@ -103,6 +103,7 @@ impl Bundle {
             "0.4" => "render-compiled-svg",
             "0.5" => "render-compiled-svg-v2",
             "0.7" => "render-compiled-svg-v3",
+            "0.9" => "render-compiled-svg-v4",
             _ => panic!("unsupported test profile"),
         })
         .arg(&files["input"]);
@@ -149,12 +150,13 @@ impl Bundle {
 
 #[test]
 fn direct_svg_bytes_and_native_receipt_values_are_equal() {
-    for version in ["0.4", "0.5", "0.7"] {
+    for version in ["0.4", "0.5", "0.7", "0.9"] {
         let b = Bundle::new(version);
         let verify_receipt = match version {
             "0.4" => receipt_verifier::verify,
             "0.5" => receipt_verifier::verify_v2,
             "0.7" => receipt_verifier::verify_v3,
+            "0.9" => receipt_verifier::verify_v4,
             _ => unreachable!(),
         };
         assert!(success(b.command().output().unwrap()).is_empty());
@@ -200,6 +202,9 @@ fn direct_svg_bytes_and_native_receipt_values_are_equal() {
         .unwrap();
         for change in [
             "unknown",
+            "schema_version",
+            "profile",
+            "source_ir_version",
             "provider",
             "primary_hash",
             "primary_size",
@@ -218,6 +223,9 @@ fn direct_svg_bytes_and_native_receipt_values_are_equal() {
             let mut changed = receipt.clone();
             match change {
                 "unknown" => changed["path"] = json!("/unexpected/file"),
+                "schema_version" => changed["schema_version"] = json!("vizir.render-receipt/v0"),
+                "profile" => changed["profile"] = json!("vizir-compiled-svg/0"),
+                "source_ir_version" => changed["source_ir_version"] = json!("0.1"),
                 "provider" => changed["provider"]["version"] = json!("invented-build"),
                 "primary_hash" => {
                     changed["artifact_receipt"]["primary"]["sha256"] = json!("0".repeat(64))
@@ -383,7 +391,8 @@ fn describe_is_stable_closed_and_all_parameters_have_one_cli_mapping() {
         json!([
             "render-compiled-svg",
             "render-compiled-svg-v2",
-            "render-compiled-svg-v3"
+            "render-compiled-svg-v3",
+            "render-compiled-svg-v4"
         ])
     );
     let fixture_v2: Value =
@@ -400,26 +409,36 @@ fn describe_is_stable_closed_and_all_parameters_have_one_cli_mapping() {
         fixture_v3["capability_id"],
         "visualization.vizir.render-compiled-svg-v3"
     );
-    assert_eq!(describe["provider"]["protocol_versions"], json!([1]));
-    let mut mapped = vec!["input".to_string()];
-    for f in fixture["cli_spec"]["flags"].as_array().unwrap() {
-        mapped.push(f["name"].as_str().unwrap().into());
-        assert_eq!(
-            f["flag"],
-            format!("--{}", f["name"].as_str().unwrap().replace('_', "-"))
-        );
-    }
-    mapped.sort();
+    let fixture_v4: Value =
+        serde_json::from_str(include_str!("../assets/compiled-svg-command-v4.json")).unwrap();
+    assert_eq!(describe["commands"][5], fixture_v4);
     assert_eq!(
-        mapped,
-        fixture["input_schema"]["properties"]
-            .as_object()
-            .unwrap()
-            .keys()
-            .cloned()
-            .collect::<Vec<_>>()
+        fixture_v4["capability_id"],
+        "visualization.vizir.render-compiled-svg-v4"
     );
-    assert_eq!(fixture["cli_spec"]["flags"][5]["kind"], "json");
+    assert_eq!(describe["commands"].as_array().unwrap().len(), 6);
+    assert_eq!(describe["provider"]["protocol_versions"], json!([1]));
+    for fixture in [&fixture, &fixture_v2, &fixture_v3, &fixture_v4] {
+        let mut mapped = vec!["input".to_string()];
+        for f in fixture["cli_spec"]["flags"].as_array().unwrap() {
+            mapped.push(f["name"].as_str().unwrap().into());
+            assert_eq!(
+                f["flag"],
+                format!("--{}", f["name"].as_str().unwrap().replace('_', "-"))
+            );
+        }
+        mapped.sort();
+        assert_eq!(
+            mapped,
+            fixture["input_schema"]["properties"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(fixture["cli_spec"]["flags"][5]["kind"], "json");
+    }
     let doctor: Value = serde_json::from_slice(&success(
         provider().args(["doctor", "--json"]).output().unwrap(),
     ))
@@ -431,7 +450,7 @@ fn describe_is_stable_closed_and_all_parameters_have_one_cli_mapping() {
 
 #[test]
 fn json_and_context_failures_preserve_both_outputs() {
-    for version in ["0.4", "0.5", "0.7"] {
+    for version in ["0.4", "0.5", "0.7", "0.9"] {
         let b = Bundle::new(version);
         b.old_outputs();
         let original = read(&b.files["input"]);
@@ -501,7 +520,7 @@ fn json_and_context_failures_preserve_both_outputs() {
 
 #[test]
 fn exact_raw_pins_missing_extra_duplicate_and_changed_font_fail_closed() {
-    for version in ["0.4", "0.5", "0.7"] {
+    for version in ["0.4", "0.5", "0.7", "0.9"] {
         let b = Bundle::new(version);
         b.old_outputs();
         let pins = b.pins();
@@ -535,7 +554,7 @@ fn exact_raw_pins_missing_extra_duplicate_and_changed_font_fail_closed() {
 
 #[test]
 fn all_inputs_and_both_outputs_reject_same_path_hardlink_and_symlink_aliases() {
-    for version in ["0.4", "0.5", "0.7"] {
+    for version in ["0.4", "0.5", "0.7", "0.9"] {
         let b = Bundle::new(version);
         b.old_outputs();
         for (role, path) in &b.files {
@@ -589,7 +608,7 @@ fn all_inputs_and_both_outputs_reject_same_path_hardlink_and_symlink_aliases() {
 
 #[test]
 fn explicit_relative_paths_work_and_resource_escape_is_rejected() {
-    for version in ["0.4", "0.5", "0.7"] {
+    for version in ["0.4", "0.5", "0.7", "0.9"] {
         let b = Bundle::new(version);
         let files = b
             .files
@@ -634,7 +653,7 @@ fn explicit_relative_paths_work_and_resource_escape_is_rejected() {
 
 #[test]
 fn budgets_nonregular_and_publication_failure_preserve_outputs() {
-    for version in ["0.4", "0.5", "0.7"] {
+    for version in ["0.4", "0.5", "0.7", "0.9"] {
         let b = Bundle::new(version);
         b.old_outputs();
         for (role, limit) in [
@@ -664,7 +683,7 @@ fn budgets_nonregular_and_publication_failure_preserve_outputs() {
 
 #[test]
 fn all_native_wrapping_profiles_replay_and_require_exact_layout_files() {
-    for version in ["0.4", "0.5", "0.7"] {
+    for version in ["0.4", "0.5", "0.7", "0.9"] {
         for (example, layout) in [
             ("wrapped-text", "wrapped-text"),
             ("wrapped-chart-titles", "chart-title"),
@@ -788,7 +807,7 @@ fn all_native_wrapping_profiles_replay_and_require_exact_layout_files() {
 
 #[test]
 fn standalone_arguments_reject_noncontiguous_fonts_duplicate_flags_and_nonobject_pins() {
-    for version in ["0.4", "0.5", "0.7"] {
+    for version in ["0.4", "0.5", "0.7", "0.9"] {
         let b = Bundle::new(version);
         b.old_outputs();
         let mut files = b.files.clone();
@@ -812,7 +831,7 @@ fn standalone_arguments_reject_noncontiguous_fonts_duplicate_flags_and_nonobject
 
 #[test]
 fn oversized_receipt_and_native_text_fit_fail_without_truncation_or_publication() {
-    for version in ["0.4", "0.5", "0.7"] {
+    for version in ["0.4", "0.5", "0.7", "0.9"] {
         let b = Bundle::new(version);
         b.old_outputs();
         let original = read(&b.files["input"]);
@@ -884,6 +903,9 @@ fn normalize_labeled(b: &Bundle, source: &Value) {
         .arg(&b.files["text_profile"])
         .arg("--output")
         .arg(&b.files["input"]);
+    if let Some(layout) = b.files.get("text_layout") {
+        c.arg("--text-layout").arg(layout);
+    }
     add_fonts(&mut c, b);
     success(c.output().unwrap());
 }
@@ -916,6 +938,7 @@ fn verify_direct(b: &Bundle) -> String {
         "0.4" => receipt_verifier::verify,
         "0.5" => receipt_verifier::verify_v2,
         "0.7" => receipt_verifier::verify_v3,
+        "0.9" => receipt_verifier::verify_v4,
         _ => unreachable!(),
     };
     verify(
@@ -931,7 +954,7 @@ fn verify_direct(b: &Bundle) -> String {
 
 #[test]
 fn labeled_inline_and_typed_csv_preserve_sparse_zero_int64_contrast_and_full_receipt() {
-    for version in ["0.5", "0.7"] {
+    for version in ["0.5", "0.7", "0.9"] {
         let mut expected: Option<(Vec<u8>, Vec<u8>)> = None;
         for csv in [false, true] {
             let b = Bundle::new(version);
@@ -1024,7 +1047,7 @@ fn labeled_inline_and_typed_csv_preserve_sparse_zero_int64_contrast_and_full_rec
 
 #[test]
 fn labeled_cache_mutations_fail_without_refresh_or_publication() {
-    for version in ["0.5", "0.7"] {
+    for version in ["0.5", "0.7", "0.9"] {
         let b = Bundle::new(version);
         let mut hir = labeled_hir();
         hir["version"] = json!(version);
@@ -1119,7 +1142,7 @@ fn profiles_are_disjoint_and_old_descriptor_and_receipt_schema_are_frozen() {
         b.reject(b.command());
         b.version = version;
         let original = read(&b.files["input"]);
-        for future in ["0.6", "0.7", "1.0"] {
+        for future in ["0.6", "0.7", "0.8", "0.9", "1.0"] {
             let mut input = original.clone();
             input["mir"]["version"] = json!(future);
             input["mir"]["source_hir_version"] = json!(future);
@@ -1238,104 +1261,109 @@ fn v3_replays_authored_domains_stable_subset_colors_and_receipt() {
 }
 
 #[test]
-fn v3_heatmap_wrap_five_is_exact_persisted_and_closed() {
+fn v3_and_v4_heatmap_wrap_five_is_exact_persisted_and_closed() {
     use vizir_compiler::{SemanticTextLayoutTarget, TextLayoutContext};
-    let mut b = Bundle::new("0.7");
-    let mut fonts = FontResources::new();
-    for role in ["font_1", "font_2", "font_3"] {
-        let bytes = fs::read(&b.files[role]).unwrap();
-        fonts.insert(&hash(&bytes), bytes).unwrap();
-    }
-    let layout = TextLayoutContext::new(vec![]).with_heatmap_x_labels(vec![
-        SemanticTextLayoutTarget::heatmap_x_category_labels("h", 40., 4, 16.),
-    ]);
-    let document: Document = serde_json::from_value(
-        json!({"version":"0.7","id":"h-wrap-v3","width":720,"height":400,
+    for version in ["0.7", "0.9"] {
+        let mut b = Bundle::new(version);
+        let mut fonts = FontResources::new();
+        for role in ["font_1", "font_2", "font_3"] {
+            let bytes = fs::read(&b.files[role]).unwrap();
+            fonts.insert(&hash(&bytes), bytes).unwrap();
+        }
+        let layout = TextLayoutContext::new(vec![]).with_heatmap_x_labels(vec![
+            SemanticTextLayoutTarget::heatmap_x_category_labels("h", 40., 4, 16.),
+        ]);
+        let document: Document = serde_json::from_value(
+            json!({"version":version,"id":"h-wrap-provider","width":720,"height":400,
         "datasets":{"d":{"key":"id","rows":[{"id":"a","x":"中文测试中文测试","y":"测试","v":1}]}},
         "views":[{"kind":"chart.heatmap","id":"h","frame":{"x":0,"y":0,"width":720,"height":400},
         "dataset":"d","x":{"field":"x"},"y":{"field":"y"},"color":{"field":"v","domain":[0,10]}}]}),
-    )
-    .unwrap();
-    let ctx = CompilationContext::new()
-        .with_theme(ThemeContext::resolve("azure").unwrap())
-        .with_text(parse_text_context_json(&fs::read(&b.files["text_profile"]).unwrap()).unwrap())
-        .with_text_layout(layout.clone());
-    let compiled = compile_with_context(&document, &ctx, &fonts).unwrap();
-    let original = serde_json::to_value(compiled.mir).unwrap();
-    write(&b.files["input"], &original);
-    let policy_path = b.dir.path().join("layout.json");
-    let policy = serde_json::to_value(layout).unwrap();
-    write(&policy_path, &policy);
-    b.files.insert("text_layout".into(), policy_path.clone());
-    let svg = verify_direct(&b);
-    assert!(svg.contains("<path"));
-    assert_eq!(
-        read(&b.receipt())["compilation_context"]["text_layout"],
-        policy
-    );
-    let copy = tempfile::tempdir().unwrap();
-    let mut copied = BTreeMap::new();
-    for (role, path) in &b.files {
-        let to = copy.path().join(path.file_name().unwrap());
-        fs::copy(path, &to).unwrap();
-        copied.insert(role.clone(), to);
-    }
-    let mut replay = b.command_with(
-        &copied,
-        &b.pins(),
-        &copy.path().join("figure.svg"),
-        &copy.path().join("receipt.json"),
-    );
-    success(replay.current_dir("/").output().unwrap());
-    assert_eq!(
-        fs::read(copy.path().join("figure.svg")).unwrap(),
-        svg.as_bytes()
-    );
-    assert_eq!(
-        fs::read(copy.path().join("receipt.json")).unwrap(),
-        fs::read(b.receipt()).unwrap()
-    );
-    b.old_outputs();
-    for mutation in [
-        "missing",
-        "unknown",
-        "null",
-        "mismatch",
-        "stale_range",
-        "stale_text",
-    ] {
-        let mut changed = original.clone();
-        let mut policy_changed = policy.clone();
-        match mutation {
-            "missing" => {
-                changed["context"]
-                    .as_object_mut()
-                    .unwrap()
-                    .remove("text_layout");
-            }
-            "unknown" => policy_changed["profile"] = json!("vizir-text-wrap/6"),
-            "null" => changed["context"]["text_layout"] = Value::Null,
-            "mismatch" => policy_changed["semantic_targets"][0]["max_width"] = json!(39),
-            "stale_range" => {
-                changed["context"]["text_layout"]["semantic_targets"][0]["line_height"] = json!(40);
-                policy_changed = changed["context"]["text_layout"].clone();
-            }
-            "stale_text" => {
-                changed["mir"]["data"]["data/d"]["operator"]["rows"][0]["x"] = json!("中文")
-            }
-            _ => unreachable!(),
+        )
+        .unwrap();
+        let ctx = CompilationContext::new()
+            .with_theme(ThemeContext::resolve("azure").unwrap())
+            .with_text(
+                parse_text_context_json(&fs::read(&b.files["text_profile"]).unwrap()).unwrap(),
+            )
+            .with_text_layout(layout.clone());
+        let compiled = compile_with_context(&document, &ctx, &fonts).unwrap();
+        let original = serde_json::to_value(compiled.mir).unwrap();
+        write(&b.files["input"], &original);
+        let policy_path = b.dir.path().join("layout.json");
+        let policy = serde_json::to_value(layout).unwrap();
+        write(&policy_path, &policy);
+        b.files.insert("text_layout".into(), policy_path.clone());
+        let svg = verify_direct(&b);
+        assert!(svg.contains("<path"));
+        assert_eq!(
+            read(&b.receipt())["compilation_context"]["text_layout"],
+            policy
+        );
+        let copy = tempfile::tempdir().unwrap();
+        let mut copied = BTreeMap::new();
+        for (role, path) in &b.files {
+            let to = copy.path().join(path.file_name().unwrap());
+            fs::copy(path, &to).unwrap();
+            copied.insert(role.clone(), to);
         }
-        write(&b.files["input"], &changed);
-        write(&policy_path, &policy_changed);
-        b.reject(b.command());
+        let mut replay = b.command_with(
+            &copied,
+            &b.pins(),
+            &copy.path().join("figure.svg"),
+            &copy.path().join("receipt.json"),
+        );
+        success(replay.current_dir("/").output().unwrap());
+        assert_eq!(
+            fs::read(copy.path().join("figure.svg")).unwrap(),
+            svg.as_bytes()
+        );
+        assert_eq!(
+            fs::read(copy.path().join("receipt.json")).unwrap(),
+            fs::read(b.receipt()).unwrap()
+        );
+        b.old_outputs();
+        for mutation in [
+            "missing",
+            "unknown",
+            "null",
+            "mismatch",
+            "stale_range",
+            "stale_text",
+        ] {
+            let mut changed = original.clone();
+            let mut policy_changed = policy.clone();
+            match mutation {
+                "missing" => {
+                    changed["context"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("text_layout");
+                }
+                "unknown" => policy_changed["profile"] = json!("vizir-text-wrap/6"),
+                "null" => changed["context"]["text_layout"] = Value::Null,
+                "mismatch" => policy_changed["semantic_targets"][0]["max_width"] = json!(39),
+                "stale_range" => {
+                    changed["context"]["text_layout"]["semantic_targets"][0]["line_height"] =
+                        json!(40);
+                    policy_changed = changed["context"]["text_layout"].clone();
+                }
+                "stale_text" => {
+                    changed["mir"]["data"]["data/d"]["operator"]["rows"][0]["x"] = json!("中文")
+                }
+                _ => unreachable!(),
+            }
+            write(&b.files["input"], &changed);
+            write(&policy_path, &policy_changed);
+            b.reject(b.command());
+        }
+        write(&b.files["input"], &original);
+        write(&policy_path, &policy);
+        let mut missing = b.files.clone();
+        missing.remove("text_layout");
+        let mut pins = b.pins();
+        pins.as_object_mut().unwrap().remove("text_layout");
+        b.reject(b.command_with(&missing, &pins, &b.output(), &b.receipt()));
     }
-    write(&b.files["input"], &original);
-    write(&policy_path, &policy);
-    let mut missing = b.files.clone();
-    missing.remove("text_layout");
-    let mut pins = b.pins();
-    pins.as_object_mut().unwrap().remove("text_layout");
-    b.reject(b.command_with(&missing, &pins, &b.output(), &b.receipt()));
 }
 
 #[test]
@@ -1370,4 +1398,331 @@ fn v3_receipt_schema_has_exact_native_wrap_five_branch_without_widening_legacy()
         );
         assert!(legacy["$defs"].get("HeatmapTextLayoutContext").is_none());
     }
+}
+
+fn aligned_v4_bundle() -> Bundle {
+    let mut b = Bundle::new("0.9");
+    fs::copy(
+        root().join("examples/text/wrapping-font-profile.json"),
+        &b.files["text_profile"],
+    )
+    .unwrap();
+    for (index, name) in ["Regular", "Medium", "Bold"].into_iter().enumerate() {
+        fs::copy(
+            root().join(format!(
+                "crates/vizir-compiler/tests/fixtures/wrapping-fonts/VizIRWrappingFixtureSC-{name}.otf"
+            )),
+            &b.files[&format!("font_{}", index + 1)],
+        )
+        .unwrap();
+    }
+    let source = success(
+        Command::new(env!("CARGO_BIN_EXE_vizir"))
+            .arg("compose")
+            .arg(root().join("examples/composition/aligned-numeric-grid.compose.yaml"))
+            .output()
+            .unwrap(),
+    );
+    let hir: Value = serde_json::from_slice(&source).unwrap();
+    assert_eq!(hir["version"], "0.9");
+    assert_eq!(
+        hir["plot_alignment"]["members"].as_array().unwrap().len(),
+        4
+    );
+    assert_eq!(hir["shared_legend"]["members"].as_array().unwrap().len(), 3);
+    let layout = vizir_compiler::TextLayoutContext::new(vec![]).with_semantic_targets(vec![
+        vizir_compiler::SemanticTextLayoutTarget::chart_title("trend", 210., 8, 28.),
+    ]);
+    let layout_path = b.dir.path().join("layout.json");
+    write(&layout_path, &serde_json::to_value(layout).unwrap());
+    b.files.insert("text_layout".into(), layout_path);
+    normalize_labeled(&b, &hir);
+    b
+}
+
+fn chart_scale<'a>(chart: &'a Value, axis: &str) -> &'a Value {
+    let scale_id = chart["mark"][axis]["scale"].as_str().unwrap();
+    chart["scales"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == scale_id)
+        .unwrap()
+}
+
+#[test]
+fn v4_composed_alignment_shared_legend_and_wrapped_fonts_match_native_and_copied_replay() {
+    let b = aligned_v4_bundle();
+    let input = read(&b.files["input"]);
+    let mir = &input["mir"];
+    assert_eq!(mir["version"], "0.9");
+    assert_eq!(mir["source_hir_version"], "0.9");
+    assert_eq!(mir["plot_alignment"]["id"], "comparison-plots");
+    assert_eq!(mir["plot_alignment"]["mode"], "uniform");
+    let views = mir["views"].as_array().unwrap();
+    assert_eq!(views.len(), 4);
+    let mut expected_insets: Option<[f64; 4]> = None;
+    for (index, id) in ["trend", "measurements", "area", "comparison"]
+        .into_iter()
+        .enumerate()
+    {
+        let view = &views[index];
+        assert_eq!(view["id"], id);
+        assert_eq!(
+            mir["plot_alignment"]["members"][index],
+            json!({"view":id,"x_scale":chart_scale(view,"x")["id"],"y_scale":chart_scale(view,"y")["id"]})
+        );
+        let frame = &view["frame"];
+        let x = &chart_scale(view, "x")["range"];
+        let y = &chart_scale(view, "y")["range"];
+        let number = |v: &Value| v.as_f64().unwrap();
+        let insets = [
+            number(&x[0]) - number(&frame["x"]),
+            number(&frame["x"]) + number(&frame["width"]) - number(&x[1]),
+            number(&y[1]) - number(&frame["y"]),
+            number(&frame["y"]) + number(&frame["height"]) - number(&y[0]),
+        ];
+        if let Some(expected) = expected_insets {
+            for (actual, expected) in insets.into_iter().zip(expected) {
+                assert!((actual - expected).abs() < 1e-8);
+            }
+        } else {
+            expected_insets = Some(insets);
+        }
+        if index < 3 {
+            let color = view["scales"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|s| s["type"] == "ordinal-color")
+                .unwrap();
+            assert_eq!(color["domain"], json!(["Alpha", "Beta", "Reserved"]));
+            assert_eq!(
+                mir["shared_legend"]["members"][index],
+                json!({"view":id,"scale":color["id"]})
+            );
+            assert!(
+                !view["guides"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|g| g["kind"] == "legend")
+            );
+        }
+    }
+    assert_eq!(chart_scale(&views[0], "x")["domain"], json!([0., 2.]));
+    assert_eq!(chart_scale(&views[3], "x")["domain"], json!([0., 4.]));
+    assert_eq!(
+        chart_scale(&views[0], "y")["domain"],
+        json!([0., 10_000_000.])
+    );
+    assert_eq!(
+        chart_scale(&views[3], "y")["domain"],
+        json!([0., 20_000_000.])
+    );
+    let svg = verify_direct(&b);
+    let xml = roxmltree::Document::parse(&svg).unwrap();
+    assert!(!xml.descendants().any(|n| n.has_tag_name("text")));
+    assert!(xml.descendants().any(|n| n.has_tag_name("path")));
+    assert!(
+        xml.descendants()
+            .any(|n| n.attribute("id") == Some("comparison/legend/0/swatch"))
+    );
+    assert_eq!(
+        xml.descendants()
+            .filter(|n| n.attribute("id") == Some("shared-legend:10:series-key"))
+            .count(),
+        1
+    );
+    for id in ["trend", "measurements", "area"] {
+        assert!(!xml.descendants().any(|n| {
+            n.attribute("id")
+                .is_some_and(|node_id| node_id.starts_with(&format!("{id}/legend/")))
+        }));
+    }
+    let receipt = read(&b.receipt());
+    assert_eq!(receipt["schema_version"], "vizir.render-receipt/v4");
+    assert_eq!(receipt["profile"], "vizir-compiled-svg/4");
+    assert_eq!(receipt["source_ir_version"], "0.9");
+    assert_eq!(receipt["compilation_context"], input["context"]);
+    assert_eq!(
+        receipt["compilation_context"]["text_layout"],
+        read(&b.files["text_layout"])
+    );
+
+    // Replay only copied declared resources, after the original bundle is gone.
+    let copied = tempfile::tempdir().unwrap();
+    let mut files = BTreeMap::new();
+    for (role, path) in &b.files {
+        let destination = copied.path().join(path.file_name().unwrap());
+        fs::copy(path, &destination).unwrap();
+        files.insert(role.clone(), destination);
+    }
+    let receipt_bytes = fs::read(b.receipt()).unwrap();
+    let mut command = b.command_with(
+        &files,
+        &b.pins(),
+        &copied.path().join("copied.svg"),
+        &copied.path().join("copied.receipt.json"),
+    );
+    command.current_dir("/");
+    drop(b);
+    assert!(success(command.output().unwrap()).is_empty());
+    assert_eq!(
+        fs::read(copied.path().join("copied.svg")).unwrap(),
+        svg.as_bytes()
+    );
+    assert_eq!(
+        fs::read(copied.path().join("copied.receipt.json")).unwrap(),
+        receipt_bytes
+    );
+}
+
+#[test]
+fn v4_stale_alignment_shared_legend_and_native_fields_fail_atomically() {
+    let b = aligned_v4_bundle();
+    // Establish a successful baseline so a missing resource cannot mask a mutation.
+    verify_direct(&b);
+    let original = read(&b.files["input"]);
+    b.old_outputs();
+    for mutation in [
+        "one_aligned_range",
+        "all_aligned_ranges",
+        "y_range",
+        "alignment_ref",
+        "alignment_null",
+        "alignment_unknown",
+        "alignment_member_unknown",
+        "legend_ref",
+        "legend_color",
+        "legend_domain",
+        "legend_local_conflict",
+        "legend_null",
+        "legend_unknown",
+        "legend_member_unknown",
+        "scatter_cache",
+        "native_unknown",
+        "native_null",
+        "duplicate_alignment",
+        "duplicate_legend",
+    ] {
+        let mut changed = original.clone();
+        let mir = &mut changed["mir"];
+        match mutation {
+            "one_aligned_range" | "all_aligned_ranges" => {
+                for index in 0..if mutation == "all_aligned_ranges" { 4 } else { 1 } {
+                    let range = &mut mir["views"][index]["scales"][0]["range"];
+                    range[0] = json!(range[0].as_f64().unwrap() + 1.0);
+                }
+            }
+            "y_range" => {
+                let range = &mut mir["views"][0]["scales"][1]["range"];
+                range[1] = json!(range[1].as_f64().unwrap() + 1.0);
+            }
+            "alignment_ref" => mir["plot_alignment"]["members"][0]["x_scale"] = json!("measurements/x"),
+            "alignment_null" => mir["plot_alignment"] = Value::Null,
+            "alignment_unknown" => mir["plot_alignment"]["hidden"] = json!(true),
+            "alignment_member_unknown" => mir["plot_alignment"]["members"][0]["hidden"] = json!(true),
+            "legend_ref" => mir["shared_legend"]["members"][0]["scale"] = json!("measurements/color"),
+            "legend_color" | "legend_domain" => {
+                let color = mir["views"][1]["scales"].as_array_mut().unwrap().iter_mut()
+                    .find(|s| s["type"] == "ordinal-color").unwrap();
+                if mutation == "legend_color" {
+                    color["range"][2] = json!("#123456");
+                } else {
+                    color["domain"][2] = json!("Forged");
+                }
+            }
+            "legend_local_conflict" => mir["views"][0]["guides"].as_array_mut().unwrap().push(
+                json!({"id":"trend/guides/forged-legend","kind":"legend","scale":"trend/color","label":"series","orient":"right"})),
+            "legend_null" => mir["shared_legend"] = Value::Null,
+            "legend_unknown" => mir["shared_legend"]["hidden"] = json!(true),
+            "legend_member_unknown" => mir["shared_legend"]["members"][0]["hidden"] = json!(true),
+            "scatter_cache" => mir["views"][1]["mark"]["instances"][0]["y"] = json!(999),
+            "native_unknown" => mir["views"][0]["hidden"] = json!(true),
+            "native_null" => mir["views"][1]["mark"]["instances"] = Value::Null,
+            "duplicate_alignment" | "duplicate_legend" => {},
+            _ => unreachable!(),
+        }
+        write(&b.files["input"], &changed);
+        if mutation.starts_with("duplicate_") {
+            let field = if mutation == "duplicate_alignment" {
+                "plot_alignment"
+            } else {
+                "shared_legend"
+            };
+            let bytes = fs::read_to_string(&b.files["input"]).unwrap();
+            let needle = format!("\"{field}\": {{");
+            assert!(bytes.contains(&needle));
+            fs::write(
+                &b.files["input"],
+                bytes.replacen(&needle, &format!("\"{field}\": {{}}, {needle}"), 1),
+            )
+            .unwrap();
+        }
+        let result = b.command().output().unwrap();
+        assert!(!result.status.success(), "accepted {mutation}");
+        assert!(!result.stderr.is_empty(), "no diagnostic for {mutation}");
+        b.reject(b.command());
+    }
+}
+
+#[test]
+fn v4_requires_matching_hir_mir_nine_and_legacy_profiles_reject_real_nine_bundles() {
+    let mut b = Bundle::new("0.9");
+    b.old_outputs();
+    let original = read(&b.files["input"]);
+    for version in ["0.4", "0.5", "0.6", "0.7", "0.8", "1.0"] {
+        for (mir_version, hir_version) in [(version, version), (version, "0.9"), ("0.9", version)] {
+            let mut changed = original.clone();
+            changed["mir"]["version"] = json!(mir_version);
+            changed["mir"]["source_hir_version"] = json!(hir_version);
+            write(&b.files["input"], &changed);
+            b.reject(b.command());
+        }
+    }
+    write(&b.files["input"], &original);
+    for version in ["0.4", "0.5", "0.7"] {
+        b.version = version;
+        b.reject(b.command());
+    }
+    let mut composed = aligned_v4_bundle();
+    composed.old_outputs();
+    for version in ["0.4", "0.5", "0.7"] {
+        composed.version = version;
+        composed.reject(composed.command());
+    }
+    // Genuine older envelopes are rejected too, not merely relabeled 0.9 data.
+    for version in ["0.4", "0.5", "0.7", "0.8"] {
+        let mut old = Bundle::new(version);
+        old.old_outputs();
+        old.version = "0.9";
+        old.reject(old.command());
+    }
+}
+
+#[test]
+fn v4_receipt_schema_changes_only_profile_constants_and_freezes_v3() {
+    assert_eq!(
+        hash(include_bytes!("../assets/compiled-svg-command-v3.json")),
+        "50a61afe4c24069e21cbf2809ccb71388f01d0051d50fef30af4b2e4c8bb15d2"
+    );
+    assert_eq!(
+        hash(include_bytes!(
+            "../../../schemas/render-receipt-v3.schema.json"
+        )),
+        "cd7eee67aa242053ce3f574edd141db2ef000dbb496de785d589bd56c7807392"
+    );
+    let mut expected: Value = serde_json::from_str(include_str!(
+        "../../../schemas/render-receipt-v3.schema.json"
+    ))
+    .unwrap();
+    expected["properties"]["schema_version"]["const"] = json!("vizir.render-receipt/v4");
+    expected["properties"]["profile"]["const"] = json!("vizir-compiled-svg/4");
+    expected["properties"]["source_ir_version"]["const"] = json!("0.9");
+    let actual: Value = serde_json::from_str(include_str!(
+        "../../../schemas/render-receipt-v4.schema.json"
+    ))
+    .unwrap();
+    assert_eq!(actual, expected);
 }

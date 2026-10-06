@@ -517,9 +517,12 @@ The optional [native compiled SVG provider](docs/plot-provider.md),
 `render-compiled-svg`, or a MIR 0.5 bundle via the separate
 `render-compiled-svg-v2` command, or a MIR 0.7 bundle via
 `render-compiled-svg-v3` with authored category/numeric domains and measured
-heatmap x-category wrapping. Each command requires explicit raw resource pins
+heatmap x-category wrapping. A matching MIR/HIR 0.9 bundle uses the separate
+`render-compiled-svg-v4` command for shared legends and explicit uniform numeric
+plot alignment. Composition 0.8 is compiled and normalized upstream.
+Each command requires explicit raw resource pins
 and emits SVG plus a mandatory path-free, separately versioned native receipt.
-V1/V2 retain their original schemas and wrapping-profile boundaries.
+V1/V2/V3 retain their original schemas and version/wrapping-profile boundaries.
 It reuses the existing compiler/backend; independent Hub receipt verification
 is a separate integration requirement. Build/install now includes both binaries;
 `cargo run -p vizir-cli -- ...` continues to select `vizir`.

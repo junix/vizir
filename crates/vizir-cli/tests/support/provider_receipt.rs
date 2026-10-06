@@ -108,6 +108,23 @@ pub fn verify_v3(
     )
 }
 
+pub fn verify_v4(
+    receipt: &[u8],
+    resources: &BTreeMap<String, Vec<u8>>,
+    svg: &[u8],
+    native: &Value,
+    provider_version: &str,
+) -> Result<(), String> {
+    verify_contract(
+        receipt,
+        resources,
+        svg,
+        native,
+        provider_version,
+        ("0.9", "vizir.render-receipt/v4", "vizir-compiled-svg/4"),
+    )
+}
+
 fn verify_contract(
     receipt: &[u8],
     resources: &BTreeMap<String, Vec<u8>>,
@@ -156,7 +173,8 @@ fn verify_contract(
             return Err("input relation or stable role order mismatch".into());
         }
     }
-    if r.document_id != compiled.mir.document_id
+    if compiled.mir.version != source_version
+        || r.document_id != compiled.mir.document_id
         || r.source_ir_version != compiled.mir.source_hir_version
         || r.source_context_format != compiled.format
         || r.compilation_context != compiled.context
