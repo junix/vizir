@@ -1,0 +1,200 @@
+{
+  "base_commit": "fa14dc7ff5bbeccc97c413aea9654071ae5ad236",
+  "baseline_executable_sha256": "83ff8509065d4ca72fff4f7e0574d017ce93838fd10b22265a3ba2e2c956537e",
+  "cases": [
+    {
+      "source": "examples/chart/baseline-area.viz.yaml",
+      "normalize_sha256": "cfdda06217c43a88ca428f749187aeaf0232e75990b96a98f5d4d66aeb114abc",
+      "lower_sha256": "0a129f95ba1540519b9bc6db3fdd3ad8b7cdc00cccdd47b0626984c41b2f395d",
+      "svg_sha256": "608fbaa650d12ca3bbd150dfa3e6e0cac1d5a5b472307a16d3eeb483f9dcdbab"
+    },
+    {
+      "source": "examples/chart/constant-heatmap.viz.yaml",
+      "normalize_sha256": "ab10e51de0057b41efaf092b5f391a02ea5f5a72ec0c5fdc1e7505b8b60afc50",
+      "lower_sha256": "00742a5439a7ebf3e703f3efbaf835449c60e2213c005e399778f20ef571f004",
+      "svg_sha256": "a60aae752a51fa7de87092f75ef409b5eda0b9e4ac1de4737644b8fec96a310a"
+    },
+    {
+      "source": "examples/chart/dense-heatmap.viz.yaml",
+      "normalize_sha256": "08417378ae4b65846ee170d40c25934708ab9d96d4b357f23b0bf675053a461d",
+      "lower_sha256": "4cf719b807b819261d9c938967e91394e56b3b6da72cb6db832afaa4e85023fd",
+      "svg_sha256": "4ad112dc721bd3e7922d5dd79b50b56abb433a2c5dbb8d203d23c9abbcd97946"
+    },
+    {
+      "source": "examples/chart/grouped-area.viz.yaml",
+      "normalize_sha256": "d7355568688f9cae84d49d5b27ffed739ab530f0cad6e8ac4c6cf417175d972e",
+      "lower_sha256": "985fde546a8873b90ecc736e9846859420736abb8e987f8e19bab31d559f6945",
+      "svg_sha256": "9be48699daa29a006636d8fbba2fb496cc3920f4be5e8851ddc42536ee528e39"
+    },
+    {
+      "source": "examples/chart/incident-latency.viz.yaml",
+      "normalize_sha256": "c12ff9d0a82dd9475aae11c8a6b9f3d717a3d8deb5b4d7307687885939aca316",
+      "lower_sha256": "7323f03a018f619ec8e15c68b17dec32667424593aae0831c29d50d0dc24d727",
+      "svg_sha256": "6c04a131884a9794fa85daba391b2c3959df13f01953e1361b58839421626c91"
+    },
+    {
+      "source": "examples/chart/labeled-heatmap.viz.yaml",
+      "normalize_sha256": "93ed74d84cd5ebda987ea60f3a9329d8c2a6c5862ed46430c9bf9cff09fc8c32",
+      "lower_sha256": "4b6ced561948280521b06dc795636b78d5a6797ebb3aa8b71a56217e77fadee3",
+      "svg_sha256": "1a4136a93fe2e02fa43fdfcec674b259a927c254a2da77a0078599a8e78ba2ba"
+    },
+    {
+      "source": "examples/chart/measurement-precision.viz.yaml",
+      "normalize_sha256": "83b53677374b5d514f40419f7fbe7a63f6a8b6489eadfd47e406c0a2de4a7c67",
+      "lower_sha256": "fe57244cc0eea68e229753690d200fc57a3925435726f6c4f016ddd3d7bf75f6",
+      "svg_sha256": "fbaa33b7d51d8fd5fbbf95c61823dff3542c9b22b1c12d22f6360f0cea935860"
+    },
+    {
+      "source": "examples/chart/mixed-axis-formats.viz.yaml",
+      "normalize_sha256": "cb8664beb498648ce77711d49606bfa23a42ceef37ff6d21344e14e855bfbaa0",
+      "lower_sha256": "288ec2c9ed47e006de5aec4534040535685ddf24a3b5f25e183c7261af7bf5f6",
+      "svg_sha256": "aa751a36c6d1375ed51394696a36f4a81bb587715655314ee4f9e51a8e5f0009"
+    },
+    {
+      "source": "examples/chart/model-evaluation.viz.yaml",
+      "normalize_sha256": "86bafcea6ce261235d268c17db39a2d7b9430425877852fd8c68f855f3495d53",
+      "lower_sha256": "fb42a931c8580efc2d26e47ad61840fac642915a50e1fe0ccc1a014332ee63af",
+      "svg_sha256": "79e7d7b07f8750f42b0ad266683adb97938367ea3888b3a8604ebbca664eb84c"
+    },
+    {
+      "source": "examples/chart/sales-regions.viz.yaml",
+      "normalize_sha256": "17d9886d9a32a5f1be51b13688c716ebf9bb6765a20eea73b295b5ec0a50f044",
+      "lower_sha256": "e2cb6ca1f4a45ce677dd51a1559fa1defd4e90980373375626947fadfbf57c04",
+      "svg_sha256": "76e2561352b2580b9a81ba77e4239df3c0209d609ff687a78623e831a68b193a"
+    },
+    {
+      "source": "examples/chart/scientific-magnitudes.viz.yaml",
+      "normalize_sha256": "7309ee9481c3e5af0378f7ee09385f0be53d1d619981db50e7a312bdf2072eaa",
+      "lower_sha256": "6d51fced3e7c8c82a1e830da2104b3597c5092bf9b64c9c9cc78f498ecda3c79",
+      "svg_sha256": "fb55b46048ae4602bd720fb80cd2c910ff4f42281522979ece6b0c4335886e7c"
+    },
+    {
+      "source": "examples/chart/service-health.viz.yaml",
+      "normalize_sha256": "8e562a999e28fe916fd99fb259cbff94069ac78a339ff2be8b7e9c81b7219b2a",
+      "lower_sha256": "1883d5f6a20f1fc96ebd7d455b41128dcdaa2c680f746c18e71a9f61b018b872",
+      "svg_sha256": "aa7e705f4cb05437a374c5457ecc356dd1bf1f3cfacdc2a6b3467c8d2e8d4ba9"
+    },
+    {
+      "source": "examples/chart/sparse-heatmap.viz.yaml",
+      "normalize_sha256": "d8fc370419dc4cdcb5fedd9b3a7fa75a50d0347e192eb55962298526aae56e21",
+      "lower_sha256": "bb47286f3a7478ed4268babde61581e677664bbd1831caee56c6aabbc342fede",
+      "svg_sha256": "382fc6da8c5ff1bafd52451cc25df7a1cb4eaa5bc74f61aa68e9e0ab5d101d81"
+    },
+    {
+      "source": "examples/diagram/agent-runtime.viz.yaml",
+      "normalize_sha256": "af5e0a0d2ea65011a1aaff10e51ccab044cb80f2e6faf16ec6f3e6e5e91dd220",
+      "lower_sha256": "e20b8c7694901e860117b6a37d9a225792615cc3007d26a510282f95309e5eb9",
+      "svg_sha256": "05737c034548da927ed3c6435c21b68fabc4768608616425fa2a6268c16e57e2"
+    },
+    {
+      "source": "examples/diagram/data-platform.viz.yaml",
+      "normalize_sha256": "70b990cf8fe8253baeaefb007aa33e8b268e73a74fca382fccb941b4a07d83a6",
+      "lower_sha256": "fd483e292ee661edd494807b5f718eef25ab621377b75a29d1fe021b791fa102",
+      "svg_sha256": "7f8d6bbfdda582eb7c4615fd2fe5bdb223264fa50498cae2142bcf1ccb48ebd0"
+    },
+    {
+      "source": "examples/diagram/dialect-lowering.viz.yaml",
+      "normalize_sha256": "e8c5760756c4928caa473bdd5db1b3a84e6020fa2ab00071f68d2a0efeb56486",
+      "lower_sha256": "6c87a317d194cb40635999d975c676c3b255a5c736bae8a36b7b1eb1e6aed3e8",
+      "svg_sha256": "c2cf91dd2d4deb32c4be9919f94a513448aa982cf4859eb15533b94dfdd20785"
+    },
+    {
+      "source": "examples/geometry/compiler-pipeline.viz.yaml",
+      "normalize_sha256": "d2cd8a5f47c635299f52ff01262e0d10d7b93abd1cbdc0d8a83811d2e5aca8bb",
+      "lower_sha256": "d941d9c6131ea60029ed020481afd8d592bf0f53c083dbf46acbf556ef3a0317",
+      "svg_sha256": "59f40962f00c08c9b6aecf35afe82b157ae299cf56bc952a32a942a17d3a111f"
+    },
+    {
+      "source": "examples/geometry/visual-grammar.viz.yaml",
+      "normalize_sha256": "feff1c2f874004b12b5d59a29d19322a180045f43e4352753d219a9ad7ce596e",
+      "lower_sha256": "d9c6b4b48aa762c3ba036ae661fd8cdf25ef330593ddc11b8ed23478740a93fc",
+      "svg_sha256": "41f31c4cb8d9ee3e2a203a4ff798922c6f0a762d801df727e404040fc051fcac"
+    },
+    {
+      "source": "examples/interaction/linked-services.viz.yaml",
+      "normalize_sha256": "624ac9a3821d953049ae98a9d69e6a10d7a01b2fb27fbe003c8756f645272058",
+      "lower_sha256": "b02464c1219f804b807085103c0efb15da63ee8a4a36a9acd27251eb5080c7e0",
+      "svg_sha256": "5c3c5a8ff86b209e3d0da6c62fce99f1d679148a35301375cb341f7607cf4c5e"
+    },
+    {
+      "source": "examples/mixed/capacity-planning.viz.yaml",
+      "normalize_sha256": "66fbc07d02848c79e4f781a9f1f00618d9b34fa5eb99293132cefbe658e59e68",
+      "lower_sha256": "0dc26e127aaaf0640c8703d4abf0c7f51edbb7ed9e3914b9743a8a226c198ea8",
+      "svg_sha256": "29e7b73239d3f677c510b994fb57f51ce241b364bcf19e22ec8838305efd711f"
+    },
+    {
+      "source": "examples/mixed/reliability-brief.viz.yaml",
+      "normalize_sha256": "85de21256afc7f1aaa97bb107cf587a53782071773798420e73feb68d814e030",
+      "lower_sha256": "3ee5b56784e50591a0317c03051557f487c53275bbdfbf0730007f04237f42c0",
+      "svg_sha256": "53276a878e959f594de22d23863b0fcfa578d3385215fe42bf8f059f5700b2ed"
+    },
+    {
+      "source": "examples/mixed/theme-defaults.viz.yaml",
+      "normalize_sha256": "748547c9f35144047f4a3577bd6f6e00e876bb4c7f4c94df6b03b1662dbf24b3",
+      "lower_sha256": "0b867253ec73de5a982b463c46168953abea69cf3a9521a7907a5d3725cf23de",
+      "svg_sha256": "13a57e9b715b582123f68a5c12907af30c2e70ef70618246174af2a18991e8ba"
+    },
+    {
+      "source": "examples/composition/service-grid.compose.yaml",
+      "hir_sha256": "355de1d6f9d00f21dbf41cd07f5f0454d9249be8b9ff1c0eacb0334fb610cf70",
+      "normalize_sha256": "e22dc78f1f0bd8952d1d911ed7b83cfb1bf17141b5ad61a4fb7be44c25b76db3",
+      "lower_sha256": "953091c5332911e68f5e7d9a5b0284f217c411ce098613ba09c8b2253e7b8513",
+      "svg_sha256": "24cc9f67f3a7417a9842076bf83a4010eeb3dd42d3c3d6940b8e2211019a2d46"
+    },
+    {
+      "source": "examples/composition/area-dashboard.compose.yaml",
+      "hir_sha256": "7a41357735992a597e101718ecbadf2beb1936e8de48691d86f55001ea0dd102",
+      "normalize_sha256": "8c01fb70e83f20ddd369939e1ed042311a07fb109644ddaa3607007a383dd44b",
+      "lower_sha256": "2c46190edd2ec97f87b07b57dde094312746179430a4ac55cbb0d23ddd03876b",
+      "svg_sha256": "202325c313683e0a8f398a684c5753f46b74280f139fd368875abe135781dc92"
+    },
+    {
+      "source": "examples/composition/heatmap-dashboard.compose.yaml",
+      "hir_sha256": "820c7c7ddf0b0d50d29c69c2de33ebe2fb27542686ecc56269175f23860b4ddd",
+      "normalize_sha256": "a309b50beb634deef73db4034353c0d1aa331d6857a6eae3ff8a537430e1f2cd",
+      "lower_sha256": "eef2b96e518ab2770b303564a2091fe11fa49ef61b46f0edc6a0fc4392a280f6",
+      "svg_sha256": "20c080db38caaff404267f4f3eaa505acfa4a31daeeb805d192a5da64b574c93"
+    },
+    {
+      "source": "examples/composition/stable-panel-colors.compose.yaml",
+      "hir_sha256": "02167057c9a71d777425478d85368b863ecf55b02008c7bcbf45c7b620011d38",
+      "normalize_sha256": "63cf78385b23ee76fd272eeb9a8d7200295849e47f639247a84b8f911fc6687f",
+      "lower_sha256": "0484d6a2b10f95a0f743bfc2549249f475b06aa8308282291b1ace2c069d8aec",
+      "svg_sha256": "1ce229fdf1bd751f6b75e30d678066cafdd06079736fb5ba671ab32c97cb498f"
+    },
+    {
+      "source": "examples/composition/shared-numeric-domains.compose.yaml",
+      "hir_sha256": "0875979b6ecbd9fb4ff7251f0fbe695c96acc7ccd2477397818f822c2975a0b7",
+      "normalize_sha256": "a2046ec16d357625da13a97a94e6fe2ac5109815b62e74aeadf67af831f6430b",
+      "lower_sha256": "8d5192c5e079bd542cf3fcfdc0050b577ee6c0b0e39f905e8888f10aad63eca7",
+      "svg_sha256": "d2f10b5a07dda6850659b14cd45bdd8ec73ae9eeed9086d49ff9eda38e5c062c"
+    },
+    {
+      "source": "examples/composition/shared-numeric-domains.compose.yaml",
+      "profile": "wrapping-fonts",
+      "theme": "azure",
+      "hir_sha256": "0875979b6ecbd9fb4ff7251f0fbe695c96acc7ccd2477397818f822c2975a0b7",
+      "normalize_sha256": "8b6e384e5d1e79d490b065e1d27e1dc710eb370c716946c8e62b2984c04b697f",
+      "lower_sha256": "7a5c7bcd61f434e2eea19ca3a098afc1959ce018a542109cfe8a1c2c461063eb",
+      "svg_sha256": "1c5356b7b43172db8b4dbca00a801e3bd95688756cdba7a0919d130bd4939948"
+    },
+    {
+      "source": "examples/composition/stable-panel-colors.compose.yaml",
+      "profile": "wrapping-fonts",
+      "theme": "azure",
+      "hir_sha256": "02167057c9a71d777425478d85368b863ecf55b02008c7bcbf45c7b620011d38",
+      "normalize_sha256": "caa56ce6c6e2ed0cc1e855b5420a64588f87141a27f9e83e5817ec9858f74493",
+      "lower_sha256": "4f997a17fb16adeb9ee0d2b1b68f6799f2bdbb27fa50c0dfa84f2a25e02bd9a1",
+      "svg_sha256": "1bc8647c4d565054473218a638e3a6715523c11bafd99d72ebadfb03e488a6cc"
+    },
+    {
+      "source": "examples/composition/area-dashboard.compose.yaml",
+      "profile": "wrapping-fonts",
+      "theme": "azure",
+      "hir_sha256": "7a41357735992a597e101718ecbadf2beb1936e8de48691d86f55001ea0dd102",
+      "normalize_sha256": "fc43866a70458f7ea8b5c24edb8f489169381bc3c045ee31d050a7ff8f59f4d3",
+      "lower_sha256": "8df7ca01136a69e6a8ce1c879dcb18df509f65411c3832babd6b515cd4f162d7",
+      "svg_sha256": "1f7ecacf643dedae75dfc1b80f0133238cca409aa38b01a464a5df7012d31cc4"
+    }
+  ]
+}

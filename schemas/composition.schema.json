@@ -95,6 +95,52 @@
       ],
       "type": "string"
     },
+    "CompositionSharedLegend": {
+      "additionalProperties": false,
+      "properties": {
+        "gap": {
+          "format": "double",
+          "minimum": 0,
+          "type": "number"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_/-]+$",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "placement": {
+          "$ref": "#/$defs/SharedLegendPlacement"
+        },
+        "title": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "members",
+        "placement",
+        "height",
+        "gap"
+      ],
+      "type": "object"
+    },
     "CompositionV1": {
       "additionalProperties": false,
       "properties": {
@@ -424,6 +470,68 @@
         "schema": {
           "const": "vizir-composition/0.6",
           "type": "string"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema",
+        "id",
+        "width",
+        "height",
+        "layout",
+        "panels"
+      ],
+      "type": "object"
+    },
+    "CompositionV7": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "default": "transparent",
+          "type": "string"
+        },
+        "datasets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Dataset"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/PanelLayout"
+        },
+        "panels": {
+          "items": {
+            "$ref": "#/$defs/PanelV06"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "schema": {
+          "const": "vizir-composition/0.7",
+          "type": "string"
+        },
+        "shared_legend": {
+          "$ref": "#/$defs/CompositionSharedLegend"
         },
         "title": {
           "default": null,
@@ -2949,6 +3057,12 @@
       },
       "type": "object"
     },
+    "SharedLegendPlacement": {
+      "enum": [
+        "bottom"
+      ],
+      "type": "string"
+    },
     "TextAnchor": {
       "enum": [
         "start",
@@ -3002,6 +3116,9 @@
     },
     {
       "$ref": "#/$defs/CompositionV6"
+    },
+    {
+      "$ref": "#/$defs/CompositionV7"
     }
   ],
   "title": "Composition"

@@ -1,7 +1,8 @@
-//! Versioned frame-free panel composition, resolved to ordinary VizHIR 0.2 through 0.7.
+//! Versioned frame-free panel composition, resolved to ordinary VizHIR 0.2 through 0.8.
 //!
-//! A grid allocates equal cells in panel order. It does not scale or clip panel
-//! contents, introduce scene groups, or change existing HIR/MIR/Scene contracts.
+//! A grid allocates equal cells in panel order without scaling or clipping them.
+//! Composition 0.7 may reserve a bottom categorical legend owned by HIR/MIR 0.8;
+//! earlier wire versions and their layout remain unchanged.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -102,6 +103,12 @@ pub struct Composition {
     pub datasets: BTreeMap<String, Dataset>,
     pub layout: PanelLayout,
     pub panels: Vec<Panel>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    pub shared_legend: Option<crate::CompositionSharedLegend>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -122,6 +129,9 @@ pub enum CompositionVersion {
     #[serde(rename = "vizir-composition/0.6")]
     #[schemars(skip)]
     V6,
+    #[serde(rename = "vizir-composition/0.7")]
+    #[schemars(skip)]
+    V7,
 }
 
 #[derive(Deserialize)]
@@ -139,6 +149,12 @@ struct CompositionWire {
     pub datasets: BTreeMap<String, Dataset>,
     pub layout: PanelLayout,
     pub panels: Vec<Panel>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    pub shared_legend: Option<crate::CompositionSharedLegend>,
 }
 
 impl TryFrom<CompositionWire> for Composition {
@@ -155,7 +171,15 @@ impl TryFrom<CompositionWire> for Composition {
             datasets: wire.datasets,
             layout: wire.layout,
             panels: wire.panels,
+            shared_legend: wire.shared_legend,
         };
+        if composition.shared_legend.is_some() && composition.schema != CompositionVersion::V7 {
+            return Err(VizError::validation(&[Diagnostic::new(
+                "VIZ-LEGEND-0001",
+                "shared_legend requires composition schema vizir-composition/0.7",
+            )
+            .at("shared_legend")]));
+        }
         check_panel_capabilities(
             &composition.panels,
             match composition.schema {
@@ -165,6 +189,7 @@ impl TryFrom<CompositionWire> for Composition {
                 CompositionVersion::V4 => "0.5",
                 CompositionVersion::V5 => "0.6",
                 CompositionVersion::V6 => "0.7",
+                CompositionVersion::V7 => "0.8",
             },
         )?;
         Ok(composition)
@@ -183,6 +208,7 @@ struct CompositionInput<'a> {
     datasets: &'a BTreeMap<String, Dataset>,
     layout: PanelLayout,
     panels: &'a [Panel],
+    shared_legend: Option<&'a crate::CompositionSharedLegend>,
 }
 
 fn check_panel_capabilities(panels: &[Panel], hir_version: &str) -> VizResult<()> {
@@ -206,21 +232,21 @@ fn check_panel_capabilities(panels: &[Panel], hir_version: &str) -> VizResult<()
             };
             let message = match panel {
                 Panel::Bar(c) if c.category.domain.is_some() => "numeric domain is unsupported on bar category",
-                _ if hir_version != "0.7" && numeric.iter().any(|e| e.domain.is_some()) =>
+                _ if !matches!(hir_version, "0.7" | "0.8") && numeric.iter().any(|e| e.domain.is_some()) =>
                     "numeric domain requires composition schema vizir-composition/0.6",
-                _ if !matches!(hir_version, "0.6" | "0.7")
+                _ if !matches!(hir_version, "0.6" | "0.7" | "0.8")
                     && encoding.is_some_and(|encoding| encoding.domain.is_some()) =>
                 {
                     "categorical color domain requires composition schema vizir-composition/0.5"
                 }
-                Panel::Area(_) if !matches!(hir_version, "0.3" | "0.4" | "0.5" | "0.6" | "0.7") => {
+                Panel::Area(_) if !matches!(hir_version, "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8") => {
                     "chart.area requires composition schema vizir-composition/0.2, /0.3, /0.4, or /0.5"
                 }
-                Panel::Heatmap(_) if !matches!(hir_version, "0.4" | "0.5" | "0.6" | "0.7") => {
+                Panel::Heatmap(_) if !matches!(hir_version, "0.4" | "0.5" | "0.6" | "0.7" | "0.8") => {
                     "chart.heatmap requires composition schema vizir-composition/0.3, /0.4, or /0.5"
                 }
                 Panel::Heatmap(chart)
-                    if chart.value_labels.is_some() && !matches!(hir_version, "0.5" | "0.6" | "0.7") =>
+                    if chart.value_labels.is_some() && !matches!(hir_version, "0.5" | "0.6" | "0.7" | "0.8") =>
                 {
                     "heatmap value_labels requires composition schema vizir-composition/0.4 or /0.5"
                 }
@@ -493,10 +519,11 @@ pub fn compose(composition: &CompositionV1) -> VizResult<Document> {
         datasets: &composition.datasets,
         layout: composition.layout,
         panels: &composition.panels,
+        shared_legend: None,
     })
 }
 
-/// Resolve composition 0.1–0.6 to HIR 0.2–0.7 using the same grid.
+/// Resolve composition 0.1–0.7 to HIR 0.2–0.8 using the same grid.
 pub fn compose_versioned(composition: &Composition) -> VizResult<Document> {
     compose_grid(CompositionInput {
         hir_version: match composition.schema {
@@ -506,6 +533,7 @@ pub fn compose_versioned(composition: &Composition) -> VizResult<Document> {
             CompositionVersion::V4 => "0.5",
             CompositionVersion::V5 => "0.6",
             CompositionVersion::V6 => "0.7",
+            CompositionVersion::V7 => "0.8",
         },
         id: &composition.id,
         width: composition.width,
@@ -515,6 +543,7 @@ pub fn compose_versioned(composition: &Composition) -> VizResult<Document> {
         datasets: &composition.datasets,
         layout: composition.layout,
         panels: &composition.panels,
+        shared_legend: composition.shared_legend.as_ref(),
     })
 }
 
@@ -583,7 +612,51 @@ fn compose_grid(composition: CompositionInput<'_>) -> VizResult<Document> {
     // Avoid overflow in the familiar (count + columns - 1) / columns formula.
     let rows = 1 + (count - 1) / columns;
     let horizontal = tracks(composition.width, columns, gap, padding, "width")?;
-    let vertical = tracks(composition.height, rows, gap, padding, "height")?;
+    let (grid_height, shared_legend) = if let Some(owner) = composition.shared_legend {
+        if composition.hir_version != "0.8" {
+            return Err(VizError::validation(&[Diagnostic::new(
+                "VIZ-LEGEND-0001",
+                "shared_legend requires composition schema vizir-composition/0.7",
+            )
+            .at("shared_legend")]));
+        }
+        crate::validate::validate_composition_shared_legend(owner)
+            .map_err(|diagnostics| VizError::validation(&diagnostics))?;
+        let grid_height = composition.height - owner.height - owner.gap;
+        let y = composition.height - padding - owner.height;
+        let frame = Frame {
+            x: padding,
+            y,
+            width: composition.width - padding - padding,
+            height: owner.height,
+        };
+        // An explicit positive gap/height must remain representable at canvas scale.
+        if !grid_height.is_finite()
+            || !y.is_finite()
+            || grid_height <= 0.0
+            || (owner.gap > 0.0 && grid_height - padding >= y)
+            || y + owner.height <= y
+        {
+            return Err(VizError::validation(&[Diagnostic::new(
+                "VIZ-LEGEND-0003",
+                "shared legend strip cannot fit the padded canvas with positive panel tracks",
+            )
+            .at("shared_legend")]));
+        }
+        (
+            grid_height,
+            Some(crate::SharedLegend {
+                id: owner.id.clone(),
+                title: owner.title.clone(),
+                placement: owner.placement,
+                frame,
+                members: owner.members.clone(),
+            }),
+        )
+    } else {
+        (composition.height, None)
+    };
+    let vertical = tracks(grid_height, rows, gap, padding, "height")?;
     let views = composition
         .panels
         .iter()
@@ -608,6 +681,7 @@ fn compose_grid(composition: CompositionInput<'_>) -> VizResult<Document> {
         title: composition.title.clone(),
         datasets: composition.datasets.clone(),
         views,
+        shared_legend,
     };
     validate_document(&document).map_err(|mut diagnostics| {
         for diagnostic in &mut diagnostics {
@@ -1072,6 +1146,40 @@ struct CompositionV6Schema {
     pub panels: Vec<PanelV06>,
 }
 
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(rename = "CompositionV7", transform = composition_v7_schema)]
+struct CompositionV7Schema {
+    pub schema: CompositionVersion,
+    pub id: String,
+    #[schemars(extend("exclusiveMinimum" = 0))]
+    pub width: f64,
+    #[schemars(extend("exclusiveMinimum" = 0))]
+    pub height: f64,
+    #[serde(default = "default_background")]
+    pub background: Color,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub datasets: BTreeMap<String, Dataset>,
+    pub layout: PanelLayout,
+    #[schemars(length(min = 1))]
+    pub panels: Vec<PanelV06>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "crate::CompositionSharedLegend")]
+    pub shared_legend: Option<crate::CompositionSharedLegend>,
+}
+
+fn composition_v7_schema(schema: &mut schemars::Schema) {
+    schema
+        .as_object_mut()
+        .expect("composition schema object")
+        .get_mut("properties")
+        .expect("composition properties")["schema"] =
+        serde_json::json!({"type":"string", "const":"vizir-composition/0.7"});
+}
+
 fn composition_v6_schema(schema: &mut schemars::Schema) {
     schema
         .as_object_mut()
@@ -1120,7 +1228,8 @@ impl JsonSchema for Composition {
         let labels = generator.subschema_for::<CompositionV4Schema>();
         let categorical = generator.subschema_for::<CompositionV5Schema>();
         let numeric = generator.subschema_for::<CompositionV6Schema>();
-        schemars::json_schema!({"oneOf": [legacy, current, heatmap, labels, categorical, numeric]})
+        let shared = generator.subschema_for::<CompositionV7Schema>();
+        schemars::json_schema!({"oneOf": [legacy, current, heatmap, labels, categorical, numeric, shared]})
     }
 }
 

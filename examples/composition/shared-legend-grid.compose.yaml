@@ -1,0 +1,88 @@
+# One native categorical legend owns both panels; Reserved has no observations.
+schema: vizir-composition/0.7
+id: shared-legend-grid
+width: 1120
+height: 480
+background: transparent
+layout:
+  kind: grid
+  columns: 2
+  padding: 24
+  gap: 24
+shared_legend:
+  id: series-key
+  members: [all-series, beta-only]
+  placement: bottom
+  height: 64
+  gap: 12
+  title: Series
+datasets:
+  both:
+    key: id
+    rows:
+    - id: a0
+      x: 0
+      y: 2
+      series: Alpha
+    - id: a1
+      x: 1
+      y: 3
+      series: Alpha
+    - id: b0
+      x: 0
+      y: 7
+      series: Beta
+    - id: b1
+      x: 1
+      y: 8
+      series: Beta
+  subset:
+    key: id
+    rows:
+    - id: b0
+      x: 0
+      y: 7
+      series: Beta
+    - id: b1
+      x: 1
+      y: 8
+      series: Beta
+panels:
+- kind: chart.line
+  id: all-series
+  title: All series
+  dataset: both
+  x:
+    field: x
+    label: time
+    domain: [0, 1]
+  y:
+    field: y
+    label: value
+    domain: [0, 10]
+  series:
+    field: series
+    domain:
+    - Alpha
+    - Beta
+    - Reserved
+  line_width: 4
+- kind: chart.line
+  id: beta-only
+  title: Beta subset
+  dataset: subset
+  x:
+    field: x
+    label: time
+    domain: [0, 1]
+  y:
+    field: y
+    label: value
+    domain: [0, 10]
+  series:
+    field: series
+    domain:
+    - Alpha
+    - Beta
+    - Reserved
+  line_width: 4

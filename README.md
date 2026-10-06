@@ -147,6 +147,30 @@ Use HIR/MIR 0.7 or composition `vizir-composition/0.6`. Published provider
 profiles remain unchanged. [Numeric domain contract](docs/numeric-domains.md) ·
 [Aligned two-panel example](examples/composition/shared-numeric-domains.compose.yaml)
 
+### Shared categorical legends in VizHIR 0.8
+
+Give two or more chart panels one native bottom legend with composition
+`vizir-composition/0.7`. Members must explicitly declare the same ordered
+categorical domain and resolve exactly the same colors:
+
+```yaml
+shared_legend:
+  id: series-key
+  members: [all-series, beta-only]
+  placement: bottom
+  height: 64
+  gap: 12
+  title: Series
+```
+
+The strip is reserved before the panel grid is divided. Member legends are
+replaced by this owner; nonmembers keep their local legends. Missing categories
+still receive legend entries without creating marks. HIR/MIR 0.8 retains the
+owner through native SVG/transparent-PNG output and compiled-context replay.
+Published provider profiles remain unchanged.
+[Shared legend contract](docs/shared-legends.md) ·
+[Executable two-panel example](examples/composition/shared-legend-grid.compose.yaml)
+
 ### Measured heatmap x-category wrapping
 
 Opt into `vizir-text-wrap/5` and the explicit `heatmap.x_category_labels` role

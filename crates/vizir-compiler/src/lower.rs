@@ -11,7 +11,7 @@ use vizir_core::{
 };
 
 use crate::ResolvedThemeDefaults;
-use crate::chart_layout::{ChartLayout, legend_domain};
+use crate::chart_layout::ChartLayout;
 use crate::materialize::{
     Budget, MaterializationLimits, materialize_mark, preflight_document, preflight_hir_bindings,
 };
@@ -180,6 +180,16 @@ pub(crate) fn lower_to_mir_with_context(
         });
     }
 
+    // Membership is resolved before layout; only the validated owner suppresses
+    // local guides. Keep every categorical scale and mark binding intact.
+    for view in &mut views {
+        if let MirView::Chart(chart) = view
+            && crate::shared_legend::hir_owns(document, &chart.id)
+        {
+            chart.guides.retain(|guide| guide.kind != GuideKind::Legend);
+        }
+    }
+    let shared_legend = crate::shared_legend::lower_owner(document, &views)?;
     let mir = VizMir {
         version: document.version.clone(),
         source_hir_version: document.version.clone(),
@@ -192,7 +202,12 @@ pub(crate) fn lower_to_mir_with_context(
         expressions,
         views,
         losses: Vec::new(),
+        shared_legend,
     };
+    if mir.shared_legend.is_some() {
+        vizir_core::validate_mir(&mir).map_err(|d| VizError::validation(&d))?;
+        crate::shared_legend::build(&mir, defaults, text)?;
+    }
     crate::heatmap::check_mir_output(&mir)?;
     Ok(mir)
 }
@@ -302,7 +317,7 @@ fn lower_scatter(
         chart.title.as_deref(),
         Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
         Some(chart.y.label.as_deref().unwrap_or(&chart.y.field)),
-        legend_domain(color_scale.as_ref()),
+        crate::shared_legend::local_domain(document, &chart.id, color_scale.as_ref()),
         text,
     )?
     .with_numeric_ticks_and_text(
@@ -489,7 +504,7 @@ fn lower_line(
         chart.title.as_deref(),
         Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
         Some(chart.y.label.as_deref().unwrap_or(&chart.y.field)),
-        legend_domain(color_scale.as_ref()),
+        crate::shared_legend::local_domain(document, &chart.id, color_scale.as_ref()),
         text,
     )?
     .with_numeric_ticks_and_text(
@@ -693,7 +708,7 @@ fn lower_area(
         chart.title.as_deref(),
         Some(chart.x.label.as_deref().unwrap_or(&chart.x.field)),
         Some(chart.y.label.as_deref().unwrap_or(&chart.y.field)),
-        legend_domain(color_scale.as_ref()),
+        crate::shared_legend::local_domain(document, &chart.id, color_scale.as_ref()),
         text,
     )?
     .with_numeric_ticks_and_text(
@@ -897,7 +912,7 @@ fn lower_bar(
                 .unwrap_or(&chart.category.field),
         ),
         Some(chart.value.label.as_deref().unwrap_or(&chart.value.field)),
-        legend_domain(color_scale.as_ref()),
+        crate::shared_legend::local_domain(document, &chart.id, color_scale.as_ref()),
         text,
     )?
     .with_numeric_ticks_and_text(

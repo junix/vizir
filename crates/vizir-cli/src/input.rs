@@ -36,7 +36,7 @@ pub(crate) struct Input {
 
 enum Source {
     Hir(
-        Document,
+        Box<Document>,
         Option<String>,
         Option<Box<TextContext>>,
         Option<Box<TextLayoutContext>>,
@@ -164,7 +164,7 @@ pub(crate) fn read(path: &Path, theme: Option<String>, options: TextOptions) -> 
                 Source::Themed(Box::new(mir))
             }
             None => Source::Hir(
-                serde_json::from_slice(&bytes)?,
+                Box::new(serde_json::from_slice(&bytes)?),
                 theme,
                 profile.map(Box::new),
                 layout.map(Box::new),
@@ -172,7 +172,7 @@ pub(crate) fn read(path: &Path, theme: Option<String>, options: TextOptions) -> 
         }
     } else {
         Source::Hir(
-            parse_document(path)?,
+            Box::new(parse_document(path)?),
             theme,
             profile.map(Box::new),
             layout.map(Box::new),

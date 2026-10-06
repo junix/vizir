@@ -255,6 +255,7 @@ fn resolved_scene_round_trips_and_rejects_unknown_node_fields() {
 #[test]
 fn compile_rejects_documents_with_unknown_datasets() {
     let invalid = Document {
+        shared_legend: None,
         version: "0.1".to_owned(),
         id: "unknown-dataset".to_owned(),
         width: 400.0,
@@ -297,6 +298,7 @@ fn compile_rejects_documents_with_unknown_datasets() {
 #[test]
 fn cyclic_diagrams_fall_back_to_deterministic_layers_without_dropping_nodes() {
     let document = Document {
+        shared_legend: None,
         version: "0.1".to_owned(),
         id: "cycle-demo".to_owned(),
         width: 400.0,

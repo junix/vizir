@@ -64,7 +64,7 @@ fn composition(version: &str) -> Value {
 fn generic_json_yaml_and_typed_hir_enforce_area_version_without_legacy_tightening() {
     let current: Document = serde_json::from_value(hir()).unwrap();
     validate_document(&current).unwrap();
-    for version in ["0.1", "0.2", "0.8"] {
+    for version in ["0.1", "0.2", "0.9"] {
         let mut source = hir();
         source["version"] = version.into();
         assert!(serde_json::from_value::<Document>(source.clone()).is_err());

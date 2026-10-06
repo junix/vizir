@@ -23,6 +23,12 @@ pub struct VizMir {
     pub expressions: BTreeMap<String, TypedExpression>,
     pub views: Vec<MirView>,
     pub losses: Vec<LossRecord>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    pub shared_legend: Option<crate::MirSharedLegend>,
 }
 
 #[derive(Deserialize)]
@@ -39,6 +45,12 @@ struct VizMirWire {
     pub expressions: BTreeMap<String, TypedExpression>,
     pub views: Vec<MirView>,
     pub losses: Vec<LossRecord>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    pub shared_legend: Option<crate::MirSharedLegend>,
 }
 
 impl TryFrom<VizMirWire> for VizMir {
@@ -57,6 +69,7 @@ impl TryFrom<VizMirWire> for VizMir {
             expressions: wire.expressions,
             views: wire.views,
             losses: wire.losses,
+            shared_legend: wire.shared_legend,
         };
         crate::validate::validate_mir_capabilities(&mir)
             .map_err(|diagnostics| crate::VizError::validation(&diagnostics))?;
@@ -776,6 +789,27 @@ struct VizMirV07 {
 
 #[allow(dead_code)]
 #[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(transform = mir_v08_schema)]
+struct VizMirV08 {
+    pub version: String,
+    pub source_hir_version: String,
+    pub document_id: String,
+    pub width: f64,
+    pub height: f64,
+    pub background: Color,
+    pub spaces: BTreeMap<String, CoordinateSpace2D>,
+    pub data: BTreeMap<String, MirDataNode>,
+    pub expressions: BTreeMap<String, TypedExpression>,
+    pub views: Vec<MirViewV07>,
+    pub losses: Vec<LossRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "crate::MirSharedLegend")]
+    pub shared_legend: Option<crate::MirSharedLegend>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
 #[serde(tag = "dialect", rename_all = "kebab-case", deny_unknown_fields)]
 enum MirViewV07 {
     Chart(Box<MirChartV07>),
@@ -1001,7 +1035,8 @@ impl JsonSchema for VizMir {
         let labels = generator.subschema_for::<VizMirV05>();
         let categorical = generator.subschema_for::<VizMirV06>();
         let numeric = generator.subschema_for::<VizMirV07>();
-        schemars::json_schema!({ "oneOf": [legacy, current, heatmap, labels, categorical, numeric] })
+        let shared = generator.subschema_for::<VizMirV08>();
+        schemars::json_schema!({ "oneOf": [legacy, current, heatmap, labels, categorical, numeric, shared] })
     }
 }
 
@@ -1053,6 +1088,16 @@ fn mir_v07_schema(schema: &mut schemars::Schema) {
         .expect("MIR schema properties");
     properties["version"]["const"] = "0.7".into();
     properties["source_hir_version"]["const"] = "0.7".into();
+}
+
+fn mir_v08_schema(schema: &mut schemars::Schema) {
+    let properties = schema
+        .as_object_mut()
+        .expect("MIR schema object")
+        .get_mut("properties")
+        .expect("MIR schema properties");
+    properties["version"]["const"] = "0.8".into();
+    properties["source_hir_version"]["const"] = "0.8".into();
 }
 
 fn numeric_guide_schema(schema: &mut schemars::Schema) {

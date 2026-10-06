@@ -6,6 +6,7 @@ mod layout;
 mod lower;
 mod materialize;
 mod scene_builder;
+mod shared_legend;
 mod text;
 mod text_layout;
 mod theme;

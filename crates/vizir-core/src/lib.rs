@@ -8,6 +8,7 @@ pub mod hir;
 pub mod mir;
 pub mod patch;
 pub mod scene;
+pub mod shared_legend;
 pub mod validate;
 
 pub use capability::*;
@@ -20,6 +21,7 @@ pub use hir::*;
 pub use mir::*;
 pub use patch::*;
 pub use scene::*;
+pub use shared_legend::*;
 pub use validate::{
     parse_document, validate_document, validate_document_capabilities, validate_mir,
     validate_mir_capabilities, validate_scene, value_as_key,

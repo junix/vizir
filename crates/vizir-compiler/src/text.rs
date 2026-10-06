@@ -607,6 +607,24 @@ impl TextSession {
         vizir_core::validate_document_capabilities(document)
             .map_err(|diagnostics| VizError::validation(&diagnostics))?;
         let mut strings = SourceText::new(self.limits);
+        if let Some(owner) = &document.shared_legend {
+            strings.add_all(owner.title.as_deref())?;
+            // Include authored categories absent from every member's data.
+            if let Some(id) = owner.members.first()
+                && let Some(view) = document.views.iter().find(|v| v.id() == id)
+            {
+                let encoding = match view {
+                    vizir_core::View::Scatter(c) => c.color.as_ref(),
+                    vizir_core::View::Line(c) => c.series.as_ref(),
+                    vizir_core::View::Area(c) => c.series.as_ref(),
+                    vizir_core::View::Bar(c) => c.color.as_ref(),
+                    _ => None,
+                };
+                if let Some(domain) = encoding.and_then(|e| e.domain.as_deref()) {
+                    strings.add_all(domain.iter().map(String::as_str))?;
+                }
+            }
+        }
         let mut geometry = Vec::new();
         let mut found_targets = BTreeSet::new();
         let mut found_titles = BTreeSet::new();
@@ -806,6 +824,9 @@ impl TextSession {
         vizir_core::validate_mir_capabilities(mir)
             .map_err(|diagnostics| VizError::validation(&diagnostics))?;
         let mut strings = SourceText::new(self.limits);
+        if let Some(owner) = &mir.shared_legend {
+            strings.add_all(owner.title.as_deref())?;
+        }
         let mut geometry = Vec::new();
         let mut found_targets = BTreeSet::new();
         let mut found_titles = BTreeSet::new();

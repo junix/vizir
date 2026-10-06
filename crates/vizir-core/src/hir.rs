@@ -43,6 +43,12 @@ pub struct Document {
     #[serde(default)]
     pub datasets: BTreeMap<String, Dataset>,
     pub views: Vec<View>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    pub shared_legend: Option<crate::SharedLegend>,
 }
 
 // Decode only the new capability boundary here. General semantic validation
@@ -62,6 +68,12 @@ struct DocumentWire {
     #[serde(default)]
     pub datasets: BTreeMap<String, Dataset>,
     pub views: Vec<View>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    pub shared_legend: Option<crate::SharedLegend>,
 }
 
 impl TryFrom<DocumentWire> for Document {
@@ -77,6 +89,7 @@ impl TryFrom<DocumentWire> for Document {
             title: wire.title,
             datasets: wire.datasets,
             views: wire.views,
+            shared_legend: wire.shared_legend,
         };
         crate::validate::validate_document_capabilities(&document)
             .map_err(|diagnostics| crate::VizError::validation(&diagnostics))?;

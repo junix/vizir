@@ -41,10 +41,20 @@ pub(crate) fn build_scene_with_context(
     defaults: Option<&ResolvedThemeDefaults>,
     text: Option<&TextSession>,
 ) -> VizResult<Scene2D> {
+    // New owned guides must be bounded and reference-validated before text
+    // preflight traverses their member scales. Preserve legacy error ordering.
+    let owned_marks = mir
+        .shared_legend
+        .as_ref()
+        .map(|_| materialize_mir_marks(mir, limits, true))
+        .transpose()?;
     if let Some(text) = text {
         text.preflight_mir(mir)?;
     }
-    let marks = materialize_mir_marks(mir, limits, true)?;
+    let marks = match owned_marks {
+        Some(marks) => marks,
+        None => materialize_mir_marks(mir, limits, true)?,
+    };
     let mut nodes = Vec::new();
     for (view, mark) in mir.views.iter().zip(&marks) {
         nodes.push(match view {
@@ -53,10 +63,14 @@ pub(crate) fn build_scene_with_context(
                 mark.as_ref().expect("chart materialized"),
                 defaults,
                 text,
+                crate::shared_legend::mir_owns(mir, &chart.id),
             )?,
             MirView::Diagram(diagram) => build_diagram(diagram, defaults, text)?,
             MirView::Geometry(geometry) => build_geometry(geometry, defaults)?,
         });
+    }
+    if let Some(legend) = crate::shared_legend::build(mir, defaults, text)? {
+        nodes.push(legend);
     }
     let scene = Scene2D {
         document_id: mir.document_id.clone(),
@@ -71,7 +85,7 @@ pub(crate) fn build_scene_with_context(
         Some(text) => text.outline_scene(scene)?,
         None => scene,
     };
-    if vizir_core::has_heatmap_value_labels(mir) {
+    if vizir_core::has_heatmap_value_labels(mir) || mir.shared_legend.is_some() {
         crate::text::check_serialized_output(&scene, crate::TEXT_MAX_OUTPUT_BYTES)?;
     }
     Ok(scene)
@@ -82,6 +96,7 @@ fn build_chart(
     materialized: &ChartMark,
     defaults: Option<&ResolvedThemeDefaults>,
     text: Option<&TextSession>,
+    shared_legend: bool,
 ) -> VizResult<SceneNode> {
     if matches!(materialized, ChartMark::Heatmap { .. }) {
         return build_heatmap(chart, materialized, defaults, text);
@@ -113,18 +128,22 @@ fn build_chart(
     .map_err(VizError::Diagnostic)?;
     // Static 0.1 line/bar MIR may omit a legend guide. Preserve that legacy
     // implicit legend, but an explicit guide always owns its scale and layout.
-    let legend_scale = guides.legend.map(|(_, scale)| scale).or_else(|| {
-        let binding = match &chart.mark {
-            ChartMark::Symbol { color, .. }
-            | ChartMark::Line { color, .. }
-            | ChartMark::Bar { color, .. } => color.as_ref(),
-            ChartMark::Area { .. } | ChartMark::Heatmap { .. } => None,
-        }?;
-        chart
-            .scales
-            .iter()
-            .find(|scale| scale.id() == binding.scale)
-    });
+    let legend_scale = (!shared_legend)
+        .then(|| {
+            guides.legend.map(|(_, scale)| scale).or_else(|| {
+                let binding = match &chart.mark {
+                    ChartMark::Symbol { color, .. }
+                    | ChartMark::Line { color, .. }
+                    | ChartMark::Bar { color, .. } => color.as_ref(),
+                    ChartMark::Area { .. } | ChartMark::Heatmap { .. } => None,
+                }?;
+                chart
+                    .scales
+                    .iter()
+                    .find(|scale| scale.id() == binding.scale)
+            })
+        })
+        .flatten();
     let layout = ChartLayout::new_with_text(
         &chart.id,
         chart.frame,

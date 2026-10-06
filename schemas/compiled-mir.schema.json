@@ -3007,6 +3007,66 @@
       ],
       "type": "object"
     },
+    "MirSharedLegend": {
+      "additionalProperties": false,
+      "properties": {
+        "frame": {
+          "$ref": "#/$defs/Frame"
+        },
+        "id": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_/-]+$",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/MirSharedLegendMember"
+          },
+          "maxItems": 64,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "placement": {
+          "$ref": "#/$defs/SharedLegendPlacement"
+        },
+        "title": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "placement",
+        "frame",
+        "members"
+      ],
+      "type": "object"
+    },
+    "MirSharedLegendMember": {
+      "additionalProperties": false,
+      "properties": {
+        "scale": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_/-]+$",
+          "type": "string"
+        },
+        "view": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_/-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "view",
+        "scale"
+      ],
+      "type": "object"
+    },
     "MirView": {
       "oneOf": [
         {
@@ -4194,6 +4254,12 @@
       },
       "type": "object"
     },
+    "SharedLegendPlacement": {
+      "enum": [
+        "bottom"
+      ],
+      "type": "string"
+    },
     "SpatialUnit": {
       "enum": [
         "scene-unit",
@@ -5301,6 +5367,9 @@
         },
         {
           "$ref": "#/$defs/VizMirV07"
+        },
+        {
+          "$ref": "#/$defs/VizMirV08"
         }
       ]
     },
@@ -5631,6 +5700,80 @@
         },
         "version": {
           "const": "0.7",
+          "type": "string"
+        },
+        "views": {
+          "items": {
+            "$ref": "#/$defs/MirViewV07"
+          },
+          "type": "array"
+        },
+        "width": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "version",
+        "source_hir_version",
+        "document_id",
+        "width",
+        "height",
+        "background",
+        "spaces",
+        "data",
+        "expressions",
+        "views",
+        "losses"
+      ],
+      "type": "object"
+    },
+    "VizMirV08": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MirDataNode"
+          },
+          "type": "object"
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "expressions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TypedExpression"
+          },
+          "type": "object"
+        },
+        "height": {
+          "format": "double",
+          "type": "number"
+        },
+        "losses": {
+          "items": {
+            "$ref": "#/$defs/LossRecord"
+          },
+          "type": "array"
+        },
+        "shared_legend": {
+          "$ref": "#/$defs/MirSharedLegend"
+        },
+        "source_hir_version": {
+          "const": "0.8",
+          "type": "string"
+        },
+        "spaces": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CoordinateSpace2D"
+          },
+          "type": "object"
+        },
+        "version": {
+          "const": "0.8",
           "type": "string"
         },
         "views": {

@@ -36,7 +36,7 @@ pub fn parse_document(path: impl AsRef<Path>) -> VizResult<Document> {
 
 /// Enforce only new capability boundaries, preserving legacy serde semantics.
 pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Diagnostic>> {
-    let diagnostics: Vec<_> = document
+    let mut diagnostics: Vec<_> = document
         .views
         .iter()
         .enumerate()
@@ -45,14 +45,14 @@ pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Dia
                 View::Bar(c) if c.category.domain.is_some() => {
                     "numeric domain is unsupported on bar category"
                 }
-                _ if document.version != "0.7"
+                _ if !matches!(document.version.as_str(), "0.7" | "0.8")
                     && view
                         .numeric_encodings()
                         .is_some_and(|(_, es)| es.iter().any(|(_, e)| e.domain.is_some())) =>
                 {
                     "numeric domain requires VizHIR version \"0.7\""
                 }
-                _ if !matches!(document.version.as_str(), "0.6" | "0.7")
+                _ if !matches!(document.version.as_str(), "0.6" | "0.7" | "0.8")
                     && view
                         .categorical_color()
                         .is_some_and(|(_, _, encoding)| encoding.domain.is_some()) =>
@@ -62,19 +62,19 @@ pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Dia
                 View::Area(_)
                     if !matches!(
                         document.version.as_str(),
-                        "0.3" | "0.4" | "0.5" | "0.6" | "0.7"
+                        "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
                     ) =>
                 {
                     "chart.area requires VizHIR version \"0.3\", \"0.4\", \"0.5\", \"0.6\", or \"0.7\""
                 }
                 View::Heatmap(_)
-                    if !matches!(document.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7") =>
+                    if !matches!(document.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7" | "0.8") =>
                 {
                     "chart.heatmap requires VizHIR version \"0.4\", \"0.5\", \"0.6\", or \"0.7\""
                 }
                 View::Heatmap(chart)
                     if chart.value_labels.is_some()
-                        && !matches!(document.version.as_str(), "0.5" | "0.6" | "0.7") =>
+                        && !matches!(document.version.as_str(), "0.5" | "0.6" | "0.7" | "0.8") =>
                 {
                     "heatmap value_labels requires VizHIR version \"0.5\" or \"0.6\""
                 }
@@ -83,6 +83,15 @@ pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Dia
             Some(Diagnostic::new("VIZ-SCHEMA-0003", message).at(format!("views[{index}]")))
         })
         .collect();
+    if document.shared_legend.is_some() && document.version != "0.8" {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-LEGEND-0001",
+                "shared_legend requires VizHIR version 0.8",
+            )
+            .at("shared_legend"),
+        );
+    }
     if diagnostics.is_empty() {
         Ok(())
     } else {
@@ -94,8 +103,20 @@ pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Dia
 /// unrestricted here for backward-compatible generic deserialization.
 pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    if matches!(mir.version.as_str(), "0.3" | "0.4" | "0.5" | "0.6" | "0.7")
-        && mir.source_hir_version != mir.version
+    if mir.shared_legend.is_some() && (mir.version != "0.8" || mir.source_hir_version != "0.8") {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-LEGEND-0001",
+                "shared_legend requires matching VizMIR and source HIR version 0.8",
+            )
+            .at("shared_legend"),
+        );
+    }
+
+    if matches!(
+        mir.version.as_str(),
+        "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+    ) && mir.source_hir_version != mir.version
     {
         diagnostics.push(
             Diagnostic::new(
@@ -146,7 +167,8 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
                 out_of_domain: Some(_),
                 ..
             } = scale
-                && (mir.version != "0.7" || mir.source_hir_version != "0.7")
+                && (!matches!(mir.version.as_str(), "0.7" | "0.8")
+                    || mir.source_hir_version != mir.version)
             {
                 diagnostics.push(
                     Diagnostic::new(
@@ -160,8 +182,10 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
             }
         }
         if matches!(chart.mark, ChartMark::Area { .. })
-            && !(matches!(mir.version.as_str(), "0.3" | "0.4" | "0.5" | "0.6" | "0.7")
-                && mir.source_hir_version == mir.version)
+            && !(matches!(
+                mir.version.as_str(),
+                "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+            ) && mir.source_hir_version == mir.version)
         {
             diagnostics.push(
                 Diagnostic::new(
@@ -177,7 +201,7 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
                 value_labels: Some(_),
                 ..
             }
-        ) && (!matches!(mir.version.as_str(), "0.5" | "0.6" | "0.7")
+        ) && (!matches!(mir.version.as_str(), "0.5" | "0.6" | "0.7" | "0.8")
             || mir.source_hir_version != mir.version)
         {
             diagnostics.push(
@@ -188,7 +212,7 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
                 .at(format!("views[{index}].mark.value_labels")),
             );
         }
-        if !matches!(mir.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7")
+        if !matches!(mir.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7" | "0.8")
             || mir.source_hir_version != mir.version
         {
             if matches!(chart.mark, ChartMark::Heatmap { .. }) {
@@ -227,7 +251,7 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
 
     if !matches!(
         document.version.as_str(),
-        "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7"
+        "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
     ) {
         diagnostics.push(
             Diagnostic::new(
@@ -613,6 +637,8 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
         }
     }
 
+    validate_document_shared_legend(document, &mut diagnostics);
+
     if document.views.is_empty() {
         diagnostics.push(Diagnostic::new("VIZ-VALIDATE-0003", "document has no views").at("views"));
     }
@@ -636,7 +662,7 @@ fn validate_axis_options(
     };
     if !matches!(
         document.version.as_str(),
-        "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7"
+        "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
     ) {
         diagnostics.push(
             Diagnostic::new(
@@ -682,7 +708,7 @@ pub fn validate_mir(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = validate_mir_capabilities(mir).err().unwrap_or_default();
     if !matches!(
         mir.version.as_str(),
-        "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7"
+        "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
     ) {
         diagnostics.push(
             Diagnostic::new(
@@ -785,6 +811,8 @@ pub fn validate_mir(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
         }
     }
 
+    validate_mir_shared_legend(mir, &mut diagnostics);
+
     if diagnostics.is_empty() {
         Ok(())
     } else {
@@ -860,7 +888,7 @@ fn validate_mir_chart(
             let format_source = format!("{source}.guides[{index}].number_format");
             if !matches!(
                 mir.version.as_str(),
-                "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7"
+                "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
             ) {
                 diagnostics.push(
                     Diagnostic::new(
@@ -875,7 +903,7 @@ fn validate_mir_chart(
                 && chart.scales.iter().any(
                     |scale| matches!(scale, MirScale::Linear { id, .. } if id == &guide.scale),
                 );
-            let heatmap_legend = matches!(mir.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7") && mir.source_hir_version == mir.version
+            let heatmap_legend = matches!(mir.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7" | "0.8") && mir.source_hir_version == mir.version
                 && matches!(chart.mark, ChartMark::Heatmap { .. }) && guide.kind == GuideKind::Legend
                 && chart.scales.iter().any(|scale| matches!(scale, MirScale::QuantizeColor { id, .. } if id == &guide.scale));
             if !numeric_axis && !heatmap_legend {
@@ -1022,7 +1050,16 @@ fn validate_mir_chart(
     } = &chart.mark
     {
         validate_finite(*baseline, &format!("{source}.mark.baseline"), diagnostics);
-        let expected_guides = 2 + usize::from(color.is_some());
+        let shared = mir.version == "0.8"
+            && mir.shared_legend.as_ref().is_some_and(|owner| {
+                owner.members.iter().take(64).any(|member| {
+                    member.view == chart.id
+                        && color
+                            .as_ref()
+                            .is_some_and(|binding| member.scale == binding.scale)
+                })
+            });
+        let expected_guides = 2 + usize::from(color.is_some() && !shared);
         let axes_match = [
             (x, crate::GuideOrient::Bottom),
             (y, crate::GuideOrient::Left),
@@ -1040,21 +1077,22 @@ fn validate_mir_chart(
                 .count()
                 == 1
         });
-        let legend_matches = color.as_ref().is_none_or(|color| {
-            chart
-                .guides
-                .iter()
-                .filter(|guide| {
-                    guide.kind == GuideKind::Legend
-                        && guide.scale == color.scale
-                        && guide.orient == crate::GuideOrient::Right
-                })
-                .count()
-                == 1
-        });
+        let legend_matches = shared
+            || color.as_ref().is_none_or(|color| {
+                chart
+                    .guides
+                    .iter()
+                    .filter(|guide| {
+                        guide.kind == GuideKind::Legend
+                            && guide.scale == color.scale
+                            && guide.orient == crate::GuideOrient::Right
+                    })
+                    .count()
+                    == 1
+            });
         if chart.guides.len() != expected_guides || !axes_match || !legend_matches {
             diagnostics.push(Diagnostic::new("VIZ-AREA-0005",
-                "area requires exactly one bottom x axis, one left y axis, and one right legend only when color is bound")
+                "area requires exactly one bottom x axis, one left y axis, and a right legend when color is bound unless a shared legend owns that color scale")
                 .at(format!("{source}.guides")));
         }
         if order_expression != &x.expression {
@@ -1498,6 +1536,326 @@ fn validate_unit(value: f64, source: &str, diagnostics: &mut Vec<Diagnostic>) {
 fn validate_finite(value: f64, source: &str, diagnostics: &mut Vec<Diagnostic>) {
     if !value.is_finite() {
         diagnostics.push(Diagnostic::new("VIZ-TYPE-0006", "value must be finite").at(source));
+    }
+}
+
+pub(crate) fn validate_composition_shared_legend(
+    owner: &crate::CompositionSharedLegend,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    validate_shared_identity(&owner.id, owner.title.as_deref(), &mut diagnostics);
+    validate_shared_members(owner.members.iter().map(String::as_str), &mut diagnostics);
+    validate_positive(owner.height, "shared_legend.height", &mut diagnostics);
+    validate_non_negative(owner.gap, "shared_legend.gap", &mut diagnostics);
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn validate_shared_id(id: &str, source: &str, diagnostics: &mut Vec<Diagnostic>) -> bool {
+    if id.len() > 16_384 {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-LEGEND-0002",
+                "shared legend IDs must contain at most 16384 UTF-8 bytes",
+            )
+            .at(source),
+        );
+        return false;
+    }
+    let initial = diagnostics.len();
+    validate_id(id, source, diagnostics);
+    diagnostics.len() == initial
+}
+
+fn validate_shared_identity(id: &str, title: Option<&str>, diagnostics: &mut Vec<Diagnostic>) {
+    validate_shared_id(id, "shared_legend.id", diagnostics);
+    if let Some(title) = title
+        && let Err(message) = crate::shared_legend::validate_title(title)
+    {
+        diagnostics.push(Diagnostic::new("VIZ-LEGEND-0002", message).at("shared_legend.title"));
+    }
+}
+
+fn validate_shared_members<'a>(
+    members: impl Iterator<Item = &'a str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let initial = diagnostics.len();
+    let mut ids = BTreeSet::new();
+    let mut count = 0usize;
+    for (index, id) in members.take(65).enumerate() {
+        count += 1;
+        if !validate_shared_id(id, &format!("shared_legend.members[{index}]"), diagnostics) {
+            continue;
+        }
+        if !ids.insert(id) {
+            diagnostics.push(
+                Diagnostic::new("VIZ-LEGEND-0002", "shared legend members must be unique")
+                    .at(format!("shared_legend.members[{index}]")),
+            );
+        }
+    }
+    if !(2..=64).contains(&count) {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-LEGEND-0002",
+                "shared legend requires 2..=64 unique members",
+            )
+            .at("shared_legend.members"),
+        );
+    }
+    diagnostics.len() == initial
+}
+
+fn validate_shared_frame<'a>(
+    frame: &crate::Frame,
+    width: f64,
+    height: f64,
+    panels: impl Iterator<Item = &'a crate::Frame>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_frame(frame, "shared_legend.frame", diagnostics);
+    let right = frame.x + frame.width;
+    let bottom = frame.y + frame.height;
+    if !width.is_finite()
+        || !height.is_finite()
+        || !right.is_finite()
+        || !bottom.is_finite()
+        || frame.x < 0.0
+        || frame.y < 0.0
+        || right > width
+        || bottom > height
+        || right <= frame.x
+        || bottom <= frame.y
+    {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-LEGEND-0003",
+                "shared legend frame must fit the canvas with positive representable extents",
+            )
+            .at("shared_legend.frame"),
+        );
+    }
+    // Bottom placement reserves a horizontal strip below every panel, including
+    // nonmembers. Merely missing the owner rectangle horizontally is insufficient.
+    for (index, panel) in panels.enumerate() {
+        let panel_bottom = panel.y + panel.height;
+        if !panel_bottom.is_finite()
+            || !panel.y.is_finite()
+            || !panel.height.is_finite()
+            || panel.height <= 0.0
+            || panel_bottom <= panel.y
+            || panel_bottom > frame.y
+        {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-LEGEND-0003",
+                    "every panel must end above the bottom shared legend strip",
+                )
+                .at(format!("views[{index}].frame")),
+            );
+        }
+    }
+}
+
+fn validate_document_shared_legend(document: &Document, diagnostics: &mut Vec<Diagnostic>) {
+    let Some(owner) = &document.shared_legend else {
+        return;
+    };
+    validate_shared_identity(&owner.id, owner.title.as_deref(), diagnostics);
+    if !validate_shared_members(owner.members.iter().map(String::as_str), diagnostics) {
+        return;
+    }
+    validate_shared_frame(
+        &owner.frame,
+        document.width,
+        document.height,
+        document.views.iter().map(View::frame),
+        diagnostics,
+    );
+    if document.views.iter().any(|view| view.id() == owner.id) {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-LEGEND-0002",
+                "shared legend ID must be distinct from every view ID",
+            )
+            .at("shared_legend.id"),
+        );
+    }
+    let mut reference_domain: Option<&Vec<String>> = None;
+    for (index, member) in owner.members.iter().enumerate() {
+        let source = format!("shared_legend.members[{index}]");
+        let Some(view) = document.views.iter().find(|view| view.id() == member) else {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-LEGEND-0004",
+                    format!("unknown shared legend member {member:?}"),
+                )
+                .at(source),
+            );
+            continue;
+        };
+        let Some((_, _, encoding)) = view.categorical_color() else {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-LEGEND-0004",
+                    "shared legend members must be colored scatter, line, area, or bar charts",
+                )
+                .at(source),
+            );
+            continue;
+        };
+        let Some(domain) = &encoding.domain else {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-LEGEND-0005",
+                    "every shared legend member must author its categorical domain",
+                )
+                .at(source),
+            );
+            continue;
+        };
+        if let Err(message) = crate::hir::validate_color_domain(domain) {
+            diagnostics.push(Diagnostic::new("VIZ-LEGEND-0005", message).at(source));
+            continue;
+        }
+        if let Some(reference) = reference_domain {
+            if domain != reference {
+                diagnostics.push(Diagnostic::new("VIZ-LEGEND-0005", "shared legend members must author the same exact ordered categorical domain").at(source));
+            }
+        } else {
+            reference_domain = Some(domain);
+        }
+    }
+}
+
+fn validate_mir_shared_legend(mir: &VizMir, diagnostics: &mut Vec<Diagnostic>) {
+    let Some(owner) = &mir.shared_legend else {
+        return;
+    };
+    validate_shared_identity(&owner.id, owner.title.as_deref(), diagnostics);
+    if !validate_shared_members(
+        owner.members.iter().map(|member| member.view.as_str()),
+        diagnostics,
+    ) {
+        return;
+    }
+    validate_shared_frame(
+        &owner.frame,
+        mir.width,
+        mir.height,
+        mir.views.iter().map(|view| match view {
+            MirView::Chart(chart) => &chart.frame,
+            MirView::Diagram(diagram) => &diagram.frame,
+            MirView::Geometry(geometry) => &geometry.frame,
+        }),
+        diagnostics,
+    );
+    if mir.views.iter().any(|view| view.id() == owner.id) {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-LEGEND-0002",
+                "shared legend ID must be distinct from every view ID",
+            )
+            .at("shared_legend.id"),
+        );
+    }
+    let mut reference: Option<(&Vec<String>, &Vec<Color>)> = None;
+    for (index, member) in owner.members.iter().enumerate() {
+        let source = format!("shared_legend.members[{index}]");
+        if !validate_shared_id(&member.scale, &format!("{source}.scale"), diagnostics) {
+            continue;
+        }
+        let Some(view) = mir.views.iter().find(|view| view.id() == member.view) else {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-LEGEND-0004",
+                    format!("unknown shared legend member {:?}", member.view),
+                )
+                .at(source),
+            );
+            continue;
+        };
+        let MirView::Chart(chart) = view else {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-LEGEND-0004",
+                    "shared legend member must be a supported categorical chart",
+                )
+                .at(source),
+            );
+            continue;
+        };
+        let color = match &chart.mark {
+            ChartMark::Symbol { color, .. }
+            | ChartMark::Line { color, .. }
+            | ChartMark::Area { color, .. }
+            | ChartMark::Bar { color, .. } => color.as_ref(),
+            ChartMark::Heatmap { .. } => None,
+        };
+        let Some(color) = color else {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-LEGEND-0004",
+                    "shared legend members must be colored scatter, line, area, or bar charts",
+                )
+                .at(source),
+            );
+            continue;
+        };
+        if color.scale != member.scale {
+            diagnostics.push(Diagnostic::new("VIZ-LEGEND-0006", "shared legend member scale must equal the chart mark's categorical color binding").at(format!("{source}.scale")));
+        }
+        if chart
+            .guides
+            .iter()
+            .any(|guide| guide.kind == GuideKind::Legend)
+        {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-LEGEND-0007",
+                    "a shared legend member cannot also own a local legend",
+                )
+                .at(&source),
+            );
+        }
+        let Some(MirScale::OrdinalColor { domain, range, .. }) =
+            chart.scales.iter().find(|scale| scale.id() == member.scale)
+        else {
+            diagnostics.push(Diagnostic::new("VIZ-LEGEND-0006", "shared legend member must reference an existing ordinal-color scale in its own view").at(format!("{source}.scale")));
+            continue;
+        };
+        if let Err(message) = crate::hir::validate_color_domain(domain) {
+            diagnostics.push(Diagnostic::new("VIZ-LEGEND-0005", message).at(&source));
+            continue;
+        }
+        if range.len() != domain.len() {
+            diagnostics.push(
+                Diagnostic::new(
+                    "VIZ-LEGEND-0006",
+                    "shared legend color scale must have one resolved color per domain entry",
+                )
+                .at(&source),
+            );
+            continue;
+        }
+        for (color_index, color) in range.iter().enumerate() {
+            validate_color(
+                color,
+                &format!("{source}.range[{color_index}]"),
+                diagnostics,
+            );
+        }
+        if let Some((expected_domain, expected_range)) = reference {
+            if domain != expected_domain || range != expected_range {
+                diagnostics.push(Diagnostic::new("VIZ-LEGEND-0006", "shared legend members must resolve to the same exact ordered domain and color range").at(source));
+            }
+        } else {
+            reference = Some((domain, range));
+        }
     }
 }
 
