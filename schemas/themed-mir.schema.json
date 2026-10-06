@@ -2052,6 +2052,65 @@
       ],
       "type": "object"
     },
+    "MirPlotAlignment": {
+      "additionalProperties": false,
+      "description": "MIR records exact references to each member's independent numeric scales.",
+      "properties": {
+        "id": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_/-]+$",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/MirPlotAlignmentMember"
+          },
+          "maxItems": 64,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "mode": {
+          "$ref": "#/$defs/PlotAlignmentMode"
+        }
+      },
+      "required": [
+        "id",
+        "mode",
+        "members"
+      ],
+      "type": "object"
+    },
+    "MirPlotAlignmentMember": {
+      "additionalProperties": false,
+      "properties": {
+        "view": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_/-]+$",
+          "type": "string"
+        },
+        "x_scale": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_/-]+$",
+          "type": "string"
+        },
+        "y_scale": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_/-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "view",
+        "x_scale",
+        "y_scale"
+      ],
+      "type": "object"
+    },
     "MirPointItem": {
       "additionalProperties": false,
       "properties": {
@@ -3628,6 +3687,12 @@
         }
       ]
     },
+    "PlotAlignmentMode": {
+      "enum": [
+        "uniform"
+      ],
+      "type": "string"
+    },
     "Point": {
       "additionalProperties": false,
       "properties": {
@@ -4743,6 +4808,9 @@
         },
         {
           "$ref": "#/$defs/VizMirV08"
+        },
+        {
+          "$ref": "#/$defs/VizMirV09"
         }
       ]
     },
@@ -5147,6 +5215,83 @@
         },
         "version": {
           "const": "0.8",
+          "type": "string"
+        },
+        "views": {
+          "items": {
+            "$ref": "#/$defs/MirViewV07"
+          },
+          "type": "array"
+        },
+        "width": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "version",
+        "source_hir_version",
+        "document_id",
+        "width",
+        "height",
+        "background",
+        "spaces",
+        "data",
+        "expressions",
+        "views",
+        "losses"
+      ],
+      "type": "object"
+    },
+    "VizMirV09": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MirDataNode"
+          },
+          "type": "object"
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "expressions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TypedExpression"
+          },
+          "type": "object"
+        },
+        "height": {
+          "format": "double",
+          "type": "number"
+        },
+        "losses": {
+          "items": {
+            "$ref": "#/$defs/LossRecord"
+          },
+          "type": "array"
+        },
+        "plot_alignment": {
+          "$ref": "#/$defs/MirPlotAlignment"
+        },
+        "shared_legend": {
+          "$ref": "#/$defs/MirSharedLegend"
+        },
+        "source_hir_version": {
+          "const": "0.9",
+          "type": "string"
+        },
+        "spaces": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CoordinateSpace2D"
+          },
+          "type": "object"
+        },
+        "version": {
+          "const": "0.9",
           "type": "string"
         },
         "views": {

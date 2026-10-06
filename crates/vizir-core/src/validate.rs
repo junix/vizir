@@ -45,14 +45,14 @@ pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Dia
                 View::Bar(c) if c.category.domain.is_some() => {
                     "numeric domain is unsupported on bar category"
                 }
-                _ if !matches!(document.version.as_str(), "0.7" | "0.8")
+                _ if !matches!(document.version.as_str(), "0.7" | "0.8" | "0.9")
                     && view
                         .numeric_encodings()
                         .is_some_and(|(_, es)| es.iter().any(|(_, e)| e.domain.is_some())) =>
                 {
                     "numeric domain requires VizHIR version \"0.7\""
                 }
-                _ if !matches!(document.version.as_str(), "0.6" | "0.7" | "0.8")
+                _ if !matches!(document.version.as_str(), "0.6" | "0.7" | "0.8" | "0.9")
                     && view
                         .categorical_color()
                         .is_some_and(|(_, _, encoding)| encoding.domain.is_some()) =>
@@ -62,19 +62,19 @@ pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Dia
                 View::Area(_)
                     if !matches!(
                         document.version.as_str(),
-                        "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+                        "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
                     ) =>
                 {
                     "chart.area requires VizHIR version \"0.3\", \"0.4\", \"0.5\", \"0.6\", or \"0.7\""
                 }
                 View::Heatmap(_)
-                    if !matches!(document.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7" | "0.8") =>
+                    if !matches!(document.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9") =>
                 {
                     "chart.heatmap requires VizHIR version \"0.4\", \"0.5\", \"0.6\", or \"0.7\""
                 }
                 View::Heatmap(chart)
                     if chart.value_labels.is_some()
-                        && !matches!(document.version.as_str(), "0.5" | "0.6" | "0.7" | "0.8") =>
+                        && !matches!(document.version.as_str(), "0.5" | "0.6" | "0.7" | "0.8" | "0.9") =>
                 {
                     "heatmap value_labels requires VizHIR version \"0.5\" or \"0.6\""
                 }
@@ -83,13 +83,22 @@ pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Dia
             Some(Diagnostic::new("VIZ-SCHEMA-0003", message).at(format!("views[{index}]")))
         })
         .collect();
-    if document.shared_legend.is_some() && document.version != "0.8" {
+    if document.shared_legend.is_some() && !matches!(document.version.as_str(), "0.8" | "0.9") {
         diagnostics.push(
             Diagnostic::new(
                 "VIZ-LEGEND-0001",
-                "shared_legend requires VizHIR version 0.8",
+                "shared_legend requires VizHIR version 0.8 or 0.9",
             )
             .at("shared_legend"),
+        );
+    }
+    if document.plot_alignment.is_some() && document.version != "0.9" {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-ALIGN-0001",
+                "plot_alignment requires VizHIR version 0.9",
+            )
+            .at("plot_alignment"),
         );
     }
     if diagnostics.is_empty() {
@@ -103,19 +112,31 @@ pub fn validate_document_capabilities(document: &Document) -> Result<(), Vec<Dia
 /// unrestricted here for backward-compatible generic deserialization.
 pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    if mir.shared_legend.is_some() && (mir.version != "0.8" || mir.source_hir_version != "0.8") {
+    if mir.shared_legend.is_some()
+        && (!matches!(mir.version.as_str(), "0.8" | "0.9") || mir.source_hir_version != mir.version)
+    {
         diagnostics.push(
             Diagnostic::new(
                 "VIZ-LEGEND-0001",
-                "shared_legend requires matching VizMIR and source HIR version 0.8",
+                "shared_legend requires matching VizMIR and source HIR version 0.8 or 0.9",
             )
             .at("shared_legend"),
         );
     }
 
+    if mir.plot_alignment.is_some() && (mir.version != "0.9" || mir.source_hir_version != "0.9") {
+        diagnostics.push(
+            Diagnostic::new(
+                "VIZ-ALIGN-0001",
+                "plot_alignment requires matching VizMIR and source HIR version 0.9",
+            )
+            .at("plot_alignment"),
+        );
+    }
+
     if matches!(
         mir.version.as_str(),
-        "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+        "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
     ) && mir.source_hir_version != mir.version
     {
         diagnostics.push(
@@ -167,7 +188,7 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
                 out_of_domain: Some(_),
                 ..
             } = scale
-                && (!matches!(mir.version.as_str(), "0.7" | "0.8")
+                && (!matches!(mir.version.as_str(), "0.7" | "0.8" | "0.9")
                     || mir.source_hir_version != mir.version)
             {
                 diagnostics.push(
@@ -184,7 +205,7 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
         if matches!(chart.mark, ChartMark::Area { .. })
             && !(matches!(
                 mir.version.as_str(),
-                "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+                "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
             ) && mir.source_hir_version == mir.version)
         {
             diagnostics.push(
@@ -201,7 +222,7 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
                 value_labels: Some(_),
                 ..
             }
-        ) && (!matches!(mir.version.as_str(), "0.5" | "0.6" | "0.7" | "0.8")
+        ) && (!matches!(mir.version.as_str(), "0.5" | "0.6" | "0.7" | "0.8" | "0.9")
             || mir.source_hir_version != mir.version)
         {
             diagnostics.push(
@@ -212,8 +233,10 @@ pub fn validate_mir_capabilities(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
                 .at(format!("views[{index}].mark.value_labels")),
             );
         }
-        if !matches!(mir.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7" | "0.8")
-            || mir.source_hir_version != mir.version
+        if !matches!(
+            mir.version.as_str(),
+            "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
+        ) || mir.source_hir_version != mir.version
         {
             if matches!(chart.mark, ChartMark::Heatmap { .. }) {
                 diagnostics.push(
@@ -251,7 +274,7 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
 
     if !matches!(
         document.version.as_str(),
-        "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+        "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
     ) {
         diagnostics.push(
             Diagnostic::new(
@@ -638,6 +661,7 @@ pub fn validate_document(document: &Document) -> Result<(), Vec<Diagnostic>> {
     }
 
     validate_document_shared_legend(document, &mut diagnostics);
+    crate::plot_alignment::validate_document_alignment(document, &mut diagnostics);
 
     if document.views.is_empty() {
         diagnostics.push(Diagnostic::new("VIZ-VALIDATE-0003", "document has no views").at("views"));
@@ -662,7 +686,7 @@ fn validate_axis_options(
     };
     if !matches!(
         document.version.as_str(),
-        "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+        "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
     ) {
         diagnostics.push(
             Diagnostic::new(
@@ -708,7 +732,7 @@ pub fn validate_mir(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = validate_mir_capabilities(mir).err().unwrap_or_default();
     if !matches!(
         mir.version.as_str(),
-        "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+        "0.1" | "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
     ) {
         diagnostics.push(
             Diagnostic::new(
@@ -812,6 +836,7 @@ pub fn validate_mir(mir: &VizMir) -> Result<(), Vec<Diagnostic>> {
     }
 
     validate_mir_shared_legend(mir, &mut diagnostics);
+    crate::plot_alignment::validate_mir_alignment(mir, &mut diagnostics);
 
     if diagnostics.is_empty() {
         Ok(())
@@ -888,7 +913,7 @@ fn validate_mir_chart(
             let format_source = format!("{source}.guides[{index}].number_format");
             if !matches!(
                 mir.version.as_str(),
-                "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+                "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
             ) {
                 diagnostics.push(
                     Diagnostic::new(
@@ -903,7 +928,7 @@ fn validate_mir_chart(
                 && chart.scales.iter().any(
                     |scale| matches!(scale, MirScale::Linear { id, .. } if id == &guide.scale),
                 );
-            let heatmap_legend = matches!(mir.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7" | "0.8") && mir.source_hir_version == mir.version
+            let heatmap_legend = matches!(mir.version.as_str(), "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9") && mir.source_hir_version == mir.version
                 && matches!(chart.mark, ChartMark::Heatmap { .. }) && guide.kind == GuideKind::Legend
                 && chart.scales.iter().any(|scale| matches!(scale, MirScale::QuantizeColor { id, .. } if id == &guide.scale));
             if !numeric_axis && !heatmap_legend {
@@ -1050,7 +1075,7 @@ fn validate_mir_chart(
     } = &chart.mark
     {
         validate_finite(*baseline, &format!("{source}.mark.baseline"), diagnostics);
-        let shared = mir.version == "0.8"
+        let shared = matches!(mir.version.as_str(), "0.8" | "0.9")
             && mir.shared_legend.as_ref().is_some_and(|owner| {
                 owner.members.iter().take(64).any(|member| {
                     member.view == chart.id

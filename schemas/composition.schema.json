@@ -556,6 +556,71 @@
       ],
       "type": "object"
     },
+    "CompositionV8": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "default": "transparent",
+          "type": "string"
+        },
+        "datasets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Dataset"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/PanelLayout"
+        },
+        "panels": {
+          "items": {
+            "$ref": "#/$defs/PanelV06"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "plot_alignment": {
+          "$ref": "#/$defs/PlotAlignment"
+        },
+        "schema": {
+          "const": "vizir-composition/0.8",
+          "type": "string"
+        },
+        "shared_legend": {
+          "$ref": "#/$defs/CompositionSharedLegend"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema",
+        "id",
+        "width",
+        "height",
+        "layout",
+        "panels"
+      ],
+      "type": "object"
+    },
     "CompositionVersion": {
       "enum": [
         "vizir-composition/0.1",
@@ -2973,6 +3038,45 @@
         }
       ]
     },
+    "PlotAlignment": {
+      "additionalProperties": false,
+      "description": "Composition and HIR reference stable view IDs in authored member order.",
+      "properties": {
+        "id": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_/-]+$",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_/-]+$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "mode": {
+          "$ref": "#/$defs/PlotAlignmentMode"
+        }
+      },
+      "required": [
+        "id",
+        "mode",
+        "members"
+      ],
+      "type": "object"
+    },
+    "PlotAlignmentMode": {
+      "enum": [
+        "uniform"
+      ],
+      "type": "string"
+    },
     "Point": {
       "additionalProperties": false,
       "properties": {
@@ -3119,6 +3223,9 @@
     },
     {
       "$ref": "#/$defs/CompositionV7"
+    },
+    {
+      "$ref": "#/$defs/CompositionV8"
     }
   ],
   "title": "Composition"

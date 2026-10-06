@@ -280,3 +280,12 @@ bounds are independent per encoding; repeat the same bounds across comparable
 panels. Outliers and excluded baselines fail before output. See
 [the numeric domain contract](numeric-domains.md) and the executable
 [shared-scale example](../examples/composition/shared-numeric-domains.compose.yaml).
+
+## Uniform numeric plot alignment (composition 0.8)
+
+`vizir-composition/0.8` emits matching HIR/MIR `0.9` and adds one optional
+`plot_alignment: {id, mode: uniform, members: [...]}` group. It aligns 2–64
+explicitly selected equal-cell line/scatter/area plots after local/shared-legend
+allocation, without changing their domains. Other panels keep their existing
+layout. See the [complete contract](plot-alignment.md) and
+[executable example](../examples/composition/aligned-numeric-grid.compose.yaml).

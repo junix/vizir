@@ -1,0 +1,69 @@
+# Plot rectangles align explicitly, while numeric domains remain independent.
+schema: vizir-composition/0.8
+id: aligned-numeric-grid
+width: 1440
+height: 1040
+background: transparent
+layout:
+  kind: grid
+  columns: 2
+  padding: 24
+  gap: 24
+plot_alignment:
+  id: comparison-plots
+  mode: uniform
+  members: [trend, measurements, area, comparison]
+shared_legend:
+  id: series-key
+  members: [trend, measurements, area]
+  placement: bottom
+  height: 64
+  gap: 12
+  title: Shared series
+datasets:
+  samples:
+    key: id
+    rows:
+    - {id: a0, x: 0, y: 2000000, series: Alpha}
+    - {id: a1, x: 1, y: 4000000, series: Alpha}
+    - {id: a2, x: 2, y: 3000000, series: Alpha}
+    - {id: b0, x: 0, y: 5000000, series: Beta}
+    - {id: b1, x: 1, y: 7000000, series: Beta}
+    - {id: b2, x: 2, y: 6000000, series: Beta}
+panels:
+- kind: chart.line
+  id: trend
+  title: Trend with compact ticks
+  dataset: samples
+  x: {field: x, label: Time, domain: [0, 2]}
+  y: {field: y, label: Value, domain: [0, 10000000]}
+  series: {field: series, domain: [Alpha, Beta, Reserved]}
+- kind: chart.scatter
+  id: measurements
+  title: Measurements with long y ticks
+  dataset: samples
+  x: {field: x, label: Time, domain: [0, 2]}
+  y:
+    field: y
+    label: Value
+    domain: [0, 10000000]
+    axis: {number_format: {notation: fixed, precision: 2}}
+  color: {field: series, domain: [Alpha, Beta, Reserved]}
+- kind: chart.area
+  id: area
+  title: Area using the same numeric scales
+  dataset: samples
+  x: {field: x, label: Time, domain: [0, 2]}
+  y: {field: y, label: Value, domain: [0, 10000000]}
+  baseline: 0
+  order: x-ascending
+  series: {field: series, domain: [Alpha, Beta, Reserved]}
+- kind: chart.line
+  id: comparison
+  title: Independent domain and local legend
+  dataset: samples
+  x: {field: x, label: Time, domain: [0, 4]}
+  y: {field: y, label: Value, domain: [0, 20000000]}
+  series:
+    field: series
+    domain: [Alpha, Beta, Reserved, Another reserved category, Final reserved category]

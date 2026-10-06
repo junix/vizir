@@ -29,6 +29,12 @@ pub struct VizMir {
         deserialize_with = "crate::hir::deserialize_present"
     )]
     pub shared_legend: Option<crate::MirSharedLegend>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    pub plot_alignment: Option<crate::MirPlotAlignment>,
 }
 
 #[derive(Deserialize)]
@@ -51,6 +57,12 @@ struct VizMirWire {
         deserialize_with = "crate::hir::deserialize_present"
     )]
     pub shared_legend: Option<crate::MirSharedLegend>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    pub plot_alignment: Option<crate::MirPlotAlignment>,
 }
 
 impl TryFrom<VizMirWire> for VizMir {
@@ -70,6 +82,7 @@ impl TryFrom<VizMirWire> for VizMir {
             views: wire.views,
             losses: wire.losses,
             shared_legend: wire.shared_legend,
+            plot_alignment: wire.plot_alignment,
         };
         crate::validate::validate_mir_capabilities(&mir)
             .map_err(|diagnostics| crate::VizError::validation(&diagnostics))?;
@@ -810,6 +823,30 @@ struct VizMirV08 {
 
 #[allow(dead_code)]
 #[derive(JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(transform = mir_v09_schema)]
+struct VizMirV09 {
+    pub version: String,
+    pub source_hir_version: String,
+    pub document_id: String,
+    pub width: f64,
+    pub height: f64,
+    pub background: Color,
+    pub spaces: BTreeMap<String, CoordinateSpace2D>,
+    pub data: BTreeMap<String, MirDataNode>,
+    pub expressions: BTreeMap<String, TypedExpression>,
+    pub views: Vec<MirViewV07>,
+    pub losses: Vec<LossRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "crate::MirSharedLegend")]
+    pub shared_legend: Option<crate::MirSharedLegend>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "crate::MirPlotAlignment")]
+    pub plot_alignment: Option<crate::MirPlotAlignment>,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
 #[serde(tag = "dialect", rename_all = "kebab-case", deny_unknown_fields)]
 enum MirViewV07 {
     Chart(Box<MirChartV07>),
@@ -1036,7 +1073,8 @@ impl JsonSchema for VizMir {
         let categorical = generator.subschema_for::<VizMirV06>();
         let numeric = generator.subschema_for::<VizMirV07>();
         let shared = generator.subschema_for::<VizMirV08>();
-        schemars::json_schema!({ "oneOf": [legacy, current, heatmap, labels, categorical, numeric, shared] })
+        let alignment = generator.subschema_for::<VizMirV09>();
+        schemars::json_schema!({ "oneOf": [legacy, current, heatmap, labels, categorical, numeric, shared, alignment] })
     }
 }
 
@@ -1098,6 +1136,16 @@ fn mir_v08_schema(schema: &mut schemars::Schema) {
         .expect("MIR schema properties");
     properties["version"]["const"] = "0.8".into();
     properties["source_hir_version"]["const"] = "0.8".into();
+}
+
+fn mir_v09_schema(schema: &mut schemars::Schema) {
+    let properties = schema
+        .as_object_mut()
+        .expect("MIR schema object")
+        .get_mut("properties")
+        .expect("MIR schema properties");
+    properties["version"]["const"] = "0.9".into();
+    properties["source_hir_version"]["const"] = "0.9".into();
 }
 
 fn numeric_guide_schema(schema: &mut schemars::Schema) {

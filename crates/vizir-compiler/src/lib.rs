@@ -5,6 +5,7 @@ mod heatmap;
 mod layout;
 mod lower;
 mod materialize;
+mod plot_alignment;
 mod scene_builder;
 mod shared_legend;
 mod text;

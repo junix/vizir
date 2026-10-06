@@ -125,6 +125,7 @@ pub fn rematerialize_mir_with_limits(
         views,
         losses: mir.losses.clone(),
         shared_legend: mir.shared_legend.clone(),
+        plot_alignment: mir.plot_alignment.clone(),
     };
     crate::heatmap::check_mir_output(&result)?;
     Ok(result)
@@ -155,6 +156,7 @@ pub(crate) fn materialize_mir_marks(
 }
 
 pub(crate) fn preflight_document(document: &Document, budget: &mut Budget) -> VizResult<()> {
+    crate::plot_alignment::preflight_document(document, budget)?;
     crate::shared_legend::preflight_document(document, budget)?;
     preflight_heatmap_document(document, budget)?;
     for (name, data) in &document.datasets {
@@ -533,6 +535,7 @@ pub(crate) fn preflight_hir_bindings(source: &MirDataNode, budget: &mut Budget) 
 }
 
 fn preflight_mir(mir: &VizMir, budget: &mut Budget) -> VizResult<()> {
+    crate::plot_alignment::preflight_mir(mir, budget)?;
     crate::shared_legend::preflight_mir(mir, budget)?;
     preflight_heatmap_mir(mir, budget)?;
     let has_heatmap = mir.views.iter().any(|view| {

@@ -190,7 +190,8 @@ pub(crate) fn lower_to_mir_with_context(
         }
     }
     let shared_legend = crate::shared_legend::lower_owner(document, &views)?;
-    let mir = VizMir {
+    let plot_alignment = crate::plot_alignment::lower_group(document, &views)?;
+    let mut mir = VizMir {
         version: document.version.clone(),
         source_hir_version: document.version.clone(),
         document_id: document.id.clone(),
@@ -203,11 +204,14 @@ pub(crate) fn lower_to_mir_with_context(
         views,
         losses: Vec::new(),
         shared_legend,
+        plot_alignment,
     };
     if mir.shared_legend.is_some() {
         vizir_core::validate_mir(&mir).map_err(|d| VizError::validation(&d))?;
         crate::shared_legend::build(&mir, defaults, text)?;
     }
+    crate::plot_alignment::preflight_mir(&mir, &mut budget)?;
+    crate::plot_alignment::finalize(&mut mir, text)?;
     crate::heatmap::check_mir_output(&mir)?;
     Ok(mir)
 }

@@ -147,6 +147,20 @@ Use HIR/MIR 0.7 or composition `vizir-composition/0.6`. Published provider
 profiles remain unchanged. [Numeric domain contract](docs/numeric-domains.md) ·
 [Aligned two-panel example](examples/composition/shared-numeric-domains.compose.yaml)
 
+### Uniform numeric plot alignment in VizHIR 0.9
+
+Composition `vizir-composition/0.8` can explicitly align the plotting rectangles
+of equal-cell line/scatter/area charts with
+`plot_alignment: {id: comparisons, mode: uniform, members: [left, right]}`.
+The compiler shares the maximum required inset on each side after title, tick,
+and local/shared-legend allocation, then rechecks final fit. Numeric domains stay
+independent; author equal domains when equal pixel scaling is intended.
+The semantic group survives MIR and compiled replay, which verifies the resolved
+ranges. Existing versions and provider profiles are unchanged.
+
+[Plot alignment contract](docs/plot-alignment.md) ·
+[Executable grid](examples/composition/aligned-numeric-grid.compose.yaml)
+
 ### Shared categorical legends in VizHIR 0.8
 
 Give two or more chart panels one native bottom legend with composition

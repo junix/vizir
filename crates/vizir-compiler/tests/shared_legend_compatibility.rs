@@ -20,7 +20,16 @@ fn complete_pre08_envelope_schema_closures_remain_unchanged() {
                 }
                 assert_eq!(
                     actual["$defs"][name]["oneOf"].as_array().unwrap().len(),
-                    definition["oneOf"].as_array().unwrap().len() + 1
+                    definition["oneOf"].as_array().unwrap().len() + 2
+                );
+                let prior = definition["oneOf"].as_array().unwrap().len();
+                assert_eq!(
+                    actual["$defs"][name]["oneOf"][prior]["$ref"],
+                    "#/$defs/VizMirV08"
+                );
+                assert_eq!(
+                    actual["$defs"][name]["oneOf"][prior + 1]["$ref"],
+                    "#/$defs/VizMirV09"
                 );
             } else {
                 assert_eq!(&actual["$defs"][name], definition, "{kind}::{name}");

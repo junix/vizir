@@ -43,10 +43,8 @@ pub(crate) fn build_scene_with_context(
 ) -> VizResult<Scene2D> {
     // New owned guides must be bounded and reference-validated before text
     // preflight traverses their member scales. Preserve legacy error ordering.
-    let owned_marks = mir
-        .shared_legend
-        .as_ref()
-        .map(|_| materialize_mir_marks(mir, limits, true))
+    let owned_marks = (mir.shared_legend.is_some() || mir.plot_alignment.is_some())
+        .then(|| materialize_mir_marks(mir, limits, true))
         .transpose()?;
     if let Some(text) = text {
         text.preflight_mir(mir)?;
@@ -55,6 +53,7 @@ pub(crate) fn build_scene_with_context(
         Some(marks) => marks,
         None => materialize_mir_marks(mir, limits, true)?,
     };
+    let aligned_plots = crate::plot_alignment::resolve(mir, text)?;
     let mut nodes = Vec::new();
     for (view, mark) in mir.views.iter().zip(&marks) {
         nodes.push(match view {
@@ -64,6 +63,7 @@ pub(crate) fn build_scene_with_context(
                 defaults,
                 text,
                 crate::shared_legend::mir_owns(mir, &chart.id),
+                aligned_plots.get(&chart.id).copied(),
             )?,
             MirView::Diagram(diagram) => build_diagram(diagram, defaults, text)?,
             MirView::Geometry(geometry) => build_geometry(geometry, defaults)?,
@@ -91,17 +91,48 @@ pub(crate) fn build_scene_with_context(
     Ok(scene)
 }
 
-fn build_chart(
-    chart: &MirChart,
-    materialized: &ChartMark,
-    defaults: Option<&ResolvedThemeDefaults>,
+pub(crate) struct ResolvedChartLayout<'a> {
+    pub(crate) layout: ChartLayout,
+    pub(crate) ticks: Option<NumericTickLabels>,
+    guides: ChartGuides<'a>,
+    legend_scale: Option<&'a MirScale>,
+}
+
+impl ResolvedChartLayout<'_> {
+    pub(crate) fn align(
+        &mut self,
+        chart: &MirChart,
+        plot: [f64; 4],
+        text: Option<&TextSession>,
+    ) -> VizResult<()> {
+        // Only the plot moves. Local title and legend allocations stay intact.
+        let layout = std::mem::replace(
+            &mut self.layout,
+            ChartLayout {
+                plot,
+                legend: Vec::new(),
+            },
+        );
+        self.layout = layout
+            .with_aligned_plot(
+                &chart.id,
+                chart.frame,
+                self.guides.bottom.map(|(guide, _)| guide.label.as_str()),
+                self.ticks.as_ref(),
+                text,
+                plot,
+            )
+            .map_err(VizError::Diagnostic)?;
+        Ok(())
+    }
+}
+
+pub(crate) fn resolve_chart_layout<'a>(
+    chart: &'a MirChart,
     text: Option<&TextSession>,
     shared_legend: bool,
-) -> VizResult<SceneNode> {
-    if matches!(materialized, ChartMark::Heatmap { .. }) {
-        return build_heatmap(chart, materialized, defaults, text);
-    }
-    let mut children = Vec::new();
+    aligned: bool,
+) -> VizResult<ResolvedChartLayout<'a>> {
     let guides = ChartGuides::resolve(chart)?;
     let ticks = NumericTickLabels::new_with_measurement(
         guides.bottom.and_then(|(guide, scale)| match scale {
@@ -112,7 +143,7 @@ fn build_chart(
             MirScale::Linear { domain, .. } => Some((*domain, guide.number_format.as_ref())),
             _ => None,
         }),
-        text.is_some(),
+        text.is_some() || aligned,
         [guides.bottom, guides.left].map(|guide| {
             guide.is_some_and(|(_, scale)| {
                 matches!(
@@ -162,6 +193,36 @@ fn build_chart(
         text,
     )
     .map_err(VizError::Diagnostic)?;
+    Ok(ResolvedChartLayout {
+        layout,
+        ticks,
+        guides,
+        legend_scale,
+    })
+}
+
+fn build_chart(
+    chart: &MirChart,
+    materialized: &ChartMark,
+    defaults: Option<&ResolvedThemeDefaults>,
+    text: Option<&TextSession>,
+    shared_legend: bool,
+    aligned_plot: Option<[f64; 4]>,
+) -> VizResult<SceneNode> {
+    if matches!(materialized, ChartMark::Heatmap { .. }) {
+        return build_heatmap(chart, materialized, defaults, text);
+    }
+    let mut children = Vec::new();
+    let mut resolved = resolve_chart_layout(chart, text, shared_legend, aligned_plot.is_some())?;
+    if let Some(plot) = aligned_plot {
+        resolved.align(chart, plot, text)?;
+    }
+    let ResolvedChartLayout {
+        layout,
+        ticks,
+        guides,
+        legend_scale,
+    } = resolved;
     let categories = match guides.bottom {
         Some((_, MirScale::Band { domain, .. })) => domain.as_slice(),
         _ => &[],

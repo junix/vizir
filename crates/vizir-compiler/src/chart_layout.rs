@@ -117,6 +117,66 @@ impl ChartLayout {
         Ok(self)
     }
 
+    /// Apply the already resolved common plot, then rerun fit checks without
+    /// recalculating (and thereby overwriting) its insets.
+    pub(crate) fn with_aligned_plot(
+        mut self,
+        id: &str,
+        frame: Frame,
+        x_title: Option<&str>,
+        ticks: Option<&NumericTickLabels>,
+        text: Option<&TextSession>,
+        plot: [f64; 4],
+    ) -> Result<Self, String> {
+        let fail = |detail: String| {
+            format!(
+                "VIZ-ALIGN-0004: chart {id:?} {detail}; enlarge every aligned cell or shorten its labels"
+            )
+        };
+        let width = plot[2] - plot[0];
+        let height = plot[3] - plot[1];
+        let mut required_width = 64.0_f64;
+        let mut required_height = 64.0_f64;
+        if let Some(ticks) = ticks {
+            let x_widths = ticks
+                .x
+                .iter()
+                .map(|label| text_width(label, 11.0, FontWeight::Regular, text))
+                .collect::<Result<Vec<_>, _>>()?;
+            required_width = x_widths
+                .windows(2)
+                .map(|pair| ((pair[0] + pair[1]) / 2.0 + 8.0) * 5.0)
+                .fold(required_width, f64::max);
+            if !ticks.y.is_empty() {
+                required_height = (11.0 * 1.25 + 4.0) * 5.0;
+            }
+        }
+        if plot.iter().any(|value| !value.is_finite())
+            || width < required_width
+            || height < required_height
+            || plot[0] < frame.x
+            || plot[1] < frame.y
+            || plot[2] > frame.x + frame.width
+            || plot[3] > frame.y + frame.height
+        {
+            return Err(fail(format!(
+                "requires a {required_width:.1}px by {required_height:.1}px plot after uniform insets, but only {width:.1}px by {height:.1}px is available"
+            )));
+        }
+        if let Some(title) = x_title {
+            let center = (plot[0] + plot[2]) / 2.0 - frame.x;
+            let available = 2.0 * center.min(frame.width - center) - 16.0;
+            let needed = text_width(title, 12.5, FontWeight::Medium, text)?;
+            if needed > available {
+                return Err(fail(format!(
+                    "x-axis title needs {needed:.1}px after uniform insets, but only {available:.1}px is available"
+                )));
+            }
+        }
+        self.plot = plot;
+        Ok(self)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn with_categories(
         mut self,

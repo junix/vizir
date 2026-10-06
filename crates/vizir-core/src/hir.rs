@@ -49,6 +49,12 @@ pub struct Document {
         deserialize_with = "crate::hir::deserialize_present"
     )]
     pub shared_legend: Option<crate::SharedLegend>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    pub plot_alignment: Option<crate::PlotAlignment>,
 }
 
 // Decode only the new capability boundary here. General semantic validation
@@ -74,6 +80,12 @@ struct DocumentWire {
         deserialize_with = "crate::hir::deserialize_present"
     )]
     pub shared_legend: Option<crate::SharedLegend>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::hir::deserialize_present"
+    )]
+    pub plot_alignment: Option<crate::PlotAlignment>,
 }
 
 impl TryFrom<DocumentWire> for Document {
@@ -90,6 +102,7 @@ impl TryFrom<DocumentWire> for Document {
             datasets: wire.datasets,
             views: wire.views,
             shared_legend: wire.shared_legend,
+            plot_alignment: wire.plot_alignment,
         };
         crate::validate::validate_document_capabilities(&document)
             .map_err(|diagnostics| crate::VizError::validation(&diagnostics))?;

@@ -1089,7 +1089,7 @@ fn profiles_are_disjoint_and_old_descriptor_and_receipt_schema_are_frozen() {
     let mut v3 = Bundle::new("0.7");
     v3.old_outputs();
     let original = read(&v3.files["input"]);
-    for rejected in ["0.4", "0.5", "0.6", "0.8", "1.0"] {
+    for rejected in ["0.4", "0.5", "0.6", "0.8", "0.9", "1.0"] {
         let mut input = original.clone();
         input["mir"]["version"] = json!(rejected);
         input["mir"]["source_hir_version"] = json!(rejected);

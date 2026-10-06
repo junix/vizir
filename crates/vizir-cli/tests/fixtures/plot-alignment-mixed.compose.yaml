@@ -1,0 +1,45 @@
+schema: vizir-composition/0.8
+id: aligned-mixed-charts
+width: 1740
+height: 600
+background: transparent
+layout:
+  kind: grid
+  columns: 3
+  padding: 24
+  gap: 24
+plot_alignment:
+  id: aligned
+  mode: uniform
+  members: [line, scatter, area]
+datasets:
+  samples:
+    key: id
+    rows:
+      - {id: a0, x: 0, y: 2, series: Alpha}
+      - {id: a1, x: 1, y: 3, series: Alpha}
+      - {id: b0, x: 0, y: 7, series: Beta}
+      - {id: b1, x: 1, y: 8, series: Beta}
+panels:
+  - kind: chart.line
+    id: line
+    title: Line with local legend
+    dataset: samples
+    x: {field: x, label: time, domain: [0, 1]}
+    y: {field: y, label: precise value, domain: [0, 10], axis: {number_format: {notation: fixed, precision: 6}}}
+    series: {field: series, domain: [Alpha, Beta, Reserved]}
+  - kind: chart.scatter
+    id: scatter
+    title: Scatter uses different domains
+    dataset: samples
+    x: {field: x, domain: [-1, 2]}
+    y: {field: y, domain: [-5, 15]}
+    color: {field: series, domain: [Alpha, Beta, Reserved]}
+  - kind: chart.area
+    id: area
+    dataset: samples
+    x: {field: x, domain: [0, 1]}
+    y: {field: y, domain: [0, 10]}
+    baseline: 0
+    order: x-ascending
+    series: {field: series, domain: [Alpha, Beta, Reserved]}

@@ -173,3 +173,11 @@ applicable baselines must be within the closed interval. Omitted fields
 preserve old serialized bytes and inference/extrapolation behavior.
 MIR 0.7 requires matching `source_hir_version: "0.7"`; older source, MIR and
 composition branches remain closed. See [numeric domains](numeric-domains.md).
+
+## Uniform numeric plot alignment (HIR/MIR 0.9)
+
+HIR `0.9` adds optional `plot_alignment` semantic intent with an ID,
+`mode: uniform`, and member view IDs. Matching MIR `0.9` retains the group with
+explicit view/x-scale/y-scale references. The compiler resolves common per-side
+insets and range endpoints, then replay recomputes and verifies them. Published
+0.8 and earlier schemas remain closed. See [plot alignment](plot-alignment.md).

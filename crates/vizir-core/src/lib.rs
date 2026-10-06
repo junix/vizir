@@ -7,6 +7,7 @@ pub mod heatmap;
 pub mod hir;
 pub mod mir;
 pub mod patch;
+pub mod plot_alignment;
 pub mod scene;
 pub mod shared_legend;
 pub mod validate;
@@ -20,6 +21,7 @@ pub use heatmap::*;
 pub use hir::*;
 pub use mir::*;
 pub use patch::*;
+pub use plot_alignment::*;
 pub use scene::*;
 pub use shared_legend::*;
 pub use validate::{

@@ -135,13 +135,13 @@ fn validate_reports_each_diagnostic_with_its_source_and_help() {
     let input = temporary.path().join("invalid.viz.yaml");
     std::fs::write(
         &input,
-        "version: \"0.9\"\nid: bad-document\nwidth: 400\nheight: 300\nviews: []\n",
+        "version: \"0.10\"\nid: bad-document\nwidth: 400\nheight: 300\nviews: []\n",
     )
     .unwrap();
     let result = vizir().arg("validate").arg(&input).output().unwrap();
     assert!(!result.status.success());
     let stderr = stderr_of(&result);
-    assert!(stderr.contains("VIZ-SCHEMA-0001: unsupported VizHIR version \"0.9\" at version"));
+    assert!(stderr.contains("VIZ-SCHEMA-0001: unsupported VizHIR version \"0.10\" at version"));
     assert!(stderr.contains(
         "help: use version \"0.1\", \"0.2\", \"0.3\", \"0.4\", \"0.5\", \"0.6\", or \"0.7\""
     ));
