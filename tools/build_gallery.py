@@ -12,6 +12,23 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any, NoReturn
+import re
+
+
+CATPPUCCIN_SNIPPET = Path(__file__).with_name("catppuccin-theme.html")
+
+
+def with_catppuccin(page: str) -> str:
+    """Add the shared Catppuccin theme: Mocha dark (default), Latte light, auto/light/dark toggle."""
+    snippet = CATPPUCCIN_SNIPPET.read_text(encoding="utf-8")
+    block = re.compile(r"<!-- catppuccin-theme v\d+:.*?</script>\n?", re.S)
+    if block.search(page):
+        return block.sub(lambda _m: snippet, page, count=1)
+    for pattern in (r"</head\s*>", r"<body\b"):
+        found = re.search(pattern, page, re.I)
+        if found:
+            return page[: found.start()] + snippet + page[found.start():]
+    return snippet + page
 
 
 def fail(message: str) -> NoReturn:
@@ -322,6 +339,7 @@ def main() -> None:
         fail("gallery item ids must be unique")
     rendered = build_html(root, config, items)
     output = root / config.get("output", "gallery.html")
+    rendered = with_catppuccin(rendered)
     if args.check:
         if not output.exists() or output.read_text(encoding="utf-8") != rendered:
             fail(f"stale gallery: run {Path(sys.argv[0]).as_posix()} --config {args.config}")
