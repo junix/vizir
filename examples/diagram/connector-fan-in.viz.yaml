@@ -1,0 +1,24 @@
+version: "0.1"
+id: connector-fan-in
+width: 900
+height: 620
+background: transparent
+views:
+  - kind: diagram.graph
+    id: connectors
+    title: Independent ports for fan-in, parallel edges and a self-loop
+    frame: {x: 0, y: 0, width: 900, height: 620}
+    layout: manual
+    nodes:
+      - {id: source, label: Source, position: {x: 130, y: 280}}
+      - {id: left, label: Left, position: {x: 440, y: 160}}
+      - {id: right, label: Right, position: {x: 440, y: 440}}
+      - {id: join, label: Join, position: {x: 740, y: 280}}
+    edges:
+      - {from: source, to: left}
+      - {from: source, to: right}
+      - {from: left, to: join}
+      - {from: right, to: join}
+      - {from: source, to: join}
+      - {from: source, to: join}
+      - {from: join, to: join}

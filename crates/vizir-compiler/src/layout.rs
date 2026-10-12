@@ -78,7 +78,6 @@ fn layered_layout(
     }
     for targets in outgoing.values_mut() {
         targets.sort();
-        targets.dedup();
     }
 
     let mut queue = VecDeque::from(
@@ -163,4 +162,175 @@ fn layered_layout(
         positions,
         explanation: cycle_note.to_owned(),
     })
+}
+
+/// Allocate separate side attachments before routing. Incoming and outgoing
+/// endpoints share the same pool so reciprocal edges cannot reuse a port.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct EdgeCurve {
+    pub start: Point,
+    pub end: Point,
+    pub control1: Point,
+    pub control2: Point,
+}
+
+pub(crate) fn route_edges(
+    positions: &BTreeMap<String, Point>,
+    edges: &[DiagramEdge],
+) -> VizResult<Vec<EdgeCurve>> {
+    for edge in edges {
+        for (id, code) in [(&edge.from, "0002"), (&edge.to, "0003")] {
+            if !positions.contains_key(id) {
+                return Err(VizError::Diagnostic(format!(
+                    "VIZ-LAYOUT-{code}: missing position for {id:?}"
+                )));
+            }
+        }
+    }
+    // Sides are right, bottom, left, top. Sort by the opposite node's
+    // transverse coordinate, then source order, for deterministic fan-outs.
+    type SideAttachments<'a> = BTreeMap<(&'a str, usize), Vec<(usize, bool, f64)>>;
+    let mut sides: SideAttachments<'_> = BTreeMap::new();
+    for (i, edge) in edges.iter().enumerate() {
+        let from = positions[&edge.from];
+        let to = positions[&edge.to];
+        let (source_side, target_side) = if edge.from == edge.to {
+            (0, 3)
+        } else if (to.x - from.x).abs() >= (to.y - from.y).abs() {
+            if to.x >= from.x { (0, 2) } else { (2, 0) }
+        } else if to.y >= from.y {
+            (1, 3)
+        } else {
+            (3, 1)
+        };
+        sides.entry((&edge.from, source_side)).or_default().push((
+            i,
+            true,
+            if source_side % 2 == 0 { to.y } else { to.x },
+        ));
+        sides.entry((&edge.to, target_side)).or_default().push((
+            i,
+            false,
+            if target_side % 2 == 0 { from.y } else { from.x },
+        ));
+    }
+    let zero = Point { x: 0.0, y: 0.0 };
+    let mut ports = vec![[(zero, zero); 2]; edges.len()];
+    for ((id, side), mut ends) in sides {
+        ends.sort_by(|a, b| a.2.total_cmp(&b.2).then(a.0.cmp(&b.0)).then(a.1.cmp(&b.1)));
+        let center = positions[id];
+        let count = ends.len();
+        for (slot, (index, source, _)) in ends.into_iter().enumerate() {
+            let span: f64 = if side % 2 == 0 { 42.0 } else { 130.0 };
+            let offset = if count == 1 {
+                0.0
+            } else {
+                (slot as f64 / (count - 1) as f64 - 0.5) * span.min((count - 1) as f64 * 14.0)
+            };
+            let (point, normal) = match side {
+                0 => (
+                    Point {
+                        x: center.x + 78.0,
+                        y: center.y + offset,
+                    },
+                    Point { x: 1.0, y: 0.0 },
+                ),
+                1 => (
+                    Point {
+                        x: center.x + offset,
+                        y: center.y + 34.0,
+                    },
+                    Point { x: 0.0, y: 1.0 },
+                ),
+                2 => (
+                    Point {
+                        x: center.x - 78.0,
+                        y: center.y + offset,
+                    },
+                    Point { x: -1.0, y: 0.0 },
+                ),
+                _ => (
+                    Point {
+                        x: center.x + offset,
+                        y: center.y - 34.0,
+                    },
+                    Point { x: 0.0, y: -1.0 },
+                ),
+            };
+            ports[index][usize::from(!source)] = (point, normal);
+        }
+    }
+    Ok(ports
+        .into_iter()
+        .enumerate()
+        .map(|(i, [(start, sn), (end, tn)])| {
+            let bend = if edges[i].from == edges[i].to {
+                60.0
+            } else {
+                ((end.x - start.x).abs().max((end.y - start.y).abs()) * 0.45).max(28.0)
+            };
+            EdgeCurve {
+                start,
+                end,
+                control1: Point {
+                    x: start.x + sn.x * bend,
+                    y: start.y + sn.y * bend,
+                },
+                control2: Point {
+                    x: end.x + tn.x * bend,
+                    y: end.y + tn.y * bend,
+                },
+            }
+        })
+        .collect())
+}
+
+#[cfg(test)]
+mod connector_tests {
+    use super::*;
+    #[test]
+    fn fan_in_parallel_reciprocal_and_loop_ports_are_distinct() {
+        let positions = BTreeMap::from([
+            ("a".into(), Point { x: 100.0, y: 200.0 }),
+            ("b".into(), Point { x: 400.0, y: 100.0 }),
+            ("c".into(), Point { x: 400.0, y: 300.0 }),
+        ]);
+        let edges: Vec<DiagramEdge> = serde_json::from_str(r#"[{"from":"a","to":"b"},{"from":"a","to":"b"},{"from":"b","to":"a"},{"from":"c","to":"a"},{"from":"a","to":"a"}]"#).unwrap();
+        let routes = route_edges(&positions, &edges).unwrap();
+        let ends = [
+            routes[0].start,
+            routes[1].start,
+            routes[2].end,
+            routes[3].end,
+            routes[4].start,
+            routes[4].end,
+        ];
+        for (i, a) in ends.iter().enumerate() {
+            for b in &ends[i + 1..] {
+                assert!((a.x - b.x).hypot(a.y - b.y) > 1.0, "coincident ports");
+            }
+        }
+        for route in routes {
+            assert!((route.end.x - route.control2.x).hypot(route.end.y - route.control2.y) > 7.0);
+        }
+    }
+    #[test]
+    fn parallel_edges_do_not_trigger_false_cycle_fallback() {
+        let nodes: Vec<DiagramNode> =
+            serde_json::from_str(r#"[{"id":"a","label":"A"},{"id":"b","label":"B"}]"#).unwrap();
+        let edges: Vec<DiagramEdge> =
+            serde_json::from_str(r#"[{"from":"a","to":"b"},{"from":"a","to":"b"}]"#).unwrap();
+        let result = layered_layout(
+            Frame {
+                x: 0.0,
+                y: 0.0,
+                width: 600.0,
+                height: 400.0,
+            },
+            &nodes,
+            &edges,
+        )
+        .unwrap();
+        assert!(!result.explanation.contains("fallback"));
+    }
 }

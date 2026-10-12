@@ -122,29 +122,29 @@
     {
       "source": "examples/diagram/agent-runtime.viz.yaml",
       "normalize_sha256": "af5e0a0d2ea65011a1aaff10e51ccab044cb80f2e6faf16ec6f3e6e5e91dd220",
-      "lower_sha256": "e20b8c7694901e860117b6a37d9a225792615cc3007d26a510282f95309e5eb9",
-      "svg_sha256": "05737c034548da927ed3c6435c21b68fabc4768608616425fa2a6268c16e57e2",
+      "lower_sha256": "4473b4142ad27daf9f2c88380dcaf05e170e5edce086a080949f77c999adeedc",
+      "svg_sha256": "183bf7d669026d8ec50fd2d88c627285919f0e561c6285106f979ec9a4f0cef8",
       "replay_normalize_sha256": "d099f316ed3588613913d6be629c689ac3559b21b466a84ac91bf633d464714d",
-      "replay_lower_sha256": "e20b8c7694901e860117b6a37d9a225792615cc3007d26a510282f95309e5eb9",
-      "replay_svg_sha256": "05737c034548da927ed3c6435c21b68fabc4768608616425fa2a6268c16e57e2"
+      "replay_lower_sha256": "4473b4142ad27daf9f2c88380dcaf05e170e5edce086a080949f77c999adeedc",
+      "replay_svg_sha256": "183bf7d669026d8ec50fd2d88c627285919f0e561c6285106f979ec9a4f0cef8"
     },
     {
       "source": "examples/diagram/data-platform.viz.yaml",
       "normalize_sha256": "70b990cf8fe8253baeaefb007aa33e8b268e73a74fca382fccb941b4a07d83a6",
-      "lower_sha256": "fd483e292ee661edd494807b5f718eef25ab621377b75a29d1fe021b791fa102",
-      "svg_sha256": "7f8d6bbfdda582eb7c4615fd2fe5bdb223264fa50498cae2142bcf1ccb48ebd0",
+      "lower_sha256": "1b11ddf91c39f89fe51e7f2cad5712ae5fee9f379fa5ce8daae7422b98890b16",
+      "svg_sha256": "8794ec6045c228c92bb7a34524a0daf8da6dc39828aa7221aac57f544efc1144",
       "replay_normalize_sha256": "6dbc9b72d3fb5d75c64bd1c87573d4c61502df21e64d5752f043eec8d075373b",
-      "replay_lower_sha256": "fd483e292ee661edd494807b5f718eef25ab621377b75a29d1fe021b791fa102",
-      "replay_svg_sha256": "7f8d6bbfdda582eb7c4615fd2fe5bdb223264fa50498cae2142bcf1ccb48ebd0"
+      "replay_lower_sha256": "1b11ddf91c39f89fe51e7f2cad5712ae5fee9f379fa5ce8daae7422b98890b16",
+      "replay_svg_sha256": "8794ec6045c228c92bb7a34524a0daf8da6dc39828aa7221aac57f544efc1144"
     },
     {
       "source": "examples/diagram/dialect-lowering.viz.yaml",
       "normalize_sha256": "e8c5760756c4928caa473bdd5db1b3a84e6020fa2ab00071f68d2a0efeb56486",
-      "lower_sha256": "6c87a317d194cb40635999d975c676c3b255a5c736bae8a36b7b1eb1e6aed3e8",
-      "svg_sha256": "c2cf91dd2d4deb32c4be9919f94a513448aa982cf4859eb15533b94dfdd20785",
+      "lower_sha256": "3acae8af85f36e67039f757c71c8ef93c1e9b4e12440fbcd33e45fd3e62b5df0",
+      "svg_sha256": "bd1951cb12059997844b3c6decc24e92f1f95623cab9ad68edd2624d5880aea4",
       "replay_normalize_sha256": "8e44e4f6ae2ea3005f40bd268b3bac4787970c184a3aa7b2f14c9e779d870204",
-      "replay_lower_sha256": "6c87a317d194cb40635999d975c676c3b255a5c736bae8a36b7b1eb1e6aed3e8",
-      "replay_svg_sha256": "c2cf91dd2d4deb32c4be9919f94a513448aa982cf4859eb15533b94dfdd20785"
+      "replay_lower_sha256": "3acae8af85f36e67039f757c71c8ef93c1e9b4e12440fbcd33e45fd3e62b5df0",
+      "replay_svg_sha256": "bd1951cb12059997844b3c6decc24e92f1f95623cab9ad68edd2624d5880aea4"
     },
     {
       "source": "examples/geometry/compiler-pipeline.viz.yaml",
@@ -167,48 +167,48 @@
     {
       "source": "examples/interaction/linked-services.viz.yaml",
       "normalize_sha256": "624ac9a3821d953049ae98a9d69e6a10d7a01b2fb27fbe003c8756f645272058",
-      "lower_sha256": "b02464c1219f804b807085103c0efb15da63ee8a4a36a9acd27251eb5080c7e0",
-      "svg_sha256": "5c3c5a8ff86b209e3d0da6c62fce99f1d679148a35301375cb341f7607cf4c5e",
+      "lower_sha256": "e92f6ca5a5c1c580eb462543231cc78d76b1c9c9bbf456ffe010f4364887506f",
+      "svg_sha256": "64e07a8fb76b385ab0787ab8bf92f00bfa22265b27fa6dcce867aad231df6e06",
       "replay_normalize_sha256": "7c9f1ff4493c9793a0477e12185f4688d8050a47264dcb3faa0a224402c5c061",
-      "replay_lower_sha256": "b02464c1219f804b807085103c0efb15da63ee8a4a36a9acd27251eb5080c7e0",
-      "replay_svg_sha256": "5c3c5a8ff86b209e3d0da6c62fce99f1d679148a35301375cb341f7607cf4c5e"
+      "replay_lower_sha256": "e92f6ca5a5c1c580eb462543231cc78d76b1c9c9bbf456ffe010f4364887506f",
+      "replay_svg_sha256": "64e07a8fb76b385ab0787ab8bf92f00bfa22265b27fa6dcce867aad231df6e06"
     },
     {
       "source": "examples/mixed/capacity-planning.viz.yaml",
       "normalize_sha256": "66fbc07d02848c79e4f781a9f1f00618d9b34fa5eb99293132cefbe658e59e68",
-      "lower_sha256": "0dc26e127aaaf0640c8703d4abf0c7f51edbb7ed9e3914b9743a8a226c198ea8",
-      "svg_sha256": "29e7b73239d3f677c510b994fb57f51ce241b364bcf19e22ec8838305efd711f",
+      "lower_sha256": "6a1042d1fe53bba61614dcddd6b481738696112fb98e38b625087df072604170",
+      "svg_sha256": "b628b8b14728b3e8bc28018907bd7bbf2ae4f84d0a15b408ba2941816c16aa16",
       "replay_normalize_sha256": "4cd27905170198954758393556f525aca55fab16c862a0afe19ca655b00d8a48",
-      "replay_lower_sha256": "0dc26e127aaaf0640c8703d4abf0c7f51edbb7ed9e3914b9743a8a226c198ea8",
-      "replay_svg_sha256": "29e7b73239d3f677c510b994fb57f51ce241b364bcf19e22ec8838305efd711f"
+      "replay_lower_sha256": "6a1042d1fe53bba61614dcddd6b481738696112fb98e38b625087df072604170",
+      "replay_svg_sha256": "b628b8b14728b3e8bc28018907bd7bbf2ae4f84d0a15b408ba2941816c16aa16"
     },
     {
       "source": "examples/mixed/reliability-brief.viz.yaml",
       "normalize_sha256": "85de21256afc7f1aaa97bb107cf587a53782071773798420e73feb68d814e030",
-      "lower_sha256": "3ee5b56784e50591a0317c03051557f487c53275bbdfbf0730007f04237f42c0",
-      "svg_sha256": "53276a878e959f594de22d23863b0fcfa578d3385215fe42bf8f059f5700b2ed",
+      "lower_sha256": "59217bd982861d86ddda4c0d29665843996796b5fc4ade271c9f0f5b599f0cd9",
+      "svg_sha256": "77cab6aebc4df682cec134e583dfdbebdd6e759f0e13774e0ff8910902359f05",
       "replay_normalize_sha256": "c94585e07f088a943a21934f64916059505ee845dfbc245f7f5d18b52fb74c4e",
-      "replay_lower_sha256": "3ee5b56784e50591a0317c03051557f487c53275bbdfbf0730007f04237f42c0",
-      "replay_svg_sha256": "53276a878e959f594de22d23863b0fcfa578d3385215fe42bf8f059f5700b2ed"
+      "replay_lower_sha256": "59217bd982861d86ddda4c0d29665843996796b5fc4ade271c9f0f5b599f0cd9",
+      "replay_svg_sha256": "77cab6aebc4df682cec134e583dfdbebdd6e759f0e13774e0ff8910902359f05"
     },
     {
       "source": "examples/mixed/theme-defaults.viz.yaml",
       "normalize_sha256": "748547c9f35144047f4a3577bd6f6e00e876bb4c7f4c94df6b03b1662dbf24b3",
-      "lower_sha256": "0b867253ec73de5a982b463c46168953abea69cf3a9521a7907a5d3725cf23de",
-      "svg_sha256": "13a57e9b715b582123f68a5c12907af30c2e70ef70618246174af2a18991e8ba",
+      "lower_sha256": "83b60e2f208efc0c1df1ccd09c15d7a7ede3df6d2b6e1b0a67267d09dcbfdb5e",
+      "svg_sha256": "66fc8e58ab61e63970eae950e33416c5a9615d27e4a0b9259104be6440271a20",
       "replay_normalize_sha256": "acb02ea4fcf36b0680a66fa4548e3e4c1ddda70d1c9aad8f16d9abf214f8774a",
-      "replay_lower_sha256": "0b867253ec73de5a982b463c46168953abea69cf3a9521a7907a5d3725cf23de",
-      "replay_svg_sha256": "13a57e9b715b582123f68a5c12907af30c2e70ef70618246174af2a18991e8ba"
+      "replay_lower_sha256": "83b60e2f208efc0c1df1ccd09c15d7a7ede3df6d2b6e1b0a67267d09dcbfdb5e",
+      "replay_svg_sha256": "66fc8e58ab61e63970eae950e33416c5a9615d27e4a0b9259104be6440271a20"
     },
     {
       "source": "examples/composition/service-grid.compose.yaml",
       "hir_sha256": "355de1d6f9d00f21dbf41cd07f5f0454d9249be8b9ff1c0eacb0334fb610cf70",
       "normalize_sha256": "e22dc78f1f0bd8952d1d911ed7b83cfb1bf17141b5ad61a4fb7be44c25b76db3",
-      "lower_sha256": "953091c5332911e68f5e7d9a5b0284f217c411ce098613ba09c8b2253e7b8513",
-      "svg_sha256": "24cc9f67f3a7417a9842076bf83a4010eeb3dd42d3c3d6940b8e2211019a2d46",
+      "lower_sha256": "ba59a42c1191fc77c9dbe58e6609c9f95dea29e9a0cbac8132e30eba0bf69faa",
+      "svg_sha256": "50b69db2fa8828bbf2bb14c1ed0d0a40212d8420126d0af8a26ebb1af3862266",
       "replay_normalize_sha256": "24ddc321de734e003766f4d80ea6b5d90073ee984433f5b62b37c891684f853a",
-      "replay_lower_sha256": "953091c5332911e68f5e7d9a5b0284f217c411ce098613ba09c8b2253e7b8513",
-      "replay_svg_sha256": "24cc9f67f3a7417a9842076bf83a4010eeb3dd42d3c3d6940b8e2211019a2d46"
+      "replay_lower_sha256": "ba59a42c1191fc77c9dbe58e6609c9f95dea29e9a0cbac8132e30eba0bf69faa",
+      "replay_svg_sha256": "50b69db2fa8828bbf2bb14c1ed0d0a40212d8420126d0af8a26ebb1af3862266"
     },
     {
       "source": "examples/composition/area-dashboard.compose.yaml",
@@ -639,5 +639,20 @@
         ]
       }
     }
-  ]
+  ],
+  "render_revision": {
+    "date": "2026-10-11",
+    "reason": "Distinct diagram ports, external self-loops and fixed-size visible arrowheads",
+    "sources": [
+      "examples/composition/service-grid.compose.yaml",
+      "examples/diagram/agent-runtime.viz.yaml",
+      "examples/diagram/data-platform.viz.yaml",
+      "examples/diagram/dialect-lowering.viz.yaml",
+      "examples/interaction/linked-services.viz.yaml",
+      "examples/mixed/capacity-planning.viz.yaml",
+      "examples/mixed/reliability-brief.viz.yaml",
+      "examples/mixed/theme-defaults.viz.yaml"
+    ],
+    "unchanged": "All HIR/MIR, schema and chart-only byte expectations"
+  }
 }

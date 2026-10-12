@@ -33,7 +33,7 @@ Save a strict local JSON file with this shape:
 {
   "format": "vizir-selection-links/1",
   "document_id": "linked-services",
-  "scene_sha256": "93a5a7259655200c6e8b3d1e70bc61caeba677569c9844958546f1a569397065",
+  "scene_sha256": "d1bc550a0a9dcfe4b8ba94447e1dd83a899407a54500af65e46a133adf0b67c6",
   "instance_key": "main",
   "groups": [{
     "id": "api",

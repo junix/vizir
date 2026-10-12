@@ -526,3 +526,13 @@ V1/V2/V3 retain their original schemas and version/wrapping-profile boundaries.
 It reuses the existing compiler/backend; independent Hub receipt verification
 is a separate integration requirement. Build/install now includes both binaries;
 `cargo run -p vizir-cli -- ...` continues to select `vizir`.
+
+### Diagram connector geometry
+
+Diagram edges receive distinct side attachments across incoming/outgoing ends, fixed-size arrowheads and a 3px node gap. Self-loops use an external cubic with resolved bounds, and edge labels follow the cubic midpoint. Repeated edges retain their multiplicity during rank calculation. The same arrow geometry is used in the legacy SVG path and themed Scene2D path. Reproduce with `vizir render examples/diagram/connector-fan-in.viz.yaml --format svg -o out/connectors.svg`. This change does not add general obstacle avoidance to the cubic layout provider.
+
+This intentionally revises diagram Scene2D/SVG bytes, including legacy unthemed
+diagrams, and therefore their snapshot-bound interaction digests. HIR/MIR,
+schemas and chart-only output bytes keep their published expectations. The
+compatibility fixtures record this rendering revision; regenerate only its
+affected snapshots with `python3 tools/refresh_connector_snapshots.py /path/to/vizir`.

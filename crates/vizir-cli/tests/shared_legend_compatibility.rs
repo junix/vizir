@@ -1,4 +1,4 @@
-//! Byte fixtures captured from the published fa14dc7 executable before 0.8.
+//! Published fa14dc7 contracts with the documented connector geometry revision.
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{

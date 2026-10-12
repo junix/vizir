@@ -1463,68 +1463,14 @@ fn build_diagram(
     let node_height = 62.0;
     let mut children = Vec::new();
 
+    let routes = crate::layout::route_edges(&layout.positions, &diagram.edges)?;
     for (edge_index, edge) in diagram.edges.iter().enumerate() {
-        let from = *layout.positions.get(&edge.from).ok_or_else(|| {
-            VizError::Diagnostic(format!(
-                "VIZ-LAYOUT-0002: missing position for {:?}",
-                edge.from
-            ))
-        })?;
-        let to = *layout.positions.get(&edge.to).ok_or_else(|| {
-            VizError::Diagnostic(format!(
-                "VIZ-LAYOUT-0003: missing position for {:?}",
-                edge.to
-            ))
-        })?;
-        let delta_x = to.x - from.x;
-        let delta_y = to.y - from.y;
-        let (start, end, control1, control2) = if delta_x.abs() >= delta_y.abs() {
-            let direction = delta_x.signum();
-            let start = Point {
-                x: from.x + direction * node_width / 2.0,
-                y: from.y,
-            };
-            let end = Point {
-                x: to.x - direction * node_width / 2.0,
-                y: to.y,
-            };
-            let bend = ((end.x - start.x).abs() * 0.45).max(28.0);
-            (
-                start,
-                end,
-                Point {
-                    x: start.x + direction * bend,
-                    y: start.y,
-                },
-                Point {
-                    x: end.x - direction * bend,
-                    y: end.y,
-                },
-            )
-        } else {
-            let direction = delta_y.signum();
-            let start = Point {
-                x: from.x,
-                y: from.y + direction * node_height / 2.0,
-            };
-            let end = Point {
-                x: to.x,
-                y: to.y - direction * node_height / 2.0,
-            };
-            let bend = ((end.y - start.y).abs() * 0.45).max(28.0);
-            (
-                start,
-                end,
-                Point {
-                    x: start.x,
-                    y: start.y + direction * bend,
-                },
-                Point {
-                    x: end.x,
-                    y: end.y - direction * bend,
-                },
-            )
-        };
+        let crate::layout::EdgeCurve {
+            start,
+            end,
+            control1,
+            control2,
+        } = routes[edge_index];
         let commands = vec![
             PathCommand::Move { to: start },
             PathCommand::Cubic {
@@ -1542,7 +1488,7 @@ fn build_diagram(
         );
         children.push(SceneNode::Path {
             id: format!("{}/edge/{edge_index}-{}-{}", diagram.id, edge.from, edge.to),
-            bounds: Rect::from_points(start, end),
+            bounds: bounds_for_points(&[start, end, control1, control2]),
             origin: Origin {
                 hir_node: diagram.id.clone(),
                 mir_node: format!("{}/edges/{edge_index}", diagram.id),
@@ -1565,8 +1511,8 @@ fn build_diagram(
             children.push(text_node(
                 format!("{}/edge/{edge_index}/label", diagram.id),
                 Point {
-                    x: (start.x + end.x) / 2.0,
-                    y: (start.y + end.y) / 2.0 - 7.0,
+                    x: (start.x + 3.0 * control1.x + 3.0 * control2.x + end.x) / 8.0,
+                    y: (start.y + 3.0 * control1.y + 3.0 * control2.y + end.y) / 8.0 - 7.0,
                 },
                 label.clone(),
                 10.5,
@@ -2169,8 +2115,8 @@ fn numeric_tick_envelope(node: SceneNode, ticks: Option<&NumericTickLabels>) -> 
     }
 }
 
-// The legacy SVG marker uses markerUnits=strokeWidth, a 7x7 viewport and
-// refX=9 on a 10-unit triangle. Resolve that same triangle once in Scene2D.
+// Match the fixed-size legacy SVG marker in Scene2D. The tip is exactly
+// at the resolved endpoint; its 3px node clearance belongs to routing.
 fn arrow_node(
     diagram: &MirDiagram,
     edge_index: usize,
@@ -2188,7 +2134,7 @@ fn arrow_node(
             "cannot resolve a finite diagram arrow tangent",
         ));
     }
-    let unit = edge_style.stroke_width * 0.7;
+    let unit = 0.7;
     let direction = Point {
         x: dx / length,
         y: dy / length,
@@ -2197,7 +2143,7 @@ fn arrow_node(
         x: end.x + unit * (direction.x * x - direction.y * y),
         y: end.y + unit * (direction.y * x + direction.x * y),
     };
-    let vertices = [project(-9.0, -5.0), project(1.0, 0.0), project(-9.0, 5.0)];
+    let vertices = [project(-10.0, -5.0), project(0.0, 0.0), project(-10.0, 5.0)];
     if vertices
         .iter()
         .any(|p| !p.x.is_finite() || !p.y.is_finite())

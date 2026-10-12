@@ -136,7 +136,14 @@ fn render_into(
         escape_text(&scene.document_id)
     )
     .map_err(writer_error)?;
-    writeln!(output, "  <defs>\n    <marker id=\"{}\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"7\" markerHeight=\"7\" orient=\"auto-start-reverse\">\n      <path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"#8793A5\"/>\n    </marker>\n  </defs>", marker_id).map_err(writer_error)?;
+    // Charts that do not use markers retain their exact published SVG bytes.
+    // Only an actually painted arrow needs the corrected fixed-size marker.
+    let marker_geometry = if has_arrow(&scene.nodes) {
+        "refX=\"10\" refY=\"5\" markerUnits=\"userSpaceOnUse\""
+    } else {
+        "refX=\"9\" refY=\"5\""
+    };
+    writeln!(output, "  <defs>\n    <marker id=\"{}\" viewBox=\"0 0 10 10\" {} markerWidth=\"7\" markerHeight=\"7\" orient=\"auto-start-reverse\">\n      <path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"#8793A5\"/>\n    </marker>\n  </defs>", marker_id, marker_geometry).map_err(writer_error)?;
     if scene.background.0 != "transparent" {
         let (width, height) = if context.is_some() {
             (scene.width.to_string(), scene.height.to_string())
@@ -157,6 +164,14 @@ fn render_into(
     }
     output.write_str("</svg>\n").map_err(writer_error)?;
     Ok(())
+}
+
+fn has_arrow(nodes: &[SceneNode]) -> bool {
+    nodes.iter().any(|node| match node {
+        SceneNode::Line { marker_end, .. } | SceneNode::Path { marker_end, .. } => *marker_end,
+        SceneNode::Group { children, .. } => has_arrow(children),
+        _ => false,
+    })
 }
 
 fn canvas_number(value: f64, context: Option<&SvgRenderContext>) -> String {

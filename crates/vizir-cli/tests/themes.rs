@@ -210,7 +210,7 @@ fn oversized_json_and_deep_envelopes_are_rejected_before_execution() {
 }
 
 #[test]
-fn unselected_theme_preserves_exact_legacy_mir_scene_and_svg_bytes() {
+fn unselected_theme_preserves_mir_and_matches_corrected_connector_geometry() {
     let input =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/legacy-theme-source.json");
     let t = tempfile::tempdir().unwrap();

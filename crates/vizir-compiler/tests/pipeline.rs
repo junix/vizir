@@ -380,33 +380,34 @@ fn cyclic_diagrams_fall_back_to_deterministic_layers_without_dropping_nodes() {
         );
     }
 
-    // Edges route horizontally from the pinned centers: anchors sit on the
-    // node border (center ± 75) and the bend clamps to the 28pt minimum, so
-    // neighbors 105pt apart produce end points that cross backwards.
+    // Edges route horizontally from the pinned centers: anchors sit
+    // 3px outside the node border (center ± 78), with separate reciprocal
+    // ports. This deliberately narrow legacy canvas still overlaps cards;
+    // connector repair does not change the provider's pinned node placement.
     for (edge, endpoints, start, control1, control2, end) in [
         (
             "cycle-demo/edge/0-c-a",
             "c -> a",
-            Point { x: 170.0, y: 162.5 },
-            Point { x: 198.0, y: 162.5 },
-            Point { x: 97.0, y: 162.5 },
-            Point { x: 125.0, y: 162.5 },
+            Point { x: 173.0, y: 162.5 },
+            Point { x: 201.0, y: 162.5 },
+            Point { x: 94.0, y: 162.5 },
+            Point { x: 122.0, y: 162.5 },
         ),
         (
             "cycle-demo/edge/1-a-b",
             "a -> b",
-            Point { x: 275.0, y: 162.5 },
-            Point { x: 303.0, y: 162.5 },
-            Point { x: 202.0, y: 162.5 },
-            Point { x: 230.0, y: 162.5 },
+            Point { x: 278.0, y: 155.5 },
+            Point { x: 306.0, y: 155.5 },
+            Point { x: 199.0, y: 155.5 },
+            Point { x: 227.0, y: 155.5 },
         ),
         (
             "cycle-demo/edge/2-b-a",
             "b -> a",
-            Point { x: 230.0, y: 162.5 },
-            Point { x: 202.0, y: 162.5 },
-            Point { x: 303.0, y: 162.5 },
-            Point { x: 275.0, y: 162.5 },
+            Point { x: 227.0, y: 169.5 },
+            Point { x: 199.0, y: 169.5 },
+            Point { x: 306.0, y: 169.5 },
+            Point { x: 278.0, y: 169.5 },
         ),
     ] {
         let routed = find_scene_node(&compilation.scene.nodes, edge)

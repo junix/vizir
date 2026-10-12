@@ -1,4 +1,5 @@
-//! Exact byte and additive schema snapshots captured from published 965ebd3.
+//! Published 965ebd3 contracts with the documented connector geometry revision.
+//! HIR/MIR, chart-only rendering and additive schema expectations are unchanged.
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
